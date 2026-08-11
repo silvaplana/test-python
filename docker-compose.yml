@@ -6,6 +6,16 @@
 #   docker compose logs -f         -> suit les logs en direct
 #   docker compose ps              -> liste les conteneurs et leur état
 #   docker compose down            -> arrête et supprime les conteneurs
+#
+# Ce projet n'est PAS exposé directement à Internet : aucun port n'est
+# publié ici. C'est le Caddy "gateway" partagé (voir ~/gateway sur le
+# VPS, hors de ce repo — silvaplana.cloud héberge plusieurs applis sous
+# des chemins différents) qui possède le domaine/le HTTPS et route
+# /test-python/* vers le service "frontend" ci-dessous, via le réseau
+# Docker externe "web".
+#
+# Sur le VPS, ce réseau doit exister avant le premier `docker compose up` :
+#   docker network create web
 
 services:
   backend:
@@ -22,33 +32,23 @@ services:
     build:
       context: ./frontend
       args:
-        VITE_API_URL: /api
+        # L'app appelle son API sur son propre chemin (/test-python/api/...),
+        # que le gateway route vers ici puis que le Caddy interne (voir
+        # frontend/Caddyfile) transmet à "backend". Voir aussi le "base" dans
+        # vite.config.js, qui doit rester cohérent avec ce chemin.
+        VITE_API_URL: /test-python/api
     restart: unless-stopped
-    environment:
-      # Nom de domaine pour lequel Caddy obtient le certificat HTTPS.
-      # Redéfinissable via une variable d'environnement shell, ex. pour
-      # tester en local : `DOMAIN=localhost docker compose up -d --build`
-      # (Caddy reconnaît "localhost" et génère alors un certificat local
-      # auto-signé au lieu d'appeler Let's Encrypt).
-      DOMAIN: ${DOMAIN:-silvaplana.cloud}
-      # Email utilisé par Let's Encrypt pour les notifications importantes
-      # (expiration, changement de conditions) — pas indispensable mais recommandé.
-      ACME_EMAIL: ${ACME_EMAIL:-sebastien.richard54@gmail.com}
-    # Seuls ces ports sont publiés vers l'extérieur : 80 (redirection auto
-    # vers 443 par Caddy + défi ACME Let's Encrypt) et 443 (HTTPS). Caddy
-    # sert le front et fait office de reverse proxy vers le backend en interne.
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      # Persiste les certificats obtenus entre deux redémarrages/rebuilds
-      # du conteneur : évite de redemander un certificat à chaque déploiement
-      # (Let's Encrypt limite le nombre de demandes par domaine/semaine).
-      - caddy_data:/data
-      - caddy_config:/config
+    container_name: test-python-frontend
+    # Réseau par défaut du projet (communication avec "backend") + réseau
+    # "web" partagé avec le gateway, qui doit pouvoir joindre ce conteneur
+    # par son nom ("test-python-frontend", voir container_name ci-dessus).
+    networks:
+      - default
+      - web
     depends_on:
       - backend
 
-volumes:
-  caddy_data:
-  caddy_config:
+networks:
+  default:
+  web:
+    external: true

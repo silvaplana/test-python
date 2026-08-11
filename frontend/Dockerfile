@@ -14,19 +14,19 @@ RUN npm ci
 # Le reste du code source
 COPY . .
 
-# URL de l'API utilisée par le frontend une fois compilé. Par défaut "/api" :
-# le frontend appelle son propre domaine sur /api/..., et c'est nginx
-# (voir nginx.conf) qui redirige ces requêtes vers le conteneur backend.
-# Ça évite tout problème de CORS en production et n'expose qu'un seul port.
+# URL de l'API utilisée par le frontend une fois compilé (voir
+# docker-compose.yml pour la valeur réelle : l'app est servie sous un
+# sous-chemin du domaine partagé, pas à sa racine).
 ARG VITE_API_URL=/api
 RUN echo "VITE_API_URL=${VITE_API_URL}" > .env.production
 
 RUN npm run build
 
 # ---- Étape 2 : image finale — juste Caddy + les fichiers statiques ----
-# Caddy fait ici office de serveur web ET de reverse proxy vers l'API,
-# ET gère lui-même l'obtention/le renouvellement des certificats HTTPS
-# (Let's Encrypt) — voir Caddyfile pour la configuration.
+# Caddy sert ici les fichiers statiques et fait le reverse proxy vers
+# l'API, en interne uniquement (pas de TLS ici, voir Caddyfile : c'est
+# le Caddy "gateway" partagé du VPS qui gère le domaine/HTTPS et route
+# vers ce conteneur).
 FROM caddy:alpine
 
 # Les fichiers compilés de l'étape "build" (dossier dist/)
@@ -35,4 +35,4 @@ COPY --from=build /app/dist /srv
 # Configuration Caddy : sert le front + proxy vers l'API (voir Caddyfile)
 COPY Caddyfile /etc/caddy/Caddyfile
 
-EXPOSE 80 443
+EXPOSE 80
