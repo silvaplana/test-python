@@ -21,6 +21,49 @@ Intérêt concret ici : le VPS n'a besoin d'installer que Docker. Pas besoin
 d'installer Python, Node, nginx, ni de gérer les versions à la main —
 tout est déjà emballé dans les images.
 
+## 1bis. Architecture du VPS : un domaine, plusieurs applis
+
+`silvaplana.cloud` est destiné à héberger **plusieurs applis** (dont
+`test-python`), chacune sous un chemin différent
+(`/test-python`, plus tard `/openclaw`, etc.). Un seul domaine, un seul
+couple de ports 80/443 sur le VPS — donc un seul service peut les
+posséder.
+
+C'est le rôle du **gateway** : un Caddy partagé, **hors de ce repo**,
+qui vit directement sur le VPS dans `~/gateway` (pas versionné dans Git,
+volontairement — c'est juste 2-3 fichiers de config, plus simple à
+maintenir à la main qu'un repo séparé). Il :
+- possède seul les ports 80/443 et le certificat HTTPS de `silvaplana.cloud` ;
+- sert une petite page d'accueil à la racine (`/`) ;
+- route `/test-python/*` vers le conteneur `test-python-frontend` de ce
+  projet, `/api/*` compris (proxifié plus loin par ce dernier vers le
+  backend).
+
+Ce projet (`test-python`), lui, **ne publie aucun port** et ne gère pas de
+certificat : il tourne en interne, uniquement joignable par le gateway,
+via un réseau Docker externe nommé `web` que les deux partagent :
+
+```
+Internet ──443/HTTPS──▶ gateway (Caddy, ~/gateway)
+                           │
+                           ├── /              → landing page (fichiers statiques)
+                           └── /test-python/* → réseau "web" → test-python-frontend:80 (Caddy interne)
+                                                                    │
+                                                                    └── /api/* → backend:8000 (FastAPI)
+```
+
+Le réseau `web` doit exister une seule fois sur le VPS avant de lancer
+quoi que ce soit :
+
+```bash
+docker network create web
+```
+
+Pour ajouter une nouvelle appli plus tard : lui donner un nom de
+conteneur stable (`container_name` dans son `docker-compose.yml`), la
+rattacher au réseau `web`, ne publier aucun port, puis ajouter un bloc de
+routage dans `~/gateway/Caddyfile` sur le VPS.
+
 ## 2. Ce qui a été mis en place dans ce repo
 
 ```
@@ -30,9 +73,9 @@ test-python/
 │   └── .dockerignore     # fichiers à ne pas copier dans l'image (venv, tests, ...)
 ├── frontend/
 │   ├── Dockerfile        # build multi-étapes : Node compile React, puis Caddy sert les fichiers
-│   ├── Caddyfile          # configuration Caddy : sert le front + proxy vers l'API + HTTPS auto
+│   ├── Caddyfile          # Caddy interne : sert le front + proxy /api/... vers le backend
 │   └── .dockerignore
-└── docker-compose.yml     # démarre les 2 conteneurs ensemble
+└── docker-compose.yml     # démarre les 2 conteneurs, rattache "frontend" au réseau "web"
 ```
 
 ### Le backend (`backend/Dockerfile`)
@@ -47,32 +90,29 @@ Le conteneur écoute sur le port 8000, mais **n'est pas exposé directement
 Ce Dockerfile a **deux étapes** :
 
 1. **Étape "build"** : une image Node compile l'app React (`npm run build`)
-   et produit des fichiers statiques (HTML/CSS/JS) dans `dist/`.
+   et produit des fichiers statiques (HTML/CSS/JS) dans `dist/`. Le build
+   utilise `base: '/test-python/'` (voir `vite.config.js`) : les fichiers
+   générés référencent ce chemin, pas la racine du domaine.
 2. **Étape finale** : une image **Caddy** (serveur web léger), dans
    laquelle on copie uniquement les fichiers `dist/` produits à l'étape 1.
 
 Résultat : l'image finale ne contient ni Node ni le code source React —
 juste Caddy et les fichiers statiques. Elle est donc petite et sécurisée.
 
-`Caddyfile` fait trois choses :
+`Caddyfile` (interne, pas de domaine ni de TLS ici — c'est le gateway qui
+s'en charge) fait deux choses, en voyant les requêtes **comme si l'app
+était à la racine** (le gateway a déjà retiré le préfixe `/test-python`
+avant de transmettre) :
 - sert le site React sur `/`.
 - redirige (`reverse_proxy`) tout ce qui arrive sur `/api/...` vers le
   conteneur `backend` sur le port 8000. Exemple : une requête vers
   `/api/motor` est transmise à `http://backend:8000/motor`.
-- **obtient et renouvelle automatiquement un certificat HTTPS**
-  (Let's Encrypt) pour le nom de domaine défini par la variable
-  d'environnement `DOMAIN` (voir `docker-compose.yml`) — aucune commande
-  `certbot` à lancer, aucun renouvellement manuel : Caddy s'en charge en
-  continu tant que le conteneur tourne.
 
-C'est pour ça que le frontend est compilé avec `VITE_API_URL=/api` en
-production (voir `ARG VITE_API_URL` dans le Dockerfile) : il appelle son
-propre domaine sur `/api/...` au lieu d'une URL `localhost:8000` codée en
-dur. Avantages :
-- **un seul point d'entrée public** (le domaine, en HTTPS) ;
-- **plus de souci de CORS** en production (le navigateur ne voit qu'un
-  seul domaine) ;
-- le backend reste injoignable directement depuis Internet.
+Le frontend est compilé avec `VITE_API_URL=/test-python/api` (voir `ARG
+VITE_API_URL` dans le Dockerfile et le build arg dans
+`docker-compose.yml`) : il appelle `/test-python/api/...`, que le gateway
+route ici en retirant `/test-python`, laissant `/api/...` pour le Caddy
+interne ci-dessus.
 
 ### `docker-compose.yml`
 
@@ -81,37 +121,36 @@ communiquent :
 - `backend` : `expose: 8000` → accessible uniquement par les autres
   conteneurs du même projet compose (via le réseau interne que Docker
   crée automatiquement), pas depuis l'extérieur.
-- `frontend` : `ports: "80:80"` et `"443:443"` → **seul point d'entrée
-  public**. Le port 80 sert au défi ACME (validation du domaine par
-  Let's Encrypt) et à rediriger automatiquement vers HTTPS ; le port 443
-  sert le trafic HTTPS. Les volumes `caddy_data`/`caddy_config`
-  persistent les certificats entre deux redémarrages du conteneur.
+- `frontend` : **aucun port publié**. Rattaché au réseau par défaut du
+  projet (pour parler à `backend`) et au réseau externe `web` (pour être
+  joignable par le gateway), sous le nom fixe `test-python-frontend`
+  (`container_name`).
 
 ## 3. Tester en local (optionnel mais recommandé)
 
-Si tu installes Docker Desktop (ou Docker Engine) sur ta machine :
+Si tu installes Docker Desktop (ou Docker Engine) sur ta machine, teste
+l'architecture complète (gateway + appli), comme en prod :
 
 ```bash
+docker network create web
+
 cd test-python
 docker compose up -d --build
 ```
 
-Par défaut, Caddy essaiera d'obtenir un certificat Let's Encrypt pour
-`silvaplana.cloud`, ce qui échouera en local (le défi ACME ne peut pas
-atteindre ta machine). Pour tester proprement en local, surcharge la
-variable `DOMAIN` :
+Le service `frontend` n'a pas de port public : pour l'atteindre depuis un
+navigateur, il faut aussi lancer un gateway local. Un gateway minimal
+suffit — voir la structure décrite en section 1bis (`Caddyfile` avec
+`{$DOMAIN}` + un `handle_path /test-python/* { reverse_proxy
+test-python-frontend:80 }`), lancé avec `DOMAIN=localhost` pour obtenir un
+certificat local auto-signé (pas d'appel à Let's Encrypt).
+
+Une fois les deux lancés, ouvre `https://localhost/test-python/`
+(avertissement de sécurité à accepter, normal en local) : tu dois voir le
+frontend, qui appelle l'API via `/test-python/api/motor`.
 
 ```bash
-DOMAIN=localhost docker compose up -d --build
-```
-
-Caddy reconnaît `localhost` et génère un certificat local auto-signé
-(pas d'appel à Let's Encrypt). Ouvre `https://localhost` dans un
-navigateur (avertissement de sécurité à accepter, normal en local) : tu
-dois voir le frontend, qui appelle l'API via `/api/motor`.
-
-```bash
-docker compose logs -f       # voir les logs des deux conteneurs
+docker compose logs -f       # voir les logs des deux conteneurs de test-python
 docker compose down          # tout arrêter et nettoyer
 ```
 
@@ -129,7 +168,13 @@ sudo usermod -aG docker $USER
 
 Vérifie : `docker --version` et `docker compose version`.
 
-### b) Récupérer le projet sur le VPS
+### b) Créer le réseau partagé (une seule fois)
+
+```bash
+docker network create web
+```
+
+### c) Récupérer le projet sur le VPS
 
 ```bash
 git clone https://github.com/silvaplana/test-python.git
@@ -138,7 +183,7 @@ cd test-python
 
 (Pour les mises à jour futures : `git pull` puis rebuild, voir plus bas.)
 
-### c) Lancer les conteneurs
+### d) Lancer les conteneurs
 
 ```bash
 docker compose up -d --build
@@ -146,11 +191,10 @@ docker compose up -d --build
 
 `-d` = en arrière-plan (detached), `--build` = reconstruit les images à
 partir des Dockerfile (nécessaire au premier lancement, et à chaque fois
-que le code change).
+que le code change). Rien n'est encore accessible publiquement à ce
+stade : il manque le gateway (voir section 5).
 
-### d) Ouvrir le port dans le pare-feu (si applicable)
-
-Selon la configuration du VPS Hostinger :
+### e) Ouvrir les ports dans le pare-feu
 
 ```bash
 sudo ufw allow 22/tcp    # garder l'accès SSH !
@@ -158,13 +202,6 @@ sudo ufw allow 80/tcp    # HTTP (défi ACME + redirection vers HTTPS)
 sudo ufw allow 443/tcp   # HTTPS
 sudo ufw enable
 ```
-
-### e) Pointer ton nom de domaine
-
-Dans la gestion DNS de ton domaine (chez Hostinger ou ailleurs), crée un
-enregistrement **A** pointant vers l'IP publique du VPS. Une fois propagé
-(quelques minutes à quelques heures), `http://ton-domaine.com` doit
-afficher le frontend.
 
 ### f) Mettre à jour après un nouveau push GitHub
 
@@ -174,16 +211,19 @@ git pull
 docker compose up -d --build
 ```
 
-## 5. HTTPS (déjà en place)
+## 5. Le gateway et HTTPS (déjà en place)
 
 Le domaine `silvaplana.cloud` pointe vers le VPS (enregistrement DNS de
-type A) et le frontend est servi par **Caddy**, qui obtient et renouvelle
-automatiquement un certificat HTTPS via Let's Encrypt — aucune commande
-`certbot` à lancer, rien à renouveler manuellement.
+type A, déjà configuré côté Hostinger) et un Caddy "gateway" — dans
+`~/gateway` sur le VPS, **hors de ce repo** — obtient et renouvelle
+automatiquement un certificat HTTPS via Let's Encrypt, sert la page
+d'accueil sur `/`, et route `/test-python/*` vers ce projet. Voir la
+section 1bis pour l'architecture complète.
 
-Le site est accessible sur `https://silvaplana.cloud`. Caddy redirige
-automatiquement `http://` vers `https://`.
+Le site est accessible sur `https://silvaplana.cloud/test-python/`.
+Caddy redirige automatiquement `http://` vers `https://`.
 
-Pour changer de domaine : modifier la variable `DOMAIN` dans
-`docker-compose.yml`, s'assurer que le DNS pointe bien vers le VPS, puis
-`docker compose up -d --build`.
+Pour ajouter une nouvelle appli sur le même domaine : lui donner un
+`container_name` fixe, la rattacher au réseau `web`, aucun port publié,
+puis ajouter un bloc `handle_path` dans `~/gateway/Caddyfile` sur le VPS
+et relancer `docker compose up -d` dans `~/gateway`.
