@@ -1,0 +1,33 @@
+# docker-compose décrit et démarre plusieurs conteneurs ensemble,
+# ainsi que le réseau qui leur permet de communiquer entre eux.
+#
+# Commandes utiles :
+#   docker compose up -d --build   -> build les images et démarre les conteneurs (arrière-plan)
+#   docker compose logs -f         -> suit les logs en direct
+#   docker compose ps              -> liste les conteneurs et leur état
+#   docker compose down            -> arrête et supprime les conteneurs
+
+services:
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    # "expose" (contrairement à "ports") ne rend PAS le port accessible
+    # depuis l'extérieur de la machine : seul le conteneur "frontend"
+    # peut y accéder, via le réseau interne que docker-compose crée
+    # automatiquement pour ce projet.
+    expose:
+      - "8000"
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    # Seul ce port est publié vers l'extérieur : c'est le seul point
+    # d'entrée du site (http://ton-vps). nginx sert le front et fait
+    # office de reverse proxy vers le backend en interne.
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

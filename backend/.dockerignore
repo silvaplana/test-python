@@ -1,0 +1,9 @@
+# Ne pas copier ces fichiers/dossiers dans l'image Docker :
+# ils sont inutiles (ou nuisibles) au runtime.
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+tests/
+.git/
