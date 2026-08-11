@@ -23,13 +23,16 @@ RUN echo "VITE_API_URL=${VITE_API_URL}" > .env.production
 
 RUN npm run build
 
-# ---- Étape 2 : image finale — juste nginx + les fichiers statiques ----
-FROM nginx:alpine
+# ---- Étape 2 : image finale — juste Caddy + les fichiers statiques ----
+# Caddy fait ici office de serveur web ET de reverse proxy vers l'API,
+# ET gère lui-même l'obtention/le renouvellement des certificats HTTPS
+# (Let's Encrypt) — voir Caddyfile pour la configuration.
+FROM caddy:alpine
 
 # Les fichiers compilés de l'étape "build" (dossier dist/)
-COPY --from=build /app/dist /usr/share/nginx/html
+COPY --from=build /app/dist /srv
 
-# Configuration nginx : sert le front + proxy vers l'API (voir nginx.conf)
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# Configuration Caddy : sert le front + proxy vers l'API (voir Caddyfile)
+COPY Caddyfile /etc/caddy/Caddyfile
 
-EXPOSE 80
+EXPOSE 80 443

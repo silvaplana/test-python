@@ -1,0 +1,28 @@
+# Configuration Caddy : sert le frontend React + proxy vers l'API +
+# HTTPS automatique (certificat Let's Encrypt émis et renouvelé tout seul).
+#
+# {$DOMAIN} et {$ACME_EMAIL} sont substitués par les variables d'environnement
+# du conteneur au démarrage (voir docker-compose.yml) — pas besoin de
+# reconstruire l'image pour changer de domaine.
+{
+	email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+	root * /srv
+	encode gzip zstd
+
+	# Requêtes /api/... -> conteneur "backend", en retirant le préfixe /api.
+	# Exemple : /api/motor -> http://backend:8000/motor
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy backend:8000
+	}
+
+	# Sert l'app React. "try_files" fait retomber toute route inconnue
+	# sur index.html : nécessaire pour une SPA (routage côté client).
+	handle {
+		try_files {path} /index.html
+		file_server
+	}
+}

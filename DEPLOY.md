@@ -29,8 +29,8 @@ test-python/
 │   ├── Dockerfile        # construit l'image de l'API FastAPI
 │   └── .dockerignore     # fichiers à ne pas copier dans l'image (venv, tests, ...)
 ├── frontend/
-│   ├── Dockerfile        # build multi-étapes : Node compile React, puis nginx sert les fichiers
-│   ├── nginx.conf         # configuration nginx : sert le front + proxy vers l'API
+│   ├── Dockerfile        # build multi-étapes : Node compile React, puis Caddy sert les fichiers
+│   ├── Caddyfile          # configuration Caddy : sert le front + proxy vers l'API + HTTPS auto
 │   └── .dockerignore
 └── docker-compose.yml     # démarre les 2 conteneurs ensemble
 ```
@@ -48,23 +48,28 @@ Ce Dockerfile a **deux étapes** :
 
 1. **Étape "build"** : une image Node compile l'app React (`npm run build`)
    et produit des fichiers statiques (HTML/CSS/JS) dans `dist/`.
-2. **Étape finale** : une image nginx (serveur web léger), dans laquelle on
-   copie uniquement les fichiers `dist/` produits à l'étape 1.
+2. **Étape finale** : une image **Caddy** (serveur web léger), dans
+   laquelle on copie uniquement les fichiers `dist/` produits à l'étape 1.
 
 Résultat : l'image finale ne contient ni Node ni le code source React —
-juste nginx et les fichiers statiques. Elle est donc petite et sécurisée.
+juste Caddy et les fichiers statiques. Elle est donc petite et sécurisée.
 
-`nginx.conf` fait deux choses :
+`Caddyfile` fait trois choses :
 - sert le site React sur `/`.
-- redirige (`proxy_pass`) tout ce qui arrive sur `/api/...` vers le
+- redirige (`reverse_proxy`) tout ce qui arrive sur `/api/...` vers le
   conteneur `backend` sur le port 8000. Exemple : une requête vers
   `/api/motor` est transmise à `http://backend:8000/motor`.
+- **obtient et renouvelle automatiquement un certificat HTTPS**
+  (Let's Encrypt) pour le nom de domaine défini par la variable
+  d'environnement `DOMAIN` (voir `docker-compose.yml`) — aucune commande
+  `certbot` à lancer, aucun renouvellement manuel : Caddy s'en charge en
+  continu tant que le conteneur tourne.
 
 C'est pour ça que le frontend est compilé avec `VITE_API_URL=/api` en
 production (voir `ARG VITE_API_URL` dans le Dockerfile) : il appelle son
 propre domaine sur `/api/...` au lieu d'une URL `localhost:8000` codée en
 dur. Avantages :
-- **un seul port exposé au public** (80, puis 443 en HTTPS) ;
+- **un seul point d'entrée public** (le domaine, en HTTPS) ;
 - **plus de souci de CORS** en production (le navigateur ne voit qu'un
   seul domaine) ;
 - le backend reste injoignable directement depuis Internet.
@@ -76,8 +81,11 @@ communiquent :
 - `backend` : `expose: 8000` → accessible uniquement par les autres
   conteneurs du même projet compose (via le réseau interne que Docker
   crée automatiquement), pas depuis l'extérieur.
-- `frontend` : `ports: "80:80"` → **seul point d'entrée public**. Le port
-  80 du conteneur nginx est publié sur le port 80 du VPS.
+- `frontend` : `ports: "80:80"` et `"443:443"` → **seul point d'entrée
+  public**. Le port 80 sert au défi ACME (validation du domaine par
+  Let's Encrypt) et à rediriger automatiquement vers HTTPS ; le port 443
+  sert le trafic HTTPS. Les volumes `caddy_data`/`caddy_config`
+  persistent les certificats entre deux redémarrages du conteneur.
 
 ## 3. Tester en local (optionnel mais recommandé)
 
@@ -88,8 +96,19 @@ cd test-python
 docker compose up -d --build
 ```
 
-Puis ouvre `http://localhost` dans un navigateur : tu dois voir le
-frontend, qui appelle l'API via `/api/motor`.
+Par défaut, Caddy essaiera d'obtenir un certificat Let's Encrypt pour
+`silvaplana.cloud`, ce qui échouera en local (le défi ACME ne peut pas
+atteindre ta machine). Pour tester proprement en local, surcharge la
+variable `DOMAIN` :
+
+```bash
+DOMAIN=localhost docker compose up -d --build
+```
+
+Caddy reconnaît `localhost` et génère un certificat local auto-signé
+(pas d'appel à Let's Encrypt). Ouvre `https://localhost` dans un
+navigateur (avertissement de sécurité à accepter, normal en local) : tu
+dois voir le frontend, qui appelle l'API via `/api/motor`.
 
 ```bash
 docker compose logs -f       # voir les logs des deux conteneurs
@@ -134,8 +153,9 @@ que le code change).
 Selon la configuration du VPS Hostinger :
 
 ```bash
-sudo ufw allow 80/tcp
-sudo ufw allow 22/tcp   # garder l'accès SSH !
+sudo ufw allow 22/tcp    # garder l'accès SSH !
+sudo ufw allow 80/tcp    # HTTP (défi ACME + redirection vers HTTPS)
+sudo ufw allow 443/tcp   # HTTPS
 sudo ufw enable
 ```
 
@@ -154,11 +174,16 @@ git pull
 docker compose up -d --build
 ```
 
-## 5. Prochaine étape naturelle : HTTPS
+## 5. HTTPS (déjà en place)
 
-Pour l'instant seul le port 80 (HTTP, non chiffré) est exposé. L'étape
-suivante recommandée est d'ajouter le chiffrement TLS (HTTPS), par
-exemple avec **Caddy** (reverse proxy avec HTTPS automatique via Let's
-Encrypt, très simple à configurer) à la place de/devant nginx, ou avec
-`certbot` + nginx. Je peux m'en occuper quand tu es prêt — ça nécessite
-un nom de domaine déjà pointé vers le VPS.
+Le domaine `silvaplana.cloud` pointe vers le VPS (enregistrement DNS de
+type A) et le frontend est servi par **Caddy**, qui obtient et renouvelle
+automatiquement un certificat HTTPS via Let's Encrypt — aucune commande
+`certbot` à lancer, rien à renouveler manuellement.
+
+Le site est accessible sur `https://silvaplana.cloud`. Caddy redirige
+automatiquement `http://` vers `https://`.
+
+Pour changer de domaine : modifier la variable `DOMAIN` dans
+`docker-compose.yml`, s'assurer que le DNS pointe bien vers le VPS, puis
+`docker compose up -d --build`.

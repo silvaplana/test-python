@@ -24,10 +24,31 @@ services:
       args:
         VITE_API_URL: /api
     restart: unless-stopped
-    # Seul ce port est publié vers l'extérieur : c'est le seul point
-    # d'entrée du site (http://ton-vps). nginx sert le front et fait
-    # office de reverse proxy vers le backend en interne.
+    environment:
+      # Nom de domaine pour lequel Caddy obtient le certificat HTTPS.
+      # Redéfinissable via une variable d'environnement shell, ex. pour
+      # tester en local : `DOMAIN=localhost docker compose up -d --build`
+      # (Caddy reconnaît "localhost" et génère alors un certificat local
+      # auto-signé au lieu d'appeler Let's Encrypt).
+      DOMAIN: ${DOMAIN:-silvaplana.cloud}
+      # Email utilisé par Let's Encrypt pour les notifications importantes
+      # (expiration, changement de conditions) — pas indispensable mais recommandé.
+      ACME_EMAIL: ${ACME_EMAIL:-sebastien.richard54@gmail.com}
+    # Seuls ces ports sont publiés vers l'extérieur : 80 (redirection auto
+    # vers 443 par Caddy + défi ACME Let's Encrypt) et 443 (HTTPS). Caddy
+    # sert le front et fait office de reverse proxy vers le backend en interne.
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      # Persiste les certificats obtenus entre deux redémarrages/rebuilds
+      # du conteneur : évite de redemander un certificat à chaque déploiement
+      # (Let's Encrypt limite le nombre de demandes par domaine/semaine).
+      - caddy_data:/data
+      - caddy_config:/config
     depends_on:
       - backend
+
+volumes:
+  caddy_data:
+  caddy_config:
