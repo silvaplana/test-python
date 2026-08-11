@@ -1,0 +1,31 @@
+.app {
+  max-width: 480px;
+  margin: 4rem auto;
+  padding: 0 1.5rem;
+  text-align: center;
+  font-family: system-ui, sans-serif;
+}
+
+.form-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.form-row input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  font-size: 1rem;
+}
+
+.form-row button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.error {
+  color: #d33;
+  margin-top: 1rem;
+}
