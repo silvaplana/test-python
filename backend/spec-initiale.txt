@@ -1,0 +1,18 @@
+Cree une classe MotorReceiver avec les methodes suivantes:
+    - String getMotor() // endpoint rest GET . Retourne MotorModel.getMotor
+    - void setMotor( String motorName) // endpoint rest POST.  Fais MotorModel.setMotor(motorName)
+Cette classe receoit du REST, on utilisantr ce que tu trouve de mieux (FAST API)
+
+Cree une classe MotorModel avec la variable et les methodes suivantes:
+    - variable String motorName
+    - String getMotor() // getter de motorName. QUand appelé, print "GetMotor called: returns" + motorName
+    - void setMotor( String motorName) // setter de motorName. QUand appelé, print "SetMotor called with value " + motorName
+
+Cree un fichier principal python qui instancie ces 2 classes, et attend les requetes REST
+
+
+
+
+Pour les tests, envoie un requete POST setMotor ("toto")   et verifie que la methode GET getyMotor retourn toto
+
+Tout les elements anciens  hello ne sont plus utilies
