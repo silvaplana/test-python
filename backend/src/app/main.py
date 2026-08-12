@@ -12,6 +12,7 @@ import uvicorn
 from dotenv import load_dotenv
 
 from ffst import Ffst, FfstReceiver
+from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from motor import MotorModel, MotorReceiver
 
@@ -47,6 +48,15 @@ ffst_client = Ffst(
     password=os.environ.get("FFST_PASSWORD", ""),
 )
 ffst_receiver = FfstReceiver(client=ffst_client, app=app)
+
+# Monte les routes du bilan financier (/financialbalance/archives) sur la
+# meme app. storage_dir doit pointer vers un repertoire persistant (volume
+# Docker, voir docker-compose.yml) sous peine de perdre les archives
+# recues au prochain redeploiement.
+financialbalance_client = FinancialBalance(
+    storage_dir=os.environ.get("FINANCIALBALANCE_STORAGE_DIR", "data/bank_archives"),
+)
+financialbalance_receiver = FinancialBalanceReceiver(client=financialbalance_client, app=app)
 
 
 def main() -> None:

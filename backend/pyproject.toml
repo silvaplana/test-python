@@ -12,6 +12,7 @@ dependencies = [
     "uvicorn[standard]",
     "httpx",
     "python-dotenv",
+    "python-multipart",
 ]
 
 [project.optional-dependencies]

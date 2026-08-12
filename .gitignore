@@ -6,6 +6,9 @@ env/
 # Secrets locaux
 .env
 
+# Donnees sensibles uploadees (releves bancaires, voir financialbalance)
+backend/data/
+
 # Bytecode / cache Python
 __pycache__/
 *.py[cod]

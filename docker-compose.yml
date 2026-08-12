@@ -26,6 +26,12 @@ services:
     # sur le VPS, créer ce fichier une fois avec les vraies valeurs.
     env_file:
       - ./backend/.env
+    # Stockage persistant des archives de relevés bancaires envoyées via
+    # /financialbalance/archives : sans ce volume, tout serait perdu à
+    # chaque "docker compose up --build" (l'image est reconstruite à
+    # neuf). Contenu sensible : backend/data/ est gitignore, jamais commité.
+    volumes:
+      - ./backend/data:/app/data
     # "expose" (contrairement à "ports") ne rend PAS le port accessible
     # depuis l'extérieur de la machine : seul le conteneur "frontend"
     # peut y accéder, via le réseau interne que docker-compose crée
