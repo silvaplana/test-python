@@ -21,6 +21,11 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    # Variables HELLOASSO_* lues depuis backend/.env au démarrage du
+    # conteneur (jamais copié dans l'image ni commité, voir .gitignore) :
+    # sur le VPS, créer ce fichier une fois avec les vraies valeurs.
+    env_file:
+      - ./backend/.env
     # "expose" (contrairement à "ports") ne rend PAS le port accessible
     # depuis l'extérieur de la machine : seul le conteneur "frontend"
     # peut y accéder, via le réseau interne que docker-compose crée

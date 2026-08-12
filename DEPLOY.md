@@ -185,6 +185,17 @@ cd test-python
 
 (Pour les mises à jour futures : `git pull` puis rebuild, voir plus bas.)
 
+### c bis) Configurer les secrets HelloAsso (une seule fois)
+
+`docker-compose.yml` charge `backend/.env` au démarrage du conteneur
+`backend` (`env_file`), mais ce fichier n'est jamais commité (secrets).
+Le créer une fois sur le VPS à partir du modèle :
+
+```bash
+cp backend/.env.example backend/.env
+nano backend/.env   # y mettre les vraies valeurs HELLOASSO_*
+```
+
 ### d) Lancer les conteneurs
 
 ```bash
