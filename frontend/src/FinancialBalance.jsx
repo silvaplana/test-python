@@ -163,7 +163,10 @@ export function FinancialBalance() {
             (compte courant et Livret bleu) ; l'analyse par IA se lance automatiquement.
           </p>
           <div className="upload-row">
-            <input type="file" accept=".zip" disabled={uploading} onChange={handleFileSelected} />
+            <label className={`file-input-button${uploading ? ' file-input-button-disabled' : ''}`}>
+              Choisir un fichier
+              <input type="file" accept=".zip" disabled={uploading} onChange={handleFileSelected} />
+            </label>
             {uploading && <span className="progress-label">Envoi…</span>}
           </div>
           {status && <p className={status.ok ? 'success-state' : 'error'}>{status.message}</p>}

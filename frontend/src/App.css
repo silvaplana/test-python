@@ -179,19 +179,50 @@ tbody tr:last-child td {
   cursor: not-allowed;
 }
 
+/* Bouton de selection de fichier en francais : le texte natif du
+   <input type="file"> ("Choose File" / "No file chosen") est fixe par le
+   navigateur et ne peut pas se traduire. On masque l'input natif et on le
+   fait declencher par un <label> stylise comme un bouton, avec un texte
+   entierement controle ici. */
+.file-input-button {
+  display: inline-block;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.file-input-button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.file-input-button-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.file-input-button input[type='file'] {
+  display: none;
+}
+
 /* Bilan financier : les 2 actions ("voir le dernier bilan" / "calculer un
-   nouveau bilan") affichees cote a cote, au meme niveau visuel, plutot que
-   l'une en petit bouton perdu dans l'en-tete et l'autre occupant toute la
-   section. */
+   nouveau bilan") affichees l'une sous l'autre, au meme niveau visuel,
+   plutot que l'une en petit bouton perdu dans l'en-tete et l'autre
+   occupant toute la section. */
 .balance-actions {
   display: flex;
+  flex-direction: column;
   gap: 1rem;
-  flex-wrap: wrap;
   margin-bottom: 1.5rem;
 }
 
 .balance-action-card {
-  flex: 1 1 280px;
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1.25rem;
