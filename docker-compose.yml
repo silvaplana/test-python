@@ -29,9 +29,13 @@ services:
     # Stockage persistant des archives de relevés bancaires envoyées via
     # /financialbalance/archives : sans ce volume, tout serait perdu à
     # chaque "docker compose up --build" (l'image est reconstruite à
-    # neuf). Contenu sensible : backend/data/ est gitignore, jamais commité.
+    # neuf). Volume nommé (pas un bind mount type "./backend/data:...") :
+    # Docker initialise son contenu/ses droits depuis /app/data de l'image
+    # (voir Dockerfile) lors de sa toute première création, donc appuser
+    # (non-root) peut y écrire — un bind mount créerait ce dossier côté
+    # hôte appartenant à root, illisible pour le conteneur.
     volumes:
-      - ./backend/data:/app/data
+      - bank_archives:/app/data
     # "expose" (contrairement à "ports") ne rend PAS le port accessible
     # depuis l'extérieur de la machine : seul le conteneur "frontend"
     # peut y accéder, via le réseau interne que docker-compose crée
@@ -63,3 +67,6 @@ networks:
   default:
   web:
     external: true
+
+volumes:
+  bank_archives:
