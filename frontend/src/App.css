@@ -179,6 +179,59 @@ tbody tr:last-child td {
   cursor: not-allowed;
 }
 
+/* Bilan financier : les 2 actions ("voir le dernier bilan" / "calculer un
+   nouveau bilan") affichees cote a cote, au meme niveau visuel, plutot que
+   l'une en petit bouton perdu dans l'en-tete et l'autre occupant toute la
+   section. */
+.balance-actions {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.balance-action-card {
+  flex: 1 1 280px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+.balance-action-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.balance-action-card p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.balance-action-card > button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.balance-action-card > button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.balance-action-card > button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Barre de progression indicative pendant l'analyse IA (pas un vrai
    pourcentage : la duree totale n'est pas connue a l'avance). */
 .analysis-progress {

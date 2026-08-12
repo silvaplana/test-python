@@ -1,9 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 export function FinancialBalance() {
-  const [file, setFile] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [status, setStatus] = useState(null) // { ok: bool, message }
   const [analyzing, setAnalyzing] = useState(false)
@@ -12,12 +11,27 @@ export function FinancialBalance() {
   // plafonnée avant le résultat final pour ne jamais sembler "bloquée à 100%".
   const [progress, setProgress] = useState(0)
   const [progressLabel, setProgressLabel] = useState('')
-  const [analysis, setAnalysis] = useState(null) // { summary, accounts: [...], consolidated }
+  const [analysis, setAnalysis] = useState(null) // bilan actuellement affiché : frais ou relu
   const [analysisError, setAnalysisError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null) // { ok: bool, message }
-  const [loadingSaved, setLoadingSaved] = useState(false)
+
+  // Dernier bilan sauvegardé : verifie son existence une fois au montage
+  // (pour griser le bouton "Voir le dernier bilan" s'il n'y en a pas), et
+  // garde son contenu en cache pour un affichage instantane au clic (pas
+  // besoin de re-télécharger ce qu'on vient de recevoir).
+  const [savedAnalysis, setSavedAnalysis] = useState(null)
+  const [checkingSaved, setCheckingSaved] = useState(true)
+
   const eventSourceRef = useRef(null)
+
+  useEffect(() => {
+    fetch(`${API_URL}/financialbalance/analyses/latest`)
+      .then((r) => r.ok && r.json())
+      .then((data) => setSavedAnalysis(data || null))
+      .catch(() => setSavedAnalysis(null))
+      .finally(() => setCheckingSaved(false))
+  }, [])
 
   const runAnalysis = () => {
     setAnalyzing(true)
@@ -58,13 +72,20 @@ export function FinancialBalance() {
     }
   }
 
-  const handleUpload = async () => {
-    if (!file) return
+  // Envoi direct des qu'un fichier est choisi dans l'input : pas de bouton
+  // "Envoyer" separe a cliquer en plus.
+  const handleFileSelected = async (e) => {
+    const selected = e.target.files[0]
+    // Permet de reselectionner le meme fichier une prochaine fois (sinon
+    // le navigateur ne redeclenche pas onChange si le choix ne change pas).
+    e.target.value = ''
+    if (!selected) return
+
     setUploading(true)
     setStatus(null)
     try {
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', selected)
       const response = await fetch(`${API_URL}/financialbalance/archives`, {
         method: 'POST',
         body: formData,
@@ -77,7 +98,6 @@ export function FinancialBalance() {
         ok: true,
         message: `Archive reçue : ${data.filename} (${(data.size / 1024).toFixed(0)} Ko)`,
       })
-      setFile(null)
       runAnalysis()
     } catch (err) {
       setStatus({ ok: false, message: err.message })
@@ -101,6 +121,9 @@ export function FinancialBalance() {
         throw new Error(data?.detail || `Sauvegarde échouée (${response.status})`)
       }
       setSaveStatus({ ok: true, message: 'Bilan sauvegardé ✅' })
+      // Deja en memoire : inutile de re-telecharger pour que le bouton
+      // "Voir le dernier bilan" reflete immediatement cette sauvegarde.
+      setSavedAnalysis(analysis)
     } catch (err) {
       setSaveStatus({ ok: false, message: err.message })
     } finally {
@@ -108,55 +131,44 @@ export function FinancialBalance() {
     }
   }
 
-  const handleLoadSaved = async () => {
-    setLoadingSaved(true)
+  const handleShowSaved = () => {
     setAnalysisError(null)
     setSaveStatus(null)
-    try {
-      const response = await fetch(`${API_URL}/financialbalance/analyses/latest`)
-      const data = await response.json().catch(() => null)
-      if (!response.ok) {
-        throw new Error(
-          response.status === 404
-            ? 'Aucun bilan sauvegardé pour le moment.'
-            : data?.detail || `Chargement échoué (${response.status})`
-        )
-      }
-      setAnalysis(data)
-    } catch (err) {
-      setAnalysisError(err.message)
-    } finally {
-      setLoadingSaved(false)
-    }
+    setAnalysis(savedAnalysis)
   }
 
   return (
     <section>
       <div className="section-header">
         <h2>Bilan financier</h2>
-        <button onClick={handleLoadSaved} disabled={loadingSaved}>
-          {loadingSaved ? 'Chargement…' : '📂 Voir le dernier bilan sauvegardé'}
-        </button>
       </div>
 
-      <p>
-        Pour établir un nouveau bilan financier, envoie une archive <strong>.zip</strong>{' '}
-        contenant tous les relevés de compte (compte courant et Livret bleu). L'analyse par IA
-        se lance automatiquement après l'envoi.
-      </p>
+      <div className="balance-actions">
+        <div className="balance-action-card">
+          <h3>📂 Dernier bilan sauvegardé</h3>
+          <p>Affiche le dernier bilan financier que tu as sauvegardé.</p>
+          <button onClick={handleShowSaved} disabled={checkingSaved || !savedAnalysis}>
+            {checkingSaved
+              ? 'Vérification…'
+              : savedAnalysis
+                ? 'Afficher'
+                : 'Aucun bilan sauvegardé'}
+          </button>
+        </div>
 
-      <div className="upload-row">
-        <input
-          type="file"
-          accept=".zip"
-          onChange={(e) => setFile(e.target.files[0] || null)}
-        />
-        <button onClick={handleUpload} disabled={!file || uploading}>
-          {uploading ? 'Envoi…' : 'Envoyer'}
-        </button>
+        <div className="balance-action-card">
+          <h3>🧮 Calculer un nouveau bilan</h3>
+          <p>
+            Envoie une archive <strong>.zip</strong> contenant tous les relevés de compte
+            (compte courant et Livret bleu) ; l'analyse par IA se lance automatiquement.
+          </p>
+          <div className="upload-row">
+            <input type="file" accept=".zip" disabled={uploading} onChange={handleFileSelected} />
+            {uploading && <span className="progress-label">Envoi…</span>}
+          </div>
+          {status && <p className={status.ok ? 'success-state' : 'error'}>{status.message}</p>}
+        </div>
       </div>
-
-      {status && <p className={status.ok ? 'success-state' : 'error'}>{status.message}</p>}
 
       {analyzing && (
         <div className="analysis-progress">
@@ -172,7 +184,7 @@ export function FinancialBalance() {
       {analysis && (
         <div className="analysis-result">
           <div className="section-header">
-            <h3 className="analysis-result-title">Résumé</h3>
+            <h3>Résumé</h3>
             <button onClick={handleSave} disabled={saving}>
               {saving ? 'Sauvegarde…' : '💾 Sauvegarder ce bilan'}
             </button>
