@@ -81,7 +81,9 @@ test-python/
 ### Le backend (`backend/Dockerfile`)
 
 Construit une image Python 3.12 "slim", installe le package `motor` (donc
-`fastapi` + `uvicorn`), et lance `python -m motor.main` au démarrage.
+`fastapi` + `uvicorn`), et lance `python -m app.main` au démarrage — ce
+module assemble les routes `motor` et `helloasso` sur la même app FastAPI
+(voir `backend/README.md`).
 Le conteneur écoute sur le port 8000, mais **n'est pas exposé directement
 à Internet** — voir plus bas.
 

@@ -1,31 +1,97 @@
 .app {
-  max-width: 480px;
+  /* #root (template Vite) est un conteneur flex en colonne : .app (enfant
+     flex) ne se contraint pas fiablement a la largeur du conteneur sur la
+     seule base de align-items:stretch quand son contenu (le tableau) est
+     plus large. width:100% + box-sizing:border-box force la largeur reelle
+     et laisse .table-wrapper gerer son propre scroll horizontal. */
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1100px;
   margin: 4rem auto;
   padding: 0 1.5rem;
-  text-align: center;
   font-family: system-ui, sans-serif;
 }
 
-.form-row {
+.helloasso h1 {
+  font-size: 1.8rem;
+  line-height: 1.3;
+  margin-bottom: 2rem;
+}
+
+.helloasso section + section {
+  margin-top: 2.5rem;
+}
+
+.section-header {
   display: flex;
-  gap: 0.5rem;
-  justify-content: center;
-  margin-top: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
 }
 
-.form-row input {
-  flex: 1;
-  padding: 0.5rem 0.75rem;
-  font-size: 1rem;
+.section-header h2 {
+  margin: 0;
 }
 
-.form-row button {
-  padding: 0.5rem 1rem;
-  font-size: 1rem;
+.section-header button {
+  padding: 0.4rem 0.8rem;
   cursor: pointer;
+}
+
+/* Le contenu (tableau) peut deborder en largeur sur petit ecran : il
+   scroll horizontalement dans son propre conteneur plutot que la page. */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #eee;
+  white-space: nowrap;
+}
+
+th {
+  font-weight: 600;
+  border-bottom: 2px solid #ddd;
+}
+
+.unpaid-amount {
+  color: #d33;
+  font-weight: 600;
 }
 
 .error {
   color: #d33;
   margin-top: 1rem;
+}
+
+/* Mobile : moins d'infos par ligne plutot qu'un tableau large a scroller.
+   Les colonnes secondaires (email, statut, details...) disparaissent, et
+   les colonnes restantes (prenom/nom/montant) peuvent revenir a la ligne
+   au lieu de forcer un scroll horizontal. .table-wrapper garde overflow-x
+   en secours pour les cas extremes (nom tres long). */
+@media (max-width: 640px) {
+  .col-secondary {
+    display: none;
+  }
+
+  th,
+  td {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding: 0.4rem 0.5rem;
+  }
+
+  table {
+    font-size: 0.85rem;
+  }
 }

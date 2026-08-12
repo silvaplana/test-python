@@ -25,4 +25,4 @@ USER appuser
 EXPOSE 8000
 
 # Commande lancée au démarrage du conteneur.
-CMD ["python", "-m", "motor.main"]
+CMD ["python", "-m", "app.main"]
