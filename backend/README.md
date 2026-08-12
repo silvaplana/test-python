@@ -9,13 +9,16 @@ app FastAPI :
   `/helloasso/members`, `/helloasso/unpaid`) — voir
   `src/helloasso/helloasso.py` pour le detail des methodes et
   `.env.example` pour la config requise.
+- **ffst** : scraping du portail de licences FFST (`GET /ffst/licences`,
+  pas d'API — parsing d'un bloc XML integre a la page HTML) — voir
+  `src/ffst/ffst.py`.
 
 ## Structure
 
 ```
 backend/
 ├── pyproject.toml
-├── .env.example            # variables HELLOASSO_* attendues
+├── .env.example            # variables HELLOASSO_* et FFST_* attendues
 ├── src/
 │   ├── app/
 │   │   └── main.py         # point d'entrée : assemble motor + helloasso sur une app FastAPI, lance uvicorn
@@ -23,10 +26,14 @@ backend/
 │   │   ├── __init__.py
 │   │   ├── model.py        # MotorModel : etat + getMotor()/setMotor()
 │   │   └── receiver.py     # MotorReceiver : endpoints REST FastAPI GET/POST /motor
-│   └── helloasso/
+│   ├── helloasso/
+│   │   ├── __init__.py
+│   │   ├── helloasso.py    # HelloAsso : client OAuth2 + appels API (organisation, formulaires, commandes)
+│   │   └── receiver.py     # HelloAssoReceiver : endpoints REST FastAPI /helloasso/...
+│   └── ffst/
 │       ├── __init__.py
-│       ├── helloasso.py    # HelloAsso : client OAuth2 + appels API (organisation, formulaires, commandes)
-│       └── receiver.py     # HelloAssoReceiver : endpoints REST FastAPI /helloasso/...
+│       ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
+│       └── receiver.py     # FfstReceiver : endpoint REST FastAPI /ffst/licences
 └── tests/
     └── test_motor.py       # test pytest : POST setMotor("toto") puis GET getMotor
 ```
@@ -54,6 +61,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /helloasso/campaign` -> titre de la campagne d'adhésion configurée (`HELLOASSO_FORM_SLUG`)
 - `GET /helloasso/members` -> liste des adhérents de cette campagne
 - `GET /helloasso/unpaid` -> adhérents avec au moins un paiement refusé
+- `GET /ffst/licences` -> liste des licences FFST du club (saison en cours)
 
 Exemple :
 
@@ -61,6 +69,7 @@ Exemple :
 curl -X POST http://localhost:8000/motor -H "Content-Type: application/json" -d '{"motorName": "toto"}'
 curl http://localhost:8000/motor
 curl http://localhost:8000/helloasso/members
+curl http://localhost:8000/ffst/licences
 ```
 
 ## Tests

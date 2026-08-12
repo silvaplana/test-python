@@ -36,7 +36,7 @@ function MembersTable() {
   return (
     <section>
       <div className="section-header">
-        <h2>Adhérents ({members?.length ?? '…'})</h2>
+        <h2>Adhérents HelloAsso ({members?.length ?? '…'})</h2>
         <button onClick={refetch}>Rafraîchir</button>
       </div>
 
@@ -78,7 +78,7 @@ function UnpaidTable() {
   return (
     <section>
       <div className="section-header">
-        <h2>Impayés ({unpaid?.length ?? '…'})</h2>
+        <h2>Impayés HelloAsso ({unpaid?.length ?? '…'})</h2>
         <button onClick={refetch}>Rafraîchir</button>
       </div>
 

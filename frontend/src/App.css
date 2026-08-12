@@ -18,8 +18,15 @@
   margin-bottom: 2rem;
 }
 
-.helloasso section + section {
+.helloasso section + section,
+.ffst section + section {
   margin-top: 2.5rem;
+}
+
+.app > hr {
+  margin: 3rem 0;
+  border: none;
+  border-top: 1px solid #ddd;
 }
 
 .section-header {

@@ -1,5 +1,6 @@
 """Point d'entree unique du backend : assemble les differents modules
-(motor, helloasso, ...) sur une seule app FastAPI / un seul service HTTP.
+(motor, helloasso, ffst, ...) sur une seule app FastAPI / un seul service
+HTTP.
 
 N'appartient a aucun des modules qu'il assemble (voir DEPLOY.md :
 un seul conteneur "backend" pour tout le projet).
@@ -10,6 +11,7 @@ import os
 import uvicorn
 from dotenv import load_dotenv
 
+from ffst import Ffst, FfstReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from motor import MotorModel, MotorReceiver
 
@@ -36,6 +38,15 @@ helloasso_receiver = HelloAssoReceiver(
         "HELLOASSO_FORM_SLUG", "rejoignez-notre-club-de-sambo-mma-pour-la-saison-2025-2026"
     ),
 )
+
+# Monte les routes FFST (/ffst/licences) sur la meme app.
+ffst_client = Ffst(
+    user_part1=os.environ.get("FFST_USER_PART1", ""),
+    user_part2=os.environ.get("FFST_USER_PART2", ""),
+    user_part3=os.environ.get("FFST_USER_PART3", ""),
+    password=os.environ.get("FFST_PASSWORD", ""),
+)
+ffst_receiver = FfstReceiver(client=ffst_client, app=app)
 
 
 def main() -> None:
