@@ -2,7 +2,7 @@
 # conteneur n'est jamais exposé directement à Internet. C'est le Caddy
 # "gateway" partagé (voir ~/gateway sur le VPS, hors de ce repo) qui
 # possède le domaine silvaplana.cloud, le certificat HTTPS, et qui route
-# /test-python/* vers ce conteneur en retirant le préfixe avant de le
+# /sambo-admin/* vers ce conteneur en retirant le préfixe avant de le
 # transmettre ici. Ce Caddyfile voit donc les requêtes comme si l'app
 # était servie à la racine.
 :80 {

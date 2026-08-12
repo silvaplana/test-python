@@ -11,7 +11,7 @@
 # publié ici. C'est le Caddy "gateway" partagé (voir ~/gateway sur le
 # VPS, hors de ce repo — silvaplana.cloud héberge plusieurs applis sous
 # des chemins différents) qui possède le domaine/le HTTPS et route
-# /test-python/* vers le service "frontend" ci-dessous, via le réseau
+# /sambo-admin/* vers le service "frontend" ci-dessous, via le réseau
 # Docker externe "web".
 #
 # Sur le VPS, ce réseau doit exister avant le premier `docker compose up` :
@@ -47,11 +47,11 @@ services:
     build:
       context: ./frontend
       args:
-        # L'app appelle son API sur son propre chemin (/test-python/api/...),
+        # L'app appelle son API sur son propre chemin (/sambo-admin/api/...),
         # que le gateway route vers ici puis que le Caddy interne (voir
         # frontend/Caddyfile) transmet à "backend". Voir aussi le "base" dans
         # vite.config.js, qui doit rester cohérent avec ce chemin.
-        VITE_API_URL: /test-python/api
+        VITE_API_URL: /sambo-admin/api
     restart: unless-stopped
     container_name: test-python-frontend
     # Réseau par défaut du projet (communication avec "backend") + réseau

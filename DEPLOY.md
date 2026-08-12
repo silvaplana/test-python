@@ -25,7 +25,7 @@ tout est déjà emballé dans les images.
 
 `silvaplana.cloud` est destiné à héberger **plusieurs applis** (dont
 `test-python`), chacune sous un chemin différent
-(`/test-python`, plus tard `/openclaw`, etc.). Un seul domaine, un seul
+(`/sambo-admin`, plus tard `/openclaw`, etc.). Un seul domaine, un seul
 couple de ports 80/443 sur le VPS — donc un seul service peut les
 posséder.
 
@@ -35,7 +35,7 @@ volontairement — c'est juste 2-3 fichiers de config, plus simple à
 maintenir à la main qu'un repo séparé). Il :
 - possède seul les ports 80/443 et le certificat HTTPS de `silvaplana.cloud` ;
 - sert une petite page d'accueil à la racine (`/`) ;
-- route `/test-python/*` vers le conteneur `test-python-frontend` de ce
+- route `/sambo-admin/*` vers le conteneur `test-python-frontend` de ce
   projet, `/api/*` compris (proxifié plus loin par ce dernier vers le
   backend).
 
@@ -47,7 +47,7 @@ via un réseau Docker externe nommé `web` que les deux partagent :
 Internet ──443/HTTPS──▶ gateway (Caddy, ~/gateway)
                            │
                            ├── /              → landing page (fichiers statiques)
-                           └── /test-python/* → réseau "web" → test-python-frontend:80 (Caddy interne)
+                           └── /sambo-admin/* → réseau "web" → test-python-frontend:80 (Caddy interne)
                                                                     │
                                                                     └── /api/* → backend:8000 (FastAPI)
 ```
@@ -93,7 +93,7 @@ Ce Dockerfile a **deux étapes** :
 
 1. **Étape "build"** : une image Node compile l'app React (`npm run build`)
    et produit des fichiers statiques (HTML/CSS/JS) dans `dist/`. Le build
-   utilise `base: '/test-python/'` (voir `vite.config.js`) : les fichiers
+   utilise `base: '/sambo-admin/'` (voir `vite.config.js`) : les fichiers
    générés référencent ce chemin, pas la racine du domaine.
 2. **Étape finale** : une image **Caddy** (serveur web léger), dans
    laquelle on copie uniquement les fichiers `dist/` produits à l'étape 1.
@@ -103,17 +103,17 @@ juste Caddy et les fichiers statiques. Elle est donc petite et sécurisée.
 
 `Caddyfile` (interne, pas de domaine ni de TLS ici — c'est le gateway qui
 s'en charge) fait deux choses, en voyant les requêtes **comme si l'app
-était à la racine** (le gateway a déjà retiré le préfixe `/test-python`
+était à la racine** (le gateway a déjà retiré le préfixe `/sambo-admin`
 avant de transmettre) :
 - sert le site React sur `/`.
 - redirige (`reverse_proxy`) tout ce qui arrive sur `/api/...` vers le
   conteneur `backend` sur le port 8000. Exemple : une requête vers
   `/api/motor` est transmise à `http://backend:8000/motor`.
 
-Le frontend est compilé avec `VITE_API_URL=/test-python/api` (voir `ARG
+Le frontend est compilé avec `VITE_API_URL=/sambo-admin/api` (voir `ARG
 VITE_API_URL` dans le Dockerfile et le build arg dans
-`docker-compose.yml`) : il appelle `/test-python/api/...`, que le gateway
-route ici en retirant `/test-python`, laissant `/api/...` pour le Caddy
+`docker-compose.yml`) : il appelle `/sambo-admin/api/...`, que le gateway
+route ici en retirant `/sambo-admin`, laissant `/api/...` pour le Caddy
 interne ci-dessus.
 
 ### `docker-compose.yml`
@@ -143,13 +143,13 @@ docker compose up -d --build
 Le service `frontend` n'a pas de port public : pour l'atteindre depuis un
 navigateur, il faut aussi lancer un gateway local. Un gateway minimal
 suffit — voir la structure décrite en section 1bis (`Caddyfile` avec
-`{$DOMAIN}` + un `handle_path /test-python/* { reverse_proxy
+`{$DOMAIN}` + un `handle_path /sambo-admin/* { reverse_proxy
 test-python-frontend:80 }`), lancé avec `DOMAIN=localhost` pour obtenir un
 certificat local auto-signé (pas d'appel à Let's Encrypt).
 
-Une fois les deux lancés, ouvre `https://localhost/test-python/`
+Une fois les deux lancés, ouvre `https://localhost/sambo-admin/`
 (avertissement de sécurité à accepter, normal en local) : tu dois voir le
-frontend, qui appelle l'API via `/test-python/api/motor`.
+frontend, qui appelle l'API via `/sambo-admin/api/motor`.
 
 ```bash
 docker compose logs -f       # voir les logs des deux conteneurs de test-python
@@ -230,10 +230,10 @@ Le domaine `silvaplana.cloud` pointe vers le VPS (enregistrement DNS de
 type A, déjà configuré côté Hostinger) et un Caddy "gateway" — dans
 `~/gateway` sur le VPS, **hors de ce repo** — obtient et renouvelle
 automatiquement un certificat HTTPS via Let's Encrypt, sert la page
-d'accueil sur `/`, et route `/test-python/*` vers ce projet. Voir la
+d'accueil sur `/`, et route `/sambo-admin/*` vers ce projet. Voir la
 section 1bis pour l'architecture complète.
 
-Le site est accessible sur `https://silvaplana.cloud/test-python/`.
+Le site est accessible sur `https://silvaplana.cloud/sambo-admin/`.
 Caddy redirige automatiquement `http://` vers `https://`.
 
 Pour ajouter une nouvelle appli sur le même domaine : lui donner un
