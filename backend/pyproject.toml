@@ -13,6 +13,7 @@ dependencies = [
     "httpx",
     "python-dotenv",
     "python-multipart",
+    "anthropic",
 ]
 
 [project.optional-dependencies]

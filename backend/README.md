@@ -12,6 +12,12 @@ app FastAPI :
 - **ffst** : scraping du portail de licences FFST (`GET /ffst/licences`,
   `GET /ffst/demandes`, pas d'API — parsing d'un bloc XML integre a la
   page HTML) — voir `src/ffst/ffst.py`.
+- **financialbalance** : upload de l'archive des relevés bancaires
+  (`POST /financialbalance/archives`) puis analyse IA (Claude, via l'API
+  Anthropic) en flux Server-Sent Events (`GET /financialbalance/analysis`)
+  — résumé synthétique + ventilation par catégorie. Voir
+  `src/financialbalance/financialbalance.py` et `ANTHROPIC_API_KEY` dans
+  `.env.example`.
 
 ## Structure
 
@@ -30,10 +36,14 @@ backend/
 │   │   ├── __init__.py
 │   │   ├── helloasso.py    # HelloAsso : client OAuth2 + appels API (organisation, formulaires, commandes)
 │   │   └── receiver.py     # HelloAssoReceiver : endpoints REST FastAPI /helloasso/...
-│   └── ffst/
+│   ├── ffst/
+│   │   ├── __init__.py
+│   │   ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
+│   │   └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes
+│   └── financialbalance/
 │       ├── __init__.py
-│       ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
-│       └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes
+│       ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
+│       └── receiver.py          # FinancialBalanceReceiver : endpoints /financialbalance/archives, /analysis (SSE)
 └── tests/
     └── test_motor.py       # test pytest : POST setMotor("toto") puis GET getMotor
 ```
@@ -63,6 +73,8 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /helloasso/unpaid` -> adhérents avec au moins un paiement refusé
 - `GET /ffst/licences` -> liste des licences FFST du club (saison en cours)
 - `GET /ffst/demandes` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
+- `POST /financialbalance/archives` (multipart, champ `file`) -> stocke une archive `.zip` de relevés bancaires
+- `GET /financialbalance/analysis` -> flux SSE : progression puis bilan IA (résumé + tableau par catégorie) de la dernière archive envoyée
 
 Exemple :
 

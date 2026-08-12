@@ -1,6 +1,9 @@
-from fastapi import FastAPI, HTTPException, UploadFile
+import json
 
-from .financialbalance import FinancialBalance
+from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi.responses import StreamingResponse
+
+from .financialbalance import FinancialBalance, FinancialBalanceAnalysisError
 
 
 class FinancialBalanceReceiver:
@@ -17,6 +20,7 @@ class FinancialBalanceReceiver:
 
     def _register_routes(self) -> None:
         self.app.post("/financialbalance/archives")(self.sendBankAccountArchives)
+        self.app.get("/financialbalance/analysis")(self.getAnalysis)
 
     async def sendBankAccountArchives(self, file: UploadFile) -> dict:
         """Endpoint REST POST /financialbalance/archives. Recoit une archive
@@ -33,3 +37,25 @@ class FinancialBalanceReceiver:
             return self.client.save_bank_account_archive(file.filename or "", content)
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def getAnalysis(self) -> StreamingResponse:
+        """Endpoint REST GET /financialbalance/analysis. Lance l'analyse IA
+        de la derniere archive de releves envoyee et retourne un flux
+        Server-Sent Events : des evenements {"type": "progress", ...}
+        pendant que l'IA travaille, puis un evenement final {"type":
+        "result", "data": {...}} avec le bilan structure, ou {"type":
+        "error", "message": ...} en cas d'echec.
+
+        GET (pas POST) : ne prend aucun parametre (utilise la derniere
+        archive stockee) et doit rester consommable par EventSource cote
+        navigateur, qui ne supporte que GET.
+        """
+
+        def event_stream():
+            try:
+                for event in self.client.analyze_latest_archive():
+                    yield f"data: {json.dumps(event)}\n\n"
+            except FinancialBalanceAnalysisError as exc:
+                yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
+
+        return StreamingResponse(event_stream(), media_type="text/event-stream")

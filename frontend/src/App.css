@@ -178,6 +178,81 @@ tbody tr:last-child td {
   cursor: not-allowed;
 }
 
+/* Barre de progression indicative pendant l'analyse IA (pas un vrai
+   pourcentage : la duree totale n'est pas connue a l'avance). */
+.analysis-progress {
+  margin-top: 1.25rem;
+}
+
+.progress-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s ease;
+}
+
+.progress-label {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.analysis-result {
+  margin-top: 1.5rem;
+}
+
+.analysis-account {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.analysis-account:first-of-type {
+  margin-top: 1.5rem;
+}
+
+.analysis-period {
+  color: var(--text);
+  font-size: 0.9rem;
+  margin: 0 0 1rem;
+}
+
+.analysis-totals {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.analysis-totals-label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.analysis-totals-value {
+  display: block;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.analysis-result h3,
+.analysis-account h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.analysis-summary {
+  white-space: pre-line;
+}
+
 @media (prefers-color-scheme: dark) {
   .unpaid-amount,
   .error {
