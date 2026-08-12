@@ -16,9 +16,25 @@
 		reverse_proxy backend:8000
 	}
 
+	# Assets Vite (JS/CSS) : le nom de fichier contient un hash du contenu
+	# (index-BZX85flh.js), donc un cache long et "immutable" est sans risque
+	# — un contenu different aurait un nom different.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
 	# Sert l'app React. "try_files" fait retomber toute route inconnue
 	# sur index.html : nécessaire pour une SPA (routage côté client).
+	#
+	# index.html ne doit JAMAIS être mis en cache par le navigateur : sans
+	# ça, après un déploiement, un navigateur peut continuer à servir un
+	# ancien index.html référençant d'anciens noms de fichiers assets --
+	# donnant l'impression que le déploiement n'a pas eu lieu (vécu : le
+	# nouvel onglet "Bilan financier" invisible sur un PC alors que le
+	# nouveau bundle était bien en ligne).
 	handle {
+		header Cache-Control "no-cache"
 		try_files {path} /index.html
 		file_server
 	}
