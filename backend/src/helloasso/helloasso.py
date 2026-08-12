@@ -16,6 +16,7 @@ Voir .env.example a la racine de backend/.
 from __future__ import annotations
 
 import os
+import time
 
 import httpx
 from dotenv import load_dotenv
@@ -30,7 +31,11 @@ class HelloAsso:
 
     Gere l'authentification OAuth2 (client_credentials) et expose quelques
     appels REST de l'API v5. Le token est recupere paresseusement au premier
-    appel authentifie et reutilise ensuite.
+    appel authentifie, puis reutilise et automatiquement renouvele avant son
+    expiration (HelloAsso emet des tokens de duree de vie limitee, ~30 min :
+    ce client tourne comme instance partagee sur toute la duree de vie du
+    processus backend, donc il ne peut pas se contenter de s'authentifier
+    une seule fois au demarrage).
     """
 
     PRODUCTION_URL = "https://api.helloasso.com"
@@ -48,6 +53,7 @@ class HelloAsso:
         self.organization_slug = organization_slug
         self.base_url = self.SANDBOX_URL if sandbox else self.PRODUCTION_URL
         self._access_token: str | None = None
+        self._token_expiry: float = 0.0
 
     def authenticate(self) -> str:
         """Recupere un access_token via le flow OAuth2 client_credentials."""
@@ -63,18 +69,28 @@ class HelloAsso:
             raise HelloAssoAuthError(
                 f"Authentification HelloAsso echouee ({response.status_code}): {response.text}"
             )
-        self._access_token = response.json()["access_token"]
+        token_data = response.json()
+        self._access_token = token_data["access_token"]
+        # Marge de securite (30s) pour eviter d'utiliser un token expire pile
+        # au moment de l'appel (latence reseau, horloges legerement decalees).
+        self._token_expiry = time.time() + token_data.get("expires_in", 0) - 30
         print("HelloAsso.authenticate: token obtenu")
         return self._access_token
 
     def _headers(self) -> dict[str, str]:
-        if self._access_token is None:
+        if self._access_token is None or time.time() >= self._token_expiry:
             self.authenticate()
         return {"Authorization": f"Bearer {self._access_token}"}
 
     def get(self, path: str, params: dict | None = None) -> dict:
         """Appel GET authentifie sur l'API (path relatif, ex: '/v5/users/me')."""
         response = httpx.get(f"{self.base_url}{path}", headers=self._headers(), params=params)
+        if response.status_code == 401:
+            # Filet de securite si le token est refuse malgre notre suivi
+            # d'expiration (revocation anticipee, horloge trop decalee...) :
+            # on reauthentifie de force et on retente une fois.
+            self.authenticate()
+            response = httpx.get(f"{self.base_url}{path}", headers=self._headers(), params=params)
         response.raise_for_status()
         return response.json()
 
