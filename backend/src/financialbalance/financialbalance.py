@@ -396,7 +396,8 @@ class FinancialBalance:
 
         yield {
             "type": "progress",
-            "message": f"{len(blocks)} releve(s) charge(s), analyse en cours...",
+            "message": f"{len(blocks)} releve(s) charge(s), analyse en cours... "
+            "(cela peut prendre 1 a 2 minutes)",
         }
 
         try:
