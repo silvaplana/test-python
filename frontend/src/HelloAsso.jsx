@@ -47,8 +47,8 @@ function MembersTable() {
           <table>
             <thead>
               <tr>
-                <th>Prénom</th>
                 <th>Nom</th>
+                <th>Prénom</th>
                 <th>Email</th>
                 <th className="col-secondary">Montant</th>
                 <th className="col-secondary">Statut</th>
@@ -57,8 +57,8 @@ function MembersTable() {
             <tbody>
               {members.map((m, i) => (
                 <tr key={i}>
-                  <td>{m.firstName}</td>
                   <td>{m.lastName}</td>
+                  <td>{m.firstName}</td>
                   <td>{m.email}</td>
                   <td className="col-secondary">{euros(m.amount)}</td>
                   <td className="col-secondary">{m.state}</td>
@@ -91,8 +91,8 @@ function UnpaidTable() {
           <table>
             <thead>
               <tr>
-                <th>Prénom</th>
                 <th>Nom</th>
+                <th>Prénom</th>
                 <th>Email</th>
                 <th className="col-secondary">Total</th>
                 <th>Impayé</th>
@@ -102,8 +102,8 @@ function UnpaidTable() {
             <tbody>
               {unpaid.map((m, i) => (
                 <tr key={i}>
-                  <td>{m.firstName}</td>
                   <td>{m.lastName}</td>
+                  <td>{m.firstName}</td>
                   <td>{m.email}</td>
                   <td className="col-secondary">{euros(m.totalAmount)}</td>
                   <td className="unpaid-amount">{euros(m.unpaidAmount)}</td>

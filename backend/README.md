@@ -10,8 +10,8 @@ app FastAPI :
   `src/helloasso/helloasso.py` pour le detail des methodes et
   `.env.example` pour la config requise.
 - **ffst** : scraping du portail de licences FFST (`GET /ffst/licences`,
-  pas d'API — parsing d'un bloc XML integre a la page HTML) — voir
-  `src/ffst/ffst.py`.
+  `GET /ffst/demandes`, pas d'API — parsing d'un bloc XML integre a la
+  page HTML) — voir `src/ffst/ffst.py`.
 
 ## Structure
 
@@ -33,7 +33,7 @@ backend/
 │   └── ffst/
 │       ├── __init__.py
 │       ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
-│       └── receiver.py     # FfstReceiver : endpoint REST FastAPI /ffst/licences
+│       └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes
 └── tests/
     └── test_motor.py       # test pytest : POST setMotor("toto") puis GET getMotor
 ```
@@ -62,6 +62,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /helloasso/members` -> liste des adhérents de cette campagne
 - `GET /helloasso/unpaid` -> adhérents avec au moins un paiement refusé
 - `GET /ffst/licences` -> liste des licences FFST du club (saison en cours)
+- `GET /ffst/demandes` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
 
 Exemple :
 

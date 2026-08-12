@@ -65,10 +65,57 @@ function LicencesTable() {
   )
 }
 
+function DemandesTable() {
+  const { data: demandes, error, refetch } = useFfstFetch('/ffst/demandes')
+
+  return (
+    <section>
+      <div className="section-header">
+        <h2>Demandes de licences FFST en cours ({demandes?.length ?? '…'})</h2>
+        <button onClick={refetch}>Rafraîchir</button>
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      {demandes && (demandes.length === 0 ? (
+        <p>Aucune demande en cours 🎉</p>
+      ) : (
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nom et Prénom</th>
+                <th className="col-secondary">Né(e) le</th>
+                <th className="col-secondary">Type</th>
+                <th className="col-secondary">Licence n°</th>
+                <th className="col-secondary">N° demande</th>
+                <th>Etat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {demandes.map((d, i) => (
+                <tr key={i}>
+                  <td>{d['Nom et Prénom']}</td>
+                  <td className="col-secondary">{d['Né(e) le']}</td>
+                  <td className="col-secondary">{d['Type']}</td>
+                  <td className="col-secondary">{d['Licence n°']}</td>
+                  <td className="col-secondary">{d['IDDemande']}</td>
+                  <td>{d['Etat']}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 function Ffst() {
   return (
     <div className="ffst">
       <LicencesTable />
+      <DemandesTable />
     </div>
   )
 }
