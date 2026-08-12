@@ -15,6 +15,10 @@ export function FinancialBalance() {
   const [analysisError, setAnalysisError] = useState(null)
   const [saving, setSaving] = useState(false)
   const [saveStatus, setSaveStatus] = useState(null) // { ok: bool, message }
+  // Propose la sauvegarde juste après un calcul frais (pas après affichage
+  // d'un bilan déjà sauvegardé, inutile de le redemander) ; disparaît dès
+  // que l'utilisateur a répondu (oui ou non).
+  const [showSavePrompt, setShowSavePrompt] = useState(false)
 
   // Dernier bilan sauvegardé : verifie son existence une fois au montage
   // (pour griser le bouton "Voir le dernier bilan" s'il n'y en a pas), et
@@ -40,6 +44,7 @@ export function FinancialBalance() {
     setAnalysis(null)
     setAnalysisError(null)
     setSaveStatus(null)
+    setShowSavePrompt(false)
 
     // Ferme un flux précédent éventuel avant d'en ouvrir un nouveau.
     eventSourceRef.current?.close()
@@ -54,6 +59,7 @@ export function FinancialBalance() {
       } else if (event.type === 'result') {
         setProgress(100)
         setAnalysis(event.data)
+        setShowSavePrompt(true)
         setAnalyzing(false)
         es.close()
       } else if (event.type === 'error') {
@@ -134,7 +140,13 @@ export function FinancialBalance() {
   const handleShowSaved = () => {
     setAnalysisError(null)
     setSaveStatus(null)
+    setShowSavePrompt(false) // déjà sauvegardé, inutile de redemander
     setAnalysis(savedAnalysis)
+  }
+
+  const handleSavePromptChoice = (wantsSave) => {
+    setShowSavePrompt(false)
+    if (wantsSave) handleSave()
   }
 
   return (
@@ -188,10 +200,21 @@ export function FinancialBalance() {
         <div className="analysis-result">
           <div className="section-header">
             <h3>Résumé</h3>
-            <button onClick={handleSave} disabled={saving}>
-              {saving ? 'Sauvegarde…' : '💾 Sauvegarder ce bilan'}
-            </button>
           </div>
+
+          {showSavePrompt && (
+            <div className="save-prompt">
+              <p>Veux-tu sauvegarder ce bilan pour pouvoir le retrouver plus tard ?</p>
+              <div className="save-prompt-actions">
+                <button onClick={() => handleSavePromptChoice(true)} disabled={saving}>
+                  {saving ? 'Sauvegarde…' : 'Oui, sauvegarder'}
+                </button>
+                <button onClick={() => handleSavePromptChoice(false)} disabled={saving}>
+                  Non merci
+                </button>
+              </div>
+            </div>
+          )}
           {saveStatus && (
             <p className={saveStatus.ok ? 'success-state' : 'error'}>{saveStatus.message}</p>
           )}

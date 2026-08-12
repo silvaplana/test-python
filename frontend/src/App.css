@@ -263,6 +263,54 @@ tbody tr:last-child td {
   cursor: not-allowed;
 }
 
+/* Question "veux-tu sauvegarder ce bilan ?" affichee juste apres un calcul
+   frais, plutot qu'un simple bouton facultatif qu'on peut ne pas remarquer. */
+.save-prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+}
+
+.save-prompt p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.save-prompt-actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.save-prompt-actions button {
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.save-prompt-actions button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--bg);
+}
+
+.save-prompt-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Barre de progression indicative pendant l'analyse IA (pas un vrai
    pourcentage : la duree totale n'est pas connue a l'avance). */
 .analysis-progress {
