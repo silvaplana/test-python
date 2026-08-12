@@ -21,6 +21,8 @@ class FinancialBalanceReceiver:
     def _register_routes(self) -> None:
         self.app.post("/financialbalance/archives")(self.sendBankAccountArchives)
         self.app.get("/financialbalance/analysis")(self.getAnalysis)
+        self.app.post("/financialbalance/analyses")(self.saveAnalysis)
+        self.app.get("/financialbalance/analyses/latest")(self.getLatestAnalysis)
 
     async def sendBankAccountArchives(self, file: UploadFile) -> dict:
         """Endpoint REST POST /financialbalance/archives. Recoit une archive
@@ -59,3 +61,22 @@ class FinancialBalanceReceiver:
                 yield f"data: {json.dumps({'type': 'error', 'message': str(exc)})}\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+    def saveAnalysis(self, analysis: dict) -> dict:
+        """Endpoint REST POST /financialbalance/analyses. Sauvegarde un
+        bilan (celui reçu de GET /financialbalance/analysis) pour pouvoir
+        le reafficher plus tard sans relancer une analyse IA.
+        """
+        try:
+            return self.client.save_analysis(analysis)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def getLatestAnalysis(self) -> dict:
+        """Endpoint REST GET /financialbalance/analyses/latest. Retourne le
+        dernier bilan sauvegarde, ou 404 si aucun n'a encore ete sauvegarde.
+        """
+        try:
+            return self.client.get_latest_analysis()
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -12,8 +12,11 @@ export function FinancialBalance() {
   // plafonnée avant le résultat final pour ne jamais sembler "bloquée à 100%".
   const [progress, setProgress] = useState(0)
   const [progressLabel, setProgressLabel] = useState('')
-  const [analysis, setAnalysis] = useState(null) // { summary, accounts: [...] }
+  const [analysis, setAnalysis] = useState(null) // { summary, accounts: [...], consolidated }
   const [analysisError, setAnalysisError] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState(null) // { ok: bool, message }
+  const [loadingSaved, setLoadingSaved] = useState(false)
   const eventSourceRef = useRef(null)
 
   const runAnalysis = () => {
@@ -22,6 +25,7 @@ export function FinancialBalance() {
     setProgressLabel('Chargement des relevés...')
     setAnalysis(null)
     setAnalysisError(null)
+    setSaveStatus(null)
 
     // Ferme un flux précédent éventuel avant d'en ouvrir un nouveau.
     eventSourceRef.current?.close()
@@ -82,16 +86,63 @@ export function FinancialBalance() {
     }
   }
 
+  const handleSave = async () => {
+    if (!analysis) return
+    setSaving(true)
+    setSaveStatus(null)
+    try {
+      const response = await fetch(`${API_URL}/financialbalance/analyses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(analysis),
+      })
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(data?.detail || `Sauvegarde échouée (${response.status})`)
+      }
+      setSaveStatus({ ok: true, message: 'Bilan sauvegardé ✅' })
+    } catch (err) {
+      setSaveStatus({ ok: false, message: err.message })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleLoadSaved = async () => {
+    setLoadingSaved(true)
+    setAnalysisError(null)
+    setSaveStatus(null)
+    try {
+      const response = await fetch(`${API_URL}/financialbalance/analyses/latest`)
+      const data = await response.json().catch(() => null)
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? 'Aucun bilan sauvegardé pour le moment.'
+            : data?.detail || `Chargement échoué (${response.status})`
+        )
+      }
+      setAnalysis(data)
+    } catch (err) {
+      setAnalysisError(err.message)
+    } finally {
+      setLoadingSaved(false)
+    }
+  }
+
   return (
     <section>
       <div className="section-header">
         <h2>Bilan financier</h2>
+        <button onClick={handleLoadSaved} disabled={loadingSaved}>
+          {loadingSaved ? 'Chargement…' : '📂 Voir le dernier bilan sauvegardé'}
+        </button>
       </div>
 
       <p>
-        Pour établir le bilan financier, envoie une archive <strong>.zip</strong> contenant
-        tous les relevés de compte (compte courant et Livret bleu). L'analyse par IA se lance
-        automatiquement après l'envoi.
+        Pour établir un nouveau bilan financier, envoie une archive <strong>.zip</strong>{' '}
+        contenant tous les relevés de compte (compte courant et Livret bleu). L'analyse par IA
+        se lance automatiquement après l'envoi.
       </p>
 
       <div className="upload-row">
@@ -120,7 +171,15 @@ export function FinancialBalance() {
 
       {analysis && (
         <div className="analysis-result">
-          <h3>Résumé</h3>
+          <div className="section-header">
+            <h3 className="analysis-result-title">Résumé</h3>
+            <button onClick={handleSave} disabled={saving}>
+              {saving ? 'Sauvegarde…' : '💾 Sauvegarder ce bilan'}
+            </button>
+          </div>
+          {saveStatus && (
+            <p className={saveStatus.ok ? 'success-state' : 'error'}>{saveStatus.message}</p>
+          )}
           <p className="analysis-summary">{analysis.summary}</p>
 
           {analysis.accounts?.map((account, i) => (

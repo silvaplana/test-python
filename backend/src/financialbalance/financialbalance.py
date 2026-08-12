@@ -275,6 +275,11 @@ class FinancialBalance:
     def __init__(self, storage_dir: str = "data/bank_archives") -> None:
         self.storage_dir = Path(storage_dir)
         self.storage_dir.mkdir(parents=True, exist_ok=True)
+        # Sous-repertoire frere de storage_dir : vit donc dans le meme volume
+        # Docker persistant (docker-compose.yml monte tout /app/data, pas
+        # seulement bank_archives/), sans configuration supplementaire.
+        self.analyses_dir = self.storage_dir.parent / "analyses"
+        self.analyses_dir.mkdir(parents=True, exist_ok=True)
         # Cree paresseusement (lit ANTHROPIC_API_KEY dans l'environnement) :
         # pas d'erreur au demarrage du backend si la cle n'est pas encore
         # configuree, tant qu'aucune analyse n'est demandee.
@@ -304,6 +309,39 @@ class FinancialBalance:
             "size": len(content),
             "uploadedAt": received_at.isoformat(),
         }
+
+    def save_analysis(self, analysis: dict) -> dict:
+        """Enregistre un bilan (deja calcule par l'IA, voir ANALYSIS_SCHEMA)
+        sur disque et retourne des infos sur le fichier stocke.
+
+        Ne recalcule rien : sauvegarde tel quel le JSON fourni par le
+        frontend (celui qu'il a recu de /financialbalance/analysis).
+        Horodate le fichier plutot que d'ecraser un seul fichier "latest" :
+        rien n'est jamais perdu, get_latest_analysis() se contente de
+        prendre le plus recent.
+
+        Leve ValueError si le contenu ne ressemble pas a un bilan valide.
+        """
+        if not isinstance(analysis, dict) or "summary" not in analysis or "accounts" not in analysis:
+            raise ValueError("Le bilan a sauvegarder est invalide (champs 'summary'/'accounts' manquants).")
+
+        saved_at = datetime.now(timezone.utc)
+        timestamp = saved_at.strftime("%Y%m%dT%H%M%SZ")
+        stored_name = f"{timestamp}.json"
+        stored_path = self.analyses_dir / stored_name
+        stored_path.write_text(json.dumps(analysis, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        print(f"FinancialBalance.save_analysis: {stored_name}")
+        return {"filename": stored_name, "savedAt": saved_at.isoformat()}
+
+    def get_latest_analysis(self) -> dict:
+        """Retourne le dernier bilan sauvegarde (le plus recent fichier de
+        analyses_dir). Leve FileNotFoundError si aucun bilan n'a encore
+        ete sauvegarde."""
+        saved = sorted(self.analyses_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        if not saved:
+            raise FileNotFoundError("Aucun bilan n'a encore ete sauvegarde.")
+        return json.loads(saved[-1].read_text(encoding="utf-8"))
 
     def _client(self) -> anthropic.Anthropic:
         if self._anthropic_client is None:
