@@ -30,7 +30,7 @@ function useHelloAssoFetch(path) {
   return { data, error, refetch: fetchData }
 }
 
-function MembersTable() {
+export function MembersTable() {
   const { data: members, error, refetch } = useHelloAssoFetch('/helloasso/members')
 
   return (
@@ -72,7 +72,7 @@ function MembersTable() {
   )
 }
 
-function UnpaidTable() {
+export function UnpaidTable() {
   const { data: unpaid, error, refetch } = useHelloAssoFetch('/helloasso/unpaid')
 
   return (
@@ -85,7 +85,7 @@ function UnpaidTable() {
       {error && <p className="error">{error}</p>}
 
       {unpaid && (unpaid.length === 0 ? (
-        <p>Aucun impayé 🎉</p>
+        <p className="empty-state">Aucun impayé 🎉</p>
       ) : (
         <div className="table-wrapper">
           <table>
@@ -120,19 +120,7 @@ function UnpaidTable() {
   )
 }
 
-function CampaignTitle() {
+export function CampaignTitle() {
   const { data: campaign } = useHelloAssoFetch('/helloasso/campaign')
-  return <h1>{campaign?.title ?? '…'}</h1>
+  return <h1 className="campaign-title">{campaign?.title ?? '…'}</h1>
 }
-
-function HelloAsso() {
-  return (
-    <div className="helloasso">
-      <CampaignTitle />
-      <MembersTable />
-      <UnpaidTable />
-    </div>
-  )
-}
-
-export default HelloAsso

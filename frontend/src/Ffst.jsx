@@ -25,7 +25,7 @@ function useFfstFetch(path) {
   return { data, error, refetch: fetchData }
 }
 
-function LicencesTable() {
+export function LicencesTable() {
   const { data: licences, error, refetch } = useFfstFetch('/ffst/licences')
 
   return (
@@ -65,7 +65,7 @@ function LicencesTable() {
   )
 }
 
-function DemandesTable() {
+export function DemandesTable() {
   const { data: demandes, error, refetch } = useFfstFetch('/ffst/demandes')
 
   return (
@@ -78,7 +78,7 @@ function DemandesTable() {
       {error && <p className="error">{error}</p>}
 
       {demandes && (demandes.length === 0 ? (
-        <p>Aucune demande en cours 🎉</p>
+        <p className="empty-state">Aucune demande en cours 🎉</p>
       ) : (
         <div className="table-wrapper">
           <table>
@@ -111,13 +111,3 @@ function DemandesTable() {
   )
 }
 
-function Ffst() {
-  return (
-    <div className="ffst">
-      <LicencesTable />
-      <DemandesTable />
-    </div>
-  )
-}
-
-export default Ffst
