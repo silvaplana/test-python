@@ -47,60 +47,52 @@ function ffstIdentifiers(ffstRows) {
 
 export function MembersTable() {
   const { data: members, error, refetch: refetchMembers } = useHelloAssoFetch('/helloasso/members')
-  // La colonne FFST distingue 3 cas pour chaque adherent : deja licencie,
-  // demande en brouillon deja enregistree, ou ni l'un ni l'autre (bouton
-  // pour lancer une demande).
+  // La colonne Statut FFST distingue 4 cas pour chaque adherent, par
+  // ordre de priorite : licencie (payee), demande validee (a payer),
+  // demande en brouillon (bouton pour la supprimer), ou aucun des 3
+  // (bouton pour en faire une).
   const { data: licences, refetch: refetchLicences } = useHelloAssoFetch('/ffst/licences')
+  const { data: validatedDemandes, refetch: refetchValidatedDemandes } = useHelloAssoFetch(
+    '/ffst/demandes_validated'
+  )
   const { data: draftDemandes, refetch: refetchDraftDemandes } = useHelloAssoFetch('/ffst/demandes_draft')
-  const ffstDataLoaded = licences !== null && draftDemandes !== null
+  const ffstDataLoaded = licences !== null && validatedDemandes !== null && draftDemandes !== null
   const licenceIdentifiers = ffstIdentifiers(licences)
+  const validatedIdentifiers = ffstIdentifiers(validatedDemandes)
   const draftIdentifiers = ffstIdentifiers(draftDemandes)
-  // Etat du transfert vers le batch DRAFT FFST, par adherent (identifier) :
-  // en cours (pilote un vrai navigateur cote backend, plusieurs secondes)
-  // et erreur eventuelle (ex: aucun ancien licencie correspondant trouve).
+  // Etat des actions FFST en cours, par adherent (identifier) : en cours
+  // (pilote un vrai navigateur cote backend, plusieurs secondes) et
+  // erreur eventuelle (ex: aucun ancien licencie correspondant trouve).
   const [pendingIdentifiers, setPendingIdentifiers] = useState(new Set())
-  const [transferErrors, setTransferErrors] = useState({})
+  const [actionErrors, setActionErrors] = useState({})
 
-  // Rafraichit les 3 sources (adherents + les 2 listes FFST utilisees pour
+  // Rafraichit les 4 sources (adherents + les 3 listes FFST utilisees pour
   // la colonne Statut FFST) : sinon un changement fait a la main sur le
   // site FFST (ex: demande validee) resterait invisible tant qu'on ne
   // recharge pas toute la page.
   function refetchAll() {
     refetchMembers()
     refetchLicences()
+    refetchValidatedDemandes()
     refetchDraftDemandes()
   }
 
-  async function transferToDraft(member, identifier) {
+  async function appelerFfst(identifier, method, path, body) {
     setPendingIdentifiers((prev) => new Set(prev).add(identifier))
-    setTransferErrors((prev) => ({ ...prev, [identifier]: null }))
+    setActionErrors((prev) => ({ ...prev, [identifier]: null }))
     try {
-      // gender/birthDate/etc. ne servent que si l'adherent n'a pas
-      // d'ancienne licence renouvelable (chemin "nouvelle demande" cote
-      // backend) : on les envoie systematiquement, au cas ou.
-      const fields = member.customFields || {}
-      const response = await fetch(`${API_URL}/ffst/demandes_renouvellement`, {
-        method: 'POST',
+      const response = await fetch(`${API_URL}${path}`, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          lastName: member.lastName,
-          firstName: member.firstName,
-          gender: fields['Genre(H/F)'],
-          birthDate: fields['date de naissance'],
-          addressLine1: fields['Adresse'],
-          postalCode: fields['code postal'],
-          city: fields['Ville'],
-          phone: fields['Numéro de téléphone'],
-          email: member.email,
-        }),
+        body: JSON.stringify(body),
       })
       if (!response.ok) {
-        const body = await response.json().catch(() => null)
-        throw new Error(body?.detail || `Échec du transfert (${response.status})`)
+        const responseBody = await response.json().catch(() => null)
+        throw new Error(responseBody?.detail || `Échec (${response.status})`)
       }
       refetchDraftDemandes()
     } catch (err) {
-      setTransferErrors((prev) => ({ ...prev, [identifier]: err.message }))
+      setActionErrors((prev) => ({ ...prev, [identifier]: err.message }))
     } finally {
       setPendingIdentifiers((prev) => {
         const next = new Set(prev)
@@ -108,6 +100,31 @@ export function MembersTable() {
         return next
       })
     }
+  }
+
+  function creerDemande(member, identifier) {
+    // gender/birthDate/etc. ne servent que si l'adherent n'a pas
+    // d'ancienne licence renouvelable (chemin "nouvelle demande" cote
+    // backend) : on les envoie systematiquement, au cas ou.
+    const fields = member.customFields || {}
+    appelerFfst(identifier, 'POST', '/ffst/demandes_renouvellement', {
+      lastName: member.lastName,
+      firstName: member.firstName,
+      gender: fields['Genre(H/F)'],
+      birthDate: fields['date de naissance'],
+      addressLine1: fields['Adresse'],
+      postalCode: fields['code postal'],
+      city: fields['Ville'],
+      phone: fields['Numéro de téléphone'],
+      email: member.email,
+    })
+  }
+
+  function supprimerDemande(member, identifier) {
+    appelerFfst(identifier, 'DELETE', '/ffst/demandes_draft', {
+      lastName: member.lastName,
+      firstName: member.firstName,
+    })
   }
 
   return (
@@ -128,6 +145,7 @@ export function MembersTable() {
                 <th>Prénom</th>
                 <th>Email</th>
                 <th className="col-secondary">Montant</th>
+                <th className="col-secondary">Code promo</th>
                 <th className="col-secondary">Statut HelloAsso</th>
                 <th>Statut FFST</th>
               </tr>
@@ -135,32 +153,34 @@ export function MembersTable() {
             <tbody>
               {members.map((m, i) => {
                 const identifier = memberIdentifier(m.lastName, m.firstName)
+                const pending = pendingIdentifiers.has(identifier)
                 return (
                   <tr key={i}>
                     <td>{m.lastName}</td>
                     <td>{m.firstName}</td>
                     <td>{m.email}</td>
                     <td className="col-secondary">{euros(m.amount)}</td>
+                    <td className="col-secondary">{m.promoCode || '—'}</td>
                     <td className="col-secondary">{m.state}</td>
                     <td>
                       {ffstDataLoaded &&
                         (licenceIdentifiers.has(identifier) ? (
-                          'Licence FFST créée'
+                          'Licence payée'
+                        ) : validatedIdentifiers.has(identifier) ? (
+                          'Licence validée, à payer'
                         ) : draftIdentifiers.has(identifier) ? (
-                          'Dans le batch DRAFT FFST'
+                          <>
+                            <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>
+                              {pending ? 'Suppression en cours…' : 'Supprimer demande de licence'}
+                            </button>
+                            {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
+                          </>
                         ) : (
                           <>
-                            <button
-                              onClick={() => transferToDraft(m, identifier)}
-                              disabled={pendingIdentifiers.has(identifier)}
-                            >
-                              {pendingIdentifiers.has(identifier)
-                                ? 'Transfert en cours…'
-                                : 'Transférer au batch DRAFT FFST'}
+                            <button onClick={() => creerDemande(m, identifier)} disabled={pending}>
+                              {pending ? 'Envoi en cours…' : 'Faire demande de licence'}
                             </button>
-                            {transferErrors[identifier] && (
-                              <p className="error">{transferErrors[identifier]}</p>
-                            )}
+                            {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
                           </>
                         ))}
                     </td>
