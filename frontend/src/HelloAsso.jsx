@@ -6,6 +6,22 @@ function euros(amount) {
   return `${amount.toFixed(2)} €`
 }
 
+// Libelle d'action en cours (ex: "Envoi en cours") : italique + 3 points
+// animes en boucle (voir .loading-label/.loading-dots dans App.css),
+// plutot qu'un simple "..." statique.
+function LoadingLabel({ text }) {
+  return (
+    <span className="loading-label">
+      {text}
+      <span className="loading-dots">
+        <span>.</span>
+        <span>.</span>
+        <span>.</span>
+      </span>
+    </span>
+  )
+}
+
 // Tableau simple avec etat loading/error/data, factorise pour les 2 tableaux
 // (membres, impayes) qui ont la meme mecanique de chargement.
 function useHelloAssoFetch(path) {
@@ -144,8 +160,8 @@ export function MembersTable() {
                 <th>Nom</th>
                 <th>Prénom</th>
                 <th>Email</th>
-                <th className="col-secondary">Montant</th>
-                <th className="col-secondary">Code promo</th>
+                <th>Montant</th>
+                <th>Code promo</th>
                 <th className="col-secondary">Statut HelloAsso</th>
                 <th>Statut FFST</th>
                 <th>Actions FFST</th>
@@ -167,8 +183,8 @@ export function MembersTable() {
                     <td>{m.lastName}</td>
                     <td>{m.firstName}</td>
                     <td>{m.email}</td>
-                    <td className="col-secondary">{euros(m.amount)}</td>
-                    <td className="col-secondary">{m.promoCode || '—'}</td>
+                    <td>{euros(m.amount)}</td>
+                    <td>{m.promoCode || '—'}</td>
                     <td className="col-secondary">{m.state}</td>
                     <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
                     <td>
@@ -176,12 +192,12 @@ export function MembersTable() {
                         <>
                           {ffstStatus === 'Inconnu' && (
                             <button onClick={() => creerDemande(m, identifier)} disabled={pending}>
-                              {pending ? 'Envoi en cours…' : 'Faire la demande'}
+                              {pending ? <LoadingLabel text="Envoi en cours" /> : 'Faire la demande'}
                             </button>
                           )}
                           {ffstStatus === 'Brouillon' && (
                             <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>
-                              {pending ? 'Suppression en cours…' : 'Supprimer la demande'}
+                              {pending ? <LoadingLabel text="Suppression en cours" /> : 'Supprimer la demande'}
                             </button>
                           )}
                           {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}

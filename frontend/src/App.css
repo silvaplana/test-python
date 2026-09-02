@@ -12,6 +12,39 @@
   font-family: var(--sans);
 }
 
+/* Libelle "X en cours..." (boutons d'action FFST) : italique + 3 points
+   qui s'allument un a un en boucle, pour signaler visuellement une
+   action en cours sans texte qui change de taille (les points occupent
+   toujours la meme largeur). */
+.loading-label {
+  font-style: italic;
+}
+
+.loading-dots span {
+  display: inline-block;
+  opacity: 0;
+  animation: loading-dots-blink 1.4s infinite both;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes loading-dots-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
 .campaign-title {
   font-size: 1.8rem;
   line-height: 1.3;
