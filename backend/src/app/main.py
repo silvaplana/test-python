@@ -35,8 +35,12 @@ helloasso_client = HelloAsso(
 helloasso_receiver = HelloAssoReceiver(
     client=helloasso_client,
     app=app,
+    # Slug HelloAsso genere lors de la creation du formulaire, qui ne suit
+    # pas forcement le titre affiche : ce formulaire est titre "saison
+    # 2026-2027" mais garde le slug de l'annee precedente (suffixe "-2-2"
+    # ajoute par HelloAsso pour eviter un doublon de slug).
     form_slug=os.environ.get(
-        "HELLOASSO_FORM_SLUG", "rejoignez-notre-club-de-sambo-mma-pour-la-saison-2025-2026"
+        "HELLOASSO_FORM_SLUG", "rejoignez-notre-club-de-sambo-mma-pour-la-saison-2025-2026-2-2"
     ),
 )
 
