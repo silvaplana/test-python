@@ -8,7 +8,9 @@
   width: 100%;
   max-width: 1100px;
   margin: 4rem auto;
-  padding: 0 1.5rem;
+  /* padding-bottom genereux : la barre d'outils (.bottom-nav) est fixee en
+     bas de l'ecran et couvrirait sinon le bas du contenu. */
+  padding: 0 1.5rem 5rem;
   font-family: var(--sans);
 }
 
@@ -51,11 +53,12 @@
   margin-bottom: 2rem;
 }
 
-/* Onglets : un seul contenu visible/monte a la fois (voir Tabs.jsx). Les
-   libelles passent sur plusieurs lignes s'ils ne tiennent pas sur une
-   seule (flex-wrap) plutot que de deborder/scroller horizontalement, pour
-   que les 4 onglets restent toujours visibles d'un coup, y compris sur
-   petit ecran. */
+/* Second niveau de navigation (voir Navigation.jsx) : les outils de la
+   section active, au-dessus du contenu. Un seul contenu visible/monte a
+   la fois. Les libelles passent sur plusieurs lignes s'ils ne tiennent
+   pas sur une seule (flex-wrap) plutot que de deborder/scroller
+   horizontalement, pour que tous les outils restent toujours visibles
+   d'un coup, y compris sur petit ecran. */
 .tabs-nav {
   display: flex;
   flex-wrap: wrap;
@@ -88,6 +91,45 @@
   color: var(--accent);
   font-weight: 600;
   border-bottom-color: var(--accent);
+}
+
+/* Barre d'outils fixee en bas de l'ecran (voir Navigation.jsx), façon
+   appli mobile : les 3 sections (HelloAsso, FFST, Bilan financier) sont
+   toujours accessibles d'un tap, quelle que soit la position de scroll. */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.bottom-nav button {
+  flex: 1;
+  padding: 0.85rem 0.5rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  border-top: 2px solid transparent;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.bottom-nav button:hover {
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.bottom-nav button.bottom-nav-active {
+  color: var(--accent);
+  font-weight: 600;
+  border-top-color: var(--accent);
 }
 
 .section-header {
@@ -453,5 +495,10 @@ tbody tr:last-child td {
   .tabs-nav button {
     padding: 0.55rem 0.75rem;
     font-size: 0.85rem;
+  }
+
+  .bottom-nav button {
+    padding: 0.7rem 0.4rem;
+    font-size: 0.8rem;
   }
 }
