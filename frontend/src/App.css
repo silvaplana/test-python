@@ -6,12 +6,29 @@
      et laisse .table-wrapper gerer son propre scroll horizontal. */
   box-sizing: border-box;
   width: 100%;
+  font-family: var(--sans);
+}
+
+/* .app et .navigation (voir Navigation.jsx) sont 2 wrappers imbriques
+   sans styles propres : le flex row (sidebar + contenu) est porte par
+   .navigation directement pour eviter un niveau de wrapper de plus. */
+.navigation {
+  display: flex;
+  width: 100%;
+}
+
+.app-content {
+  box-sizing: border-box;
+  flex: 1;
+  /* laisse .table-wrapper gerer son propre scroll horizontal plutot que
+     de forcer la colonne (donc la sidebar avec) a s'elargir. */
+  min-width: 0;
   max-width: 1100px;
   margin: 4rem auto;
-  /* padding-bottom genereux : la barre d'outils (.bottom-nav) est fixee en
-     bas de l'ecran et couvrirait sinon le bas du contenu. */
+  /* padding-bottom genereux par defaut (mobile) : la barre d'outils du bas
+     (.bottom-nav) est fixee en bas de l'ecran et couvrirait sinon le bas
+     du contenu -- inutile sur desktop, voir le media query plus bas. */
   padding: 0 1.5rem 5rem;
-  font-family: var(--sans);
 }
 
 /* Libelle "X en cours..." (boutons d'action FFST) : italique + 3 points
@@ -94,8 +111,13 @@
 }
 
 /* Barre d'outils fixee en bas de l'ecran (voir Navigation.jsx), façon
-   appli mobile : les 3 sections (HelloAsso, FFST, Bilan financier) sont
-   toujours accessibles d'un tap, quelle que soit la position de scroll. */
+   appli mobile : sur mobile uniquement (desktop utilise .sidebar a la
+   place, voir plus bas). 2 variantes en alternance, jamais les 2 a la
+   fois (voir .nav-drilled ci-dessous) :
+   - .bottom-nav-sections (etat initial) : les 3 sections.
+   - .bottom-nav-tools : les outils de la section active + un bouton
+     permanent ("⌂") pour revenir aux sections, une fois qu'on en a
+     choisi une (drill-down, comme un menu Reglages mobile). */
 .bottom-nav {
   position: fixed;
   left: 0;
@@ -106,6 +128,10 @@
   border-top: 1px solid var(--border);
   background: var(--bg);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.bottom-nav-tools {
+  display: none;
 }
 
 .bottom-nav button {
@@ -130,6 +156,48 @@
   color: var(--accent);
   font-weight: 600;
   border-top-color: var(--accent);
+}
+
+.bottom-nav .bottom-nav-back {
+  flex: 0 0 auto;
+  border-left: 1px solid var(--border);
+  font-size: 1.2rem;
+}
+
+/* Barre laterale (desktop uniquement, voir media query plus bas) :
+   equivalent de .bottom-nav pour choisir la section, mais toujours
+   visible (pas de drill-down necessaire, il y a la place a cote du
+   contenu). */
+.sidebar {
+  display: none;
+}
+
+.sidebar button {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: left;
+  padding: 0.75rem 1.1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  border-left: 3px solid transparent;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.sidebar button:hover {
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+.sidebar button.sidebar-active {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-bg);
+  border-left-color: var(--accent);
 }
 
 .section-header {
@@ -492,13 +560,56 @@ tbody tr:last-child td {
     font-size: 0.85rem;
   }
 
-  .tabs-nav button {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.85rem;
+  /* Le choix de l'outil (Adherents/Impayes, Licencies/...) se fait via la
+     barre du bas apres drill-down (.bottom-nav-tools) sur mobile, pas via
+     ce second rang d'onglets au-dessus du contenu (reserve au desktop). */
+  .tabs-nav {
+    display: none;
+  }
+
+  /* Drill-down (voir Navigation.jsx) : ces 2 regles ne doivent s'appliquer
+     qu'ici (mobile) -- sur desktop, .sidebar remplace .bottom-nav
+     entierement (display:none, cf media query suivant), et .nav-drilled
+     ne doit pas pouvoir re-afficher .bottom-nav-tools par-dessus. */
+  .navigation.nav-drilled .bottom-nav-sections {
+    display: none;
+  }
+
+  .navigation.nav-drilled .bottom-nav-tools {
+    display: flex;
   }
 
   .bottom-nav button {
     padding: 0.7rem 0.4rem;
     font-size: 0.8rem;
+  }
+}
+
+/* Desktop : la sidebar remplace la barre du bas pour choisir la section
+   (plus de place pour l'afficher en permanence, pas besoin de
+   drill-down) ; le choix de l'outil dans la section active reste au
+   2e rang d'onglets au-dessus du contenu (.tabs-nav, visible par
+   defaut). */
+@media (min-width: 641px) {
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    width: 180px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 4rem 0.6rem 0;
+    border-right: 1px solid var(--border);
+    align-self: flex-start;
+    position: sticky;
+    top: 0;
+  }
+
+  .bottom-nav {
+    display: none;
+  }
+
+  .app-content {
+    padding-bottom: 2rem;
   }
 }

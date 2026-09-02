@@ -7,8 +7,8 @@ import Navigation from './Navigation.jsx'
 function App() {
   return (
     <div className="app">
-      <CampaignTitle />
       <Navigation
+        header={<CampaignTitle />}
         sections={[
           {
             key: 'helloasso',
