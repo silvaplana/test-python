@@ -2,6 +2,22 @@ from fastapi import FastAPI
 
 from .helloasso import HelloAsso
 
+# Etats HelloAsso (PaymentState) indiquant un paiement reellement refuse/en
+# echec definitif. A distinguer des etats "futur/en attente" (Pending,
+# Waiting*, Init) : une adhesion payee en plusieurs fois a des echeances a
+# venir dans cet etat le temps qu'elles arrivent a echeance, ce n'est pas un
+# impaye. Registered/Authorized/Refunding/Contested/Corrected sont des etats
+# de succes (partiel ou en cours), pas des echecs non plus.
+FAILED_PAYMENT_STATES = {
+    "Refused",
+    "Error",
+    "Canceled",
+    "Abandoned",
+    "Deleted",
+    "Inconsistent",
+    "NoDonation",
+}
+
 
 class HelloAssoReceiver:
     """Recoit les requetes REST (FastAPI) et delegue a HelloAsso.
@@ -40,11 +56,17 @@ class HelloAssoReceiver:
 
     def getUnpaid(self) -> list[dict]:
         """Endpoint REST GET /helloasso/unpaid. Retourne les adherents ayant au
-        moins un paiement refuse, avec le montant restant du."""
+        moins un paiement reellement refuse/en echec (voir
+        FAILED_PAYMENT_STATES), avec le montant restant du.
+
+        Ne compte pas les echeances futures d'un paiement echelonne (etat
+        Pending/Waiting* le temps qu'elles arrivent a echeance) comme des
+        impayes.
+        """
         members = self.client.get_member_payments(self.form_slug, self.form_type)
         unpaid = []
         for member in members:
-            refused_payments = [p for p in member["payments"] if p["state"] != "Authorized"]
+            refused_payments = [p for p in member["payments"] if p["state"] in FAILED_PAYMENT_STATES]
             if not refused_payments:
                 continue
             unpaid.append(
