@@ -12,7 +12,7 @@ protegee par un formulaire de connexion classique. Deux particularites :
   cote client. Ce module recupere ce bloc et le parse.
 
 get_licences() ne fait qu'une requete (connexion = page de resultat).
-get_demandes() en fait deux, sur la meme session : connexion, puis clic
+get_demandes_validated() en fait deux, sur la meme session : connexion, puis clic
 simule sur le bouton "Visualiser les demandes de licence en cours".
 
 Variables d'environnement attendues pour le main() de demo :
@@ -41,12 +41,13 @@ class FfstAuthError(RuntimeError):
 class Ffst:
     """Client pour le portail de gestion des licences FFST.
 
-    Chaque appel public (get_licences(), get_demandes()) effectue une
-    nouvelle connexion (le site ne propose pas de rafraichissement des
-    donnees hors connexion). get_demandes() a besoin d'une navigation
-    supplementaire apres la connexion (clic simule sur un bouton) : les
-    deux requetes partagent alors le meme client httpx (memes cookies),
-    contrairement a get_licences() qui n'a besoin que de la connexion.
+    Chaque appel public (get_licences(), get_demandes_validated()) effectue
+    une nouvelle connexion (le site ne propose pas de rafraichissement des
+    donnees hors connexion). get_demandes_validated() a besoin d'une
+    navigation supplementaire apres la connexion (clic simule sur un
+    bouton) : les deux requetes partagent alors le meme client httpx
+    (memes cookies), contrairement a get_licences() qui n'a besoin que de
+    la connexion.
 
     Le site ne supporte pas bien les connexions concurrentes sur le meme
     compte (des requetes simultanees font parfois echouer la connexion,
@@ -119,7 +120,7 @@ class Ffst:
 
     def _parse_wd_table(self, page_html: str) -> list[dict]:
         """Extrait et parse le tableau de donnees WEBDEV (champ "A1")
-        integre a page_html. Utilise par get_licences() et get_demandes() :
+        integre a page_html. Utilise par get_licences() et get_demandes_validated() :
         les deux pages du portail exposent leurs donnees via le meme
         mecanisme (bloc XML echappe dans un appel JS
         DeclareChamp("A1", ..., WDTable, [...]))."""
@@ -155,7 +156,7 @@ class Ffst:
         print(f"Ffst.get_licences: {len(licences)} licence(s) recuperee(s)")
         return licences
 
-    def get_demandes(self) -> list[dict]:
+    def get_demandes_validated(self) -> list[dict]:
         """Retourne les demandes de licence en cours (nouvelles demandes et
         renouvellements pas encore valides) pour le club.
 
@@ -181,7 +182,7 @@ class Ffst:
             )
 
         demandes = self._parse_wd_table(demandes_page_html)
-        print(f"Ffst.get_demandes: {len(demandes)} demande(s) en cours")
+        print(f"Ffst.get_demandes_validated: {len(demandes)} demande(s) en cours")
         return demandes
 
 
@@ -202,7 +203,7 @@ def main() -> None:
     client = Ffst(user_part1, user_part2, user_part3, password)
     for licence in client.get_licences():
         print(licence)
-    for demande in client.get_demandes():
+    for demande in client.get_demandes_validated():
         print(demande)
 
 

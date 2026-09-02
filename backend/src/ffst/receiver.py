@@ -26,4 +26,4 @@ class FfstReceiver:
     def getDemandes(self) -> list[dict]:
         """Endpoint REST GET /ffst/demandes. Retourne les demandes de licence
         (nouvelles demandes et renouvellements) en cours pour le club."""
-        return self.client.get_demandes()
+        return self.client.get_demandes_validated()

@@ -71,7 +71,7 @@ export function DemandesTable() {
   return (
     <section>
       <div className="section-header">
-        <h2>Demandes de licences FFST en cours ({demandes?.length ?? '…'})</h2>
+        <h2>Demandes de licences FFST validées ({demandes?.length ?? '…'})</h2>
         <button onClick={refetch}>Rafraîchir</button>
       </div>
 

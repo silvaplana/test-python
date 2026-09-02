@@ -13,7 +13,7 @@ function App() {
           { label: 'Adhérents HelloAsso', content: <MembersTable /> },
           { label: 'Impayés HelloAsso', content: <UnpaidTable /> },
           { label: 'Licenciés FFST', content: <LicencesTable /> },
-          { label: 'Demandes FFST', content: <DemandesTable /> },
+          { label: 'Demandes FFST validées', content: <DemandesTable /> },
           { label: 'Bilan financier', content: <FinancialBalance /> },
         ]}
       />
