@@ -119,6 +119,14 @@
   border-bottom-color: var(--accent);
 }
 
+/* Libelle raccourci d'un outil (ex: "Demandes brouillon" -> "Brouillon"),
+   affiche a la place du libelle complet uniquement sur mobile, quand il y
+   en a un (voir Navigation.jsx) -- sinon .tab-label-short n'est pas rendu
+   du tout et .tab-label-full reste affiche partout. */
+.tab-label-short {
+  display: none;
+}
+
 /* Barre d'outils fixee en bas de l'ecran (voir Navigation.jsx), façon
    appli mobile : sur mobile uniquement (desktop utilise .sidebar a la
    place, voir plus bas). Toujours les 3 sections, jamais remplacee par
@@ -265,7 +273,7 @@ tbody tr:last-child td {
 }
 
 .unpaid-amount {
-  color: #dc2626;
+  color: #f87171;
   font-weight: 600;
 }
 
@@ -279,12 +287,12 @@ tbody tr:last-child td {
 }
 
 .error {
-  color: #dc2626;
+  color: #f87171;
   margin-top: 1rem;
 }
 
 .success-state {
-  color: #16a34a;
+  color: #4ade80;
   margin-top: 1rem;
 }
 
@@ -525,17 +533,6 @@ tbody tr:last-child td {
   white-space: pre-line;
 }
 
-@media (prefers-color-scheme: dark) {
-  .unpaid-amount,
-  .error {
-    color: #f87171;
-  }
-
-  .success-state {
-    color: #4ade80;
-  }
-}
-
 /* Mobile : moins d'infos par ligne plutot qu'un tableau large a scroller.
    Les colonnes secondaires (email, statut, details...) disparaissent. Le
    texte reste sur une seule ligne (pas de retour a la ligne force au
@@ -559,6 +556,14 @@ tbody tr:last-child td {
   .tabs-nav button {
     padding: 0.55rem 0.75rem;
     font-size: 0.85rem;
+  }
+
+  .tab-label-full {
+    display: none;
+  }
+
+  .tab-label-short {
+    display: inline;
   }
 
   .bottom-nav button {
