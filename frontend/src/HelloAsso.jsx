@@ -37,25 +37,70 @@ function memberIdentifier(lastName, firstName) {
   return `${lastName} ${firstName}`.replace(/\s+/g, ' ').trim().toUpperCase()
 }
 
-export function MembersTable() {
-  const { data: members, error, refetch } = useHelloAssoFetch('/helloasso/members')
-  // Le bouton "Faire demande licence FFST" ne doit s'afficher que pour un
-  // adherent absent des licencies FFST ET des demandes en brouillon
-  // (sinon une demande existe deja ou n'a plus lieu d'etre).
-  const { data: licences } = useHelloAssoFetch('/ffst/licences')
-  const { data: draftDemandes } = useHelloAssoFetch('/ffst/demandes_draft')
-  const ffstDataLoaded = licences !== null && draftDemandes !== null
-  const existingFfstIdentifiers = new Set(
-    [...(licences ?? []), ...(draftDemandes ?? [])].map((d) =>
-      (d['Nom et Prénom'] || '').replace(/\s+/g, ' ').trim().toUpperCase()
-    )
+// Ensemble des identifiants (voir memberIdentifier) presents dans une liste
+// FFST (licences ou demandes), pour un test d'appartenance en O(1).
+function ffstIdentifiers(ffstRows) {
+  return new Set(
+    (ffstRows ?? []).map((row) => (row['Nom et Prénom'] || '').replace(/\s+/g, ' ').trim().toUpperCase())
   )
+}
+
+export function MembersTable() {
+  const { data: members, error, refetch: refetchMembers } = useHelloAssoFetch('/helloasso/members')
+  // La colonne FFST distingue 3 cas pour chaque adherent : deja licencie,
+  // demande en brouillon deja enregistree, ou ni l'un ni l'autre (bouton
+  // pour lancer une demande).
+  const { data: licences, refetch: refetchLicences } = useHelloAssoFetch('/ffst/licences')
+  const { data: draftDemandes, refetch: refetchDraftDemandes } = useHelloAssoFetch('/ffst/demandes_draft')
+  const ffstDataLoaded = licences !== null && draftDemandes !== null
+  const licenceIdentifiers = ffstIdentifiers(licences)
+  const draftIdentifiers = ffstIdentifiers(draftDemandes)
+  // Etat du transfert vers le batch DRAFT FFST, par adherent (identifier) :
+  // en cours (pilote un vrai navigateur cote backend, plusieurs secondes)
+  // et erreur eventuelle (ex: aucun ancien licencie correspondant trouve).
+  const [pendingIdentifiers, setPendingIdentifiers] = useState(new Set())
+  const [transferErrors, setTransferErrors] = useState({})
+
+  // Rafraichit les 3 sources (adherents + les 2 listes FFST utilisees pour
+  // la colonne Statut FFST) : sinon un changement fait a la main sur le
+  // site FFST (ex: demande validee) resterait invisible tant qu'on ne
+  // recharge pas toute la page.
+  function refetchAll() {
+    refetchMembers()
+    refetchLicences()
+    refetchDraftDemandes()
+  }
+
+  async function transferToDraft(member, identifier) {
+    setPendingIdentifiers((prev) => new Set(prev).add(identifier))
+    setTransferErrors((prev) => ({ ...prev, [identifier]: null }))
+    try {
+      const response = await fetch(`${API_URL}/ffst/demandes_renouvellement`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lastName: member.lastName, firstName: member.firstName }),
+      })
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.detail || `Échec du transfert (${response.status})`)
+      }
+      refetchDraftDemandes()
+    } catch (err) {
+      setTransferErrors((prev) => ({ ...prev, [identifier]: err.message }))
+    } finally {
+      setPendingIdentifiers((prev) => {
+        const next = new Set(prev)
+        next.delete(identifier)
+        return next
+      })
+    }
+  }
 
   return (
     <section>
       <div className="section-header">
         <h2>Adhérents HelloAsso ({members?.length ?? '…'})</h2>
-        <button onClick={refetch}>Rafraîchir</button>
+        <button onClick={refetchAll}>Rafraîchir</button>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -69,26 +114,45 @@ export function MembersTable() {
                 <th>Prénom</th>
                 <th>Email</th>
                 <th className="col-secondary">Montant</th>
-                <th className="col-secondary">Statut</th>
-                <th></th>
+                <th className="col-secondary">Statut HelloAsso</th>
+                <th>Statut FFST</th>
               </tr>
             </thead>
             <tbody>
-              {members.map((m, i) => (
-                <tr key={i}>
-                  <td>{m.lastName}</td>
-                  <td>{m.firstName}</td>
-                  <td>{m.email}</td>
-                  <td className="col-secondary">{euros(m.amount)}</td>
-                  <td className="col-secondary">{m.state}</td>
-                  <td>
-                    {ffstDataLoaded &&
-                      !existingFfstIdentifiers.has(memberIdentifier(m.lastName, m.firstName)) && (
-                        <button>Faire demande licence FFST</button>
-                      )}
-                  </td>
-                </tr>
-              ))}
+              {members.map((m, i) => {
+                const identifier = memberIdentifier(m.lastName, m.firstName)
+                return (
+                  <tr key={i}>
+                    <td>{m.lastName}</td>
+                    <td>{m.firstName}</td>
+                    <td>{m.email}</td>
+                    <td className="col-secondary">{euros(m.amount)}</td>
+                    <td className="col-secondary">{m.state}</td>
+                    <td>
+                      {ffstDataLoaded &&
+                        (licenceIdentifiers.has(identifier) ? (
+                          'Licence FFST créée'
+                        ) : draftIdentifiers.has(identifier) ? (
+                          'Dans le batch DRAFT FFST'
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => transferToDraft(m, identifier)}
+                              disabled={pendingIdentifiers.has(identifier)}
+                            >
+                              {pendingIdentifiers.has(identifier)
+                                ? 'Transfert en cours…'
+                                : 'Transférer au batch DRAFT FFST'}
+                            </button>
+                            {transferErrors[identifier] && (
+                              <p className="error">{transferErrors[identifier]}</p>
+                            )}
+                          </>
+                        ))}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>

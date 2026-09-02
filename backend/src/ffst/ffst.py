@@ -32,6 +32,7 @@ import xml.etree.ElementTree as ET
 
 import httpx
 from dotenv import load_dotenv
+from playwright.sync_api import sync_playwright
 
 
 class FfstAuthError(RuntimeError):
@@ -42,13 +43,17 @@ class Ffst:
     """Client pour le portail de gestion des licences FFST.
 
     Chaque appel public (get_licences(), get_demandes_validated(),
-    get_demandes_draft()) effectue une nouvelle connexion (le site ne
-    propose pas de rafraichissement des donnees hors connexion).
-    get_demandes_validated() et get_demandes_draft() ont besoin d'une
-    navigation supplementaire apres la connexion (clic simule sur un
-    bouton different pour chacune) : les deux requetes partagent alors le
-    meme client httpx (memes cookies), contrairement a get_licences() qui
-    n'a besoin que de la connexion.
+    get_demandes_draft(), create_demande_renouvellement()) effectue une
+    nouvelle connexion (le site ne propose pas de rafraichissement des
+    donnees hors connexion). get_demandes_validated() et
+    get_demandes_draft() ont besoin d'une navigation supplementaire apres
+    la connexion (clic simule sur un bouton different pour chacune) : les
+    deux requetes partagent alors le meme client httpx (memes cookies),
+    contrairement a get_licences() qui n'a besoin que de la connexion.
+    create_demande_renouvellement() est a part : c'est la seule methode
+    d'ecriture (elle cree une vraie demande facturee par la FFST), et la
+    seule a piloter un navigateur (Playwright) plutot qu'un simple client
+    httpx -- voir sa docstring.
 
     Le site ne supporte pas bien les connexions concurrentes sur le meme
     compte (des requetes simultanees font parfois echouer la connexion,
@@ -216,6 +221,84 @@ class Ffst:
         demandes = self._parse_wd_table(draft_page_html)
         print(f"Ffst.get_demandes_draft: {len(demandes)} demande(s) en brouillon")
         return demandes
+
+    def create_demande_renouvellement(self, last_name: str, first_name: str) -> None:
+        """Soumet une demande de renouvellement de licence pour un ancien
+        licencie du club (chemin "Renouveler les licences" du portail).
+
+        Contrairement aux methodes de lecture ci-dessus (simples POST via
+        httpx), la page "Liste des licences renouvelables" est un tableau
+        WEBDEV editable (case a cocher par ligne) dont l'etat est
+        synchronise au serveur par un appel AJAX interne utilisant un
+        jeton d'URL qui change a chaque interaction -- non documente et
+        fragile a rejouer en HTTP brut. On pilote donc un vrai navigateur
+        (Playwright/Chromium), avec exactement les memes clics qu'un
+        humain, plutot que de reproduire ce mecanisme.
+
+        La recherche par nom+prenom doit isoler un seul ancien licencie
+        (sinon RuntimeError, ambigu ou introuvable). Cree une vraie
+        demande facturee par la FFST (24 EUR au moment de l'ecriture de
+        cette methode) -- a n'appeler que sur action explicite de
+        l'utilisateur, jamais automatiquement.
+        """
+        with self._lock, sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.on("dialog", lambda dialog: dialog.accept())
+                self._renouveler_via_navigateur(page, last_name, first_name)
+            finally:
+                browser.close()
+
+        print(f"Ffst.create_demande_renouvellement: demande soumise pour {last_name} {first_name}")
+
+    def _renouveler_via_navigateur(self, page, last_name: str, first_name: str) -> None:
+        page.goto(f"{self.BASE_URL}{self.LOGIN_PATH}")
+        page.fill('[name="A5"]', self.user_part1)
+        page.fill('[name="A9"]', self.user_part2)
+        page.fill('[name="A10"]', self.user_part3)
+        page.fill('[name="A3"]', self.password)
+        page.get_by_role("button", name="Valider").click()
+        page.wait_for_load_state("networkidle")
+
+        if "Visu_Licences_Club" not in page.content():
+            raise FfstAuthError("Authentification FFST echouee (identifiants incorrects ?)")
+
+        # Equivalent au clic sur "Renouveler les licences" (bouton WEBDEV
+        # M31, dans un menu deroulant "Demandes") : on appelle directement
+        # la fonction JS declenchee par ce bouton plutot que de chercher a
+        # ouvrir ce menu, moins fragile face a la mise en page.
+        page.evaluate("_JSL(_PAGE_, 'M31', '_self', '', '')")
+        page.wait_for_load_state("networkidle")
+
+        # exact=True : "Prénom :" contient "nom :" en sous-chaine, sans quoi
+        # get_by_label("Nom :") matcherait aussi le champ Prenom.
+        page.get_by_label("Nom :", exact=True).fill(last_name)
+        page.get_by_label("Prénom :", exact=True).fill(first_name)
+        page.get_by_role("button", name="Rechercher").click()
+        page.wait_for_load_state("networkidle")
+
+        checkboxes = page.get_by_role("checkbox")
+        count = checkboxes.count()
+        if count == 0:
+            raise RuntimeError(
+                f"Aucun ancien licencie renouvelable trouve pour {last_name} {first_name}"
+            )
+        if count > 1:
+            raise RuntimeError(
+                f"Plusieurs anciens licencies renouvelables correspondent a "
+                f"{last_name} {first_name} : verifier manuellement sur le portail FFST"
+            )
+        checkboxes.first.check()
+
+        page.get_by_role("button", name="Renouveler les licences sélectionnées").click()
+        page.wait_for_load_state("networkidle")
+
+        page.get_by_role(
+            "checkbox", name="Vous êtes en possession de l'attestation d'assurance signée par l'adhérent"
+        ).check()
+        page.get_by_role("button", name="Enregistrer votre demande").click()
+        page.wait_for_load_state("networkidle")
 
 
 def main() -> None:

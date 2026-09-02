@@ -15,6 +15,19 @@ COPY src ./src
 # (fastapi, uvicorn) — pas pytest/httpx qui sont réservés au développement.
 RUN pip install --no-cache-dir .
 
+# Playwright (Chromium) : utilisé par Ffst.create_demande_renouvellement
+# pour piloter un vrai navigateur sur le portail FFST (la case à cocher de
+# la page "Renouveler les licences" est un tableau WEBDEV dont l'état est
+# géré par un mécanisme AJAX interne trop fragile à rejouer en HTTP brut,
+# voir la docstring de cette méthode). "--with-deps" installe aussi les
+# librairies système (nécessite root, donc avant le "USER appuser"
+# ci-dessous). PLAYWRIGHT_BROWSERS_PATH pointe vers un dossier dédié et
+# rendu lisible par tous : sans ça, le binaire serait installé sous
+# /root/.cache et resterait inaccessible à appuser au runtime (même type
+# de piège que le volume bank_archives plus bas).
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN playwright install --with-deps chromium && chmod -R o+rx /ms-playwright
+
 # Bonne pratique : ne pas exécuter l'application en tant que root
 # à l'intérieur du conteneur.
 RUN useradd --create-home appuser

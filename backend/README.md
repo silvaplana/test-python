@@ -11,7 +11,10 @@ app FastAPI :
   `.env.example` pour la config requise.
 - **ffst** : scraping du portail de licences FFST (`GET /ffst/licences`,
   `GET /ffst/demandes_validated`, `GET /ffst/demandes_draft`, pas d'API —
-  parsing d'un bloc XML integre a la page HTML) — voir `src/ffst/ffst.py`.
+  parsing d'un bloc XML integre a la page HTML) + `POST
+  /ffst/demandes_renouvellement` pour soumettre une demande de
+  renouvellement (pilote un vrai navigateur Playwright, voir
+  `Ffst.create_demande_renouvellement`) — voir `src/ffst/ffst.py`.
 - **financialbalance** : upload de l'archive des relevés bancaires
   (`POST /financialbalance/archives`) puis analyse IA (Claude, via l'API
   Anthropic) en flux Server-Sent Events (`GET /financialbalance/analysis`)
@@ -39,7 +42,7 @@ backend/
 │   ├── ffst/
 │   │   ├── __init__.py
 │   │   ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
-│   │   └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes_validated, /ffst/demandes_draft
+│   │   └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes_validated, /ffst/demandes_draft, /ffst/demandes_renouvellement
 │   └── financialbalance/
 │       ├── __init__.py
 │       ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
@@ -74,6 +77,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /ffst/licences` -> liste des licences FFST du club (saison en cours)
 - `GET /ffst/demandes_validated` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
 - `GET /ffst/demandes_draft` -> demandes en brouillon, pas encore validées/soumises (le "panier" du portail ; liste vide = cas normal)
+- `POST /ffst/demandes_renouvellement` avec body `{"lastName": "...", "firstName": "..."}` -> soumet une demande de renouvellement pour un ancien licencié du club (doit être identifiable de façon non ambiguë) ; la place dans `/ffst/demandes_draft` sans déclencher de facturation (celle-ci n'intervient qu'à la validation, manuelle, sur le portail)
 - `POST /financialbalance/archives` (multipart, champ `file`) -> stocke une archive `.zip` de relevés bancaires
 - `GET /financialbalance/analysis` -> flux SSE : progression puis bilan IA (résumé + tableau par catégorie) de la dernière archive envoyée
 
