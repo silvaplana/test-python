@@ -148,12 +148,20 @@ export function MembersTable() {
                 <th className="col-secondary">Code promo</th>
                 <th className="col-secondary">Statut HelloAsso</th>
                 <th>Statut FFST</th>
+                <th>Actions FFST</th>
               </tr>
             </thead>
             <tbody>
               {members.map((m, i) => {
                 const identifier = memberIdentifier(m.lastName, m.firstName)
                 const pending = pendingIdentifiers.has(identifier)
+                const ffstStatus = licenceIdentifiers.has(identifier)
+                  ? 'Licence créée'
+                  : validatedIdentifiers.has(identifier)
+                    ? 'Validée, à payer'
+                    : draftIdentifiers.has(identifier)
+                      ? 'Brouillon'
+                      : 'Inconnu'
                 return (
                   <tr key={i}>
                     <td>{m.lastName}</td>
@@ -162,27 +170,23 @@ export function MembersTable() {
                     <td className="col-secondary">{euros(m.amount)}</td>
                     <td className="col-secondary">{m.promoCode || '—'}</td>
                     <td className="col-secondary">{m.state}</td>
+                    <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
                     <td>
-                      {ffstDataLoaded &&
-                        (licenceIdentifiers.has(identifier) ? (
-                          'Licence payée'
-                        ) : validatedIdentifiers.has(identifier) ? (
-                          'Licence validée, à payer'
-                        ) : draftIdentifiers.has(identifier) ? (
-                          <>
-                            <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>
-                              {pending ? 'Suppression en cours…' : 'Supprimer demande de licence'}
-                            </button>
-                            {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
-                          </>
-                        ) : (
-                          <>
+                      {ffstDataLoaded && (
+                        <>
+                          {ffstStatus === 'Inconnu' && (
                             <button onClick={() => creerDemande(m, identifier)} disabled={pending}>
-                              {pending ? 'Envoi en cours…' : 'Faire demande de licence'}
+                              {pending ? 'Envoi en cours…' : 'Faire la demande'}
                             </button>
-                            {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
-                          </>
-                        ))}
+                          )}
+                          {ffstStatus === 'Brouillon' && (
+                            <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>
+                              {pending ? 'Suppression en cours…' : 'Supprimer la demande'}
+                            </button>
+                          )}
+                          {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
+                        </>
+                      )}
                     </td>
                   </tr>
                 )
