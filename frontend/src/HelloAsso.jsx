@@ -30,8 +30,26 @@ function useHelloAssoFetch(path) {
   return { data, error, refetch: fetchData }
 }
 
+// Identifiant normalise (nom + prenom, insensible a la casse et aux
+// espaces superflus) pour comparer un adherent HelloAsso (lastName +
+// firstName separes) a une ligne FFST ("Nom et Prénom" combine).
+function memberIdentifier(lastName, firstName) {
+  return `${lastName} ${firstName}`.replace(/\s+/g, ' ').trim().toUpperCase()
+}
+
 export function MembersTable() {
   const { data: members, error, refetch } = useHelloAssoFetch('/helloasso/members')
+  // Le bouton "Faire demande licence FFST" ne doit s'afficher que pour un
+  // adherent absent des licencies FFST ET des demandes en brouillon
+  // (sinon une demande existe deja ou n'a plus lieu d'etre).
+  const { data: licences } = useHelloAssoFetch('/ffst/licences')
+  const { data: draftDemandes } = useHelloAssoFetch('/ffst/demandes_draft')
+  const ffstDataLoaded = licences !== null && draftDemandes !== null
+  const existingFfstIdentifiers = new Set(
+    [...(licences ?? []), ...(draftDemandes ?? [])].map((d) =>
+      (d['Nom et Prénom'] || '').replace(/\s+/g, ' ').trim().toUpperCase()
+    )
+  )
 
   return (
     <section>
@@ -52,6 +70,7 @@ export function MembersTable() {
                 <th>Email</th>
                 <th className="col-secondary">Montant</th>
                 <th className="col-secondary">Statut</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -62,6 +81,12 @@ export function MembersTable() {
                   <td>{m.email}</td>
                   <td className="col-secondary">{euros(m.amount)}</td>
                   <td className="col-secondary">{m.state}</td>
+                  <td>
+                    {ffstDataLoaded &&
+                      !existingFfstIdentifiers.has(memberIdentifier(m.lastName, m.firstName)) && (
+                        <button>Faire demande licence FFST</button>
+                      )}
+                  </td>
                 </tr>
               ))}
             </tbody>
