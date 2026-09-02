@@ -25,6 +25,13 @@ class DemandeRenouvellementRequest(BaseModel):
     email: str | None = None
 
 
+class DemandeDraftRequest(BaseModel):
+    """Corps de la requete DELETE /ffst/demandes_draft."""
+
+    lastName: str
+    firstName: str
+
+
 class FfstReceiver:
     """Recoit les requetes REST (FastAPI) et delegue a Ffst.
 
@@ -42,6 +49,7 @@ class FfstReceiver:
         self.app.get("/ffst/demandes_validated")(self.getDemandesValidated)
         self.app.get("/ffst/demandes_draft")(self.getDemandesDraft)
         self.app.post("/ffst/demandes_renouvellement")(self.createDemandeRenouvellement)
+        self.app.delete("/ffst/demandes_draft")(self.deleteDemandeDraft)
 
     def getLicences(self) -> list[dict]:
         """Endpoint REST GET /ffst/licences. Retourne les licences du club."""
@@ -83,6 +91,19 @@ class FfstReceiver:
                 phone=request.phone,
                 email=request.email,
             )
+        except FfstAuthError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"status": "ok"}
+
+    def deleteDemandeDraft(self, request: DemandeDraftRequest) -> dict:
+        """Endpoint REST DELETE /ffst/demandes_draft. Supprime une demande
+        en brouillon (panier) pour un adherent du club (nom+prenom, doit
+        correspondre a une seule ligne du panier).
+        """
+        try:
+            self.client.delete_demande_draft(request.lastName, request.firstName)
         except FfstAuthError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except RuntimeError as exc:

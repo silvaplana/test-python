@@ -49,17 +49,18 @@ class Ffst:
     """Client pour le portail de gestion des licences FFST.
 
     Chaque appel public (get_licences(), get_demandes_validated(),
-    get_demandes_draft(), create_demande_renouvellement()) effectue une
-    nouvelle connexion (le site ne propose pas de rafraichissement des
-    donnees hors connexion). get_demandes_validated() et
-    get_demandes_draft() ont besoin d'une navigation supplementaire apres
-    la connexion (clic simule sur un bouton different pour chacune) : les
-    deux requetes partagent alors le meme client httpx (memes cookies),
-    contrairement a get_licences() qui n'a besoin que de la connexion.
-    create_demande_renouvellement() est a part : c'est la seule methode
-    d'ecriture (elle cree une vraie demande facturee par la FFST), et la
-    seule a piloter un navigateur (Playwright) plutot qu'un simple client
-    httpx -- voir sa docstring.
+    get_demandes_draft(), create_demande_renouvellement(),
+    delete_demande_draft()) effectue une nouvelle connexion (le site ne
+    propose pas de rafraichissement des donnees hors connexion).
+    get_demandes_validated() et get_demandes_draft() ont besoin d'une
+    navigation supplementaire apres la connexion (clic simule sur un
+    bouton different pour chacune) : les deux requetes partagent alors le
+    meme client httpx (memes cookies), contrairement a get_licences() qui
+    n'a besoin que de la connexion. create_demande_renouvellement() et
+    delete_demande_draft() sont a part : ce sont les seules methodes
+    d'ecriture (elles creent/suppriment une vraie demande FFST), et les
+    seules a piloter un navigateur (Playwright) plutot qu'un simple
+    client httpx -- voir leurs docstrings.
 
     Le site ne supporte pas bien les connexions concurrentes sur le meme
     compte (des requetes simultanees font parfois echouer la connexion,
@@ -227,6 +228,98 @@ class Ffst:
         demandes = self._parse_wd_table(draft_page_html)
         print(f"Ffst.get_demandes_draft: {len(demandes)} demande(s) en brouillon")
         return demandes
+
+    def delete_demande_draft(self, last_name: str, first_name: str) -> None:
+        """Supprime une demande en brouillon (panier) pour un adherent
+        identifie par nom+prenom (doit correspondre a une seule ligne du
+        panier, sinon RuntimeError).
+
+        Comme create_demande_renouvellement(), pilote un vrai navigateur
+        (Playwright) : la case a cocher du panier est le meme genre de
+        tableau WEBDEV editable que celui de "Renouveler les licences",
+        et la suppression elle-meme passe par une modale de confirmation
+        (lien "Oui", pas une boite de dialogue JS) rendue dans la page.
+        """
+        with self._lock, sync_playwright() as playwright:
+            browser = playwright.chromium.launch()
+            try:
+                page = browser.new_page()
+                page.on("dialog", lambda dialog: dialog.accept())
+                self._se_connecter_via_navigateur(page)
+                self._supprimer_demande_draft_via_navigateur(page, last_name, first_name)
+            finally:
+                browser.close()
+
+        print(f"Ffst.delete_demande_draft: demande supprimee pour {last_name} {first_name}")
+
+    def _supprimer_demande_draft_via_navigateur(self, page, last_name: str, first_name: str) -> None:
+        page.evaluate("_JSL(_PAGE_, 'M39', '_self', '', '')")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(500)
+
+        if "Panier" not in page.content():
+            raise RuntimeError(
+                "Navigation vers le panier de demandes en brouillon a echoue (site modifie ?)"
+            )
+
+        cible = f"{last_name} {first_name}".strip().upper()
+
+        def trouver_index() -> int:
+            demandes = self._parse_wd_table(page.content())
+            indices = [
+                i
+                for i, d in enumerate(demandes)
+                if (d.get("Nom et Prénom") or "").strip().upper() == cible
+            ]
+            if not indices:
+                return -1
+            if len(indices) > 1:
+                raise RuntimeError(
+                    f"Plusieurs demandes en brouillon correspondent a {last_name} {first_name} : "
+                    "verifier manuellement sur le portail FFST"
+                )
+            return indices[0]
+
+        index = trouver_index()
+        if index == -1:
+            raise RuntimeError(f"Aucune demande en brouillon trouvee pour {last_name} {first_name}")
+
+        # 2 tentatives : la confirmation ci-dessous s'est deja averee
+        # silencieusement sans effet une fois en test (rien ne remontait
+        # d'erreur ni de dialogue inattendu) -- on ne fait donc jamais
+        # confiance a "aucune exception levee" seul, on reverifie toujours
+        # que la ligne a bien disparu avant de conclure au succes.
+        for _ in range(2):
+            # Case a cocher de la ligne : nommee "_{index}_A1_0" (index de
+            # la ligne dans le tableau, confirme par inspection du panier
+            # -- meme tableau WEBDEV editable que "Renouveler les
+            # licences", mais la case n'y suit pas la meme convention de
+            # nommage que le champ "Sel" utilise pour le renouvellement).
+            page.check(f'[name="_{index}_A1_0"]')
+            page.wait_for_timeout(300)
+
+            page.get_by_role("button", name="Supprimer la demande").click()
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(300)
+
+            # La confirmation ("Etes vous certain de bien vouloir annuler
+            # la demande de ... ?") est un lien stylise en bouton (<a>),
+            # pas un <button> ni une boite de dialogue JS -- get_by_role
+            # ("button", ...) ne le trouverait pas. ".first" : le bouton
+            # "riche" WEBDEV duplique son libelle dans 2 spans (etats
+            # hover/normal).
+            page.get_by_role("link", name="Oui").first.click()
+            page.wait_for_load_state("networkidle")
+            page.wait_for_timeout(500)
+
+            index = trouver_index()
+            if index == -1:
+                return
+
+        raise RuntimeError(
+            f"La suppression de la demande de {last_name} {first_name} semble avoir echoue "
+            "(toujours presente apres 2 tentatives) : verifier manuellement sur le portail FFST"
+        )
 
     def create_demande_renouvellement(
         self,

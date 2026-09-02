@@ -80,6 +80,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /ffst/demandes_validated` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
 - `GET /ffst/demandes_draft` -> demandes en brouillon, pas encore validées/soumises (le "panier" du portail ; liste vide = cas normal)
 - `POST /ffst/demandes_renouvellement` avec body `{"lastName", "firstName", "gender", "birthDate", "addressLine1", "postalCode", "city", "phone", "email"}` -> soumet une demande de licence pour un adhérent du club (doit être identifiable de façon non ambiguë) : essaie d'abord un renouvellement (seuls lastName/firstName utilisés) puis, si l'adhérent n'a jamais été licencié, une nouvelle demande à partir des autres champs (obligatoires dans ce cas, sauf phone/email) ; la place dans `/ffst/demandes_draft` sans déclencher de facturation (celle-ci n'intervient qu'à la validation, manuelle, sur le portail)
+- `DELETE /ffst/demandes_draft` avec body `{"lastName", "firstName"}` -> supprime une demande en brouillon (doit correspondre à une seule ligne du panier)
 - `POST /financialbalance/archives` (multipart, champ `file`) -> stocke une archive `.zip` de relevés bancaires
 - `GET /financialbalance/analysis` -> flux SSE : progression puis bilan IA (résumé + tableau par catégorie) de la dernière archive envoyée
 
