@@ -112,12 +112,9 @@
 
 /* Barre d'outils fixee en bas de l'ecran (voir Navigation.jsx), façon
    appli mobile : sur mobile uniquement (desktop utilise .sidebar a la
-   place, voir plus bas). 2 variantes en alternance, jamais les 2 a la
-   fois (voir .nav-drilled ci-dessous) :
-   - .bottom-nav-sections (etat initial) : les 3 sections.
-   - .bottom-nav-tools : les outils de la section active + un bouton
-     permanent ("⌂") pour revenir aux sections, une fois qu'on en a
-     choisi une (drill-down, comme un menu Reglages mobile). */
+   place, voir plus bas). Toujours les 3 sections, jamais remplacee par
+   les outils de la section active (voir le rang d'onglets .tabs-nav
+   au-dessus du contenu pour ca, identique desktop/mobile). */
 .bottom-nav {
   position: fixed;
   left: 0;
@@ -128,10 +125,6 @@
   border-top: 1px solid var(--border);
   background: var(--bg);
   box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.06);
-}
-
-.bottom-nav-tools {
-  display: none;
 }
 
 .bottom-nav button {
@@ -156,12 +149,6 @@
   color: var(--accent);
   font-weight: 600;
   border-top-color: var(--accent);
-}
-
-.bottom-nav .bottom-nav-back {
-  flex: 0 0 auto;
-  border-left: 1px solid var(--border);
-  font-size: 1.2rem;
 }
 
 /* Barre laterale (desktop uniquement, voir media query plus bas) :
@@ -560,23 +547,9 @@ tbody tr:last-child td {
     font-size: 0.85rem;
   }
 
-  /* Le choix de l'outil (Adherents/Impayes, Licencies/...) se fait via la
-     barre du bas apres drill-down (.bottom-nav-tools) sur mobile, pas via
-     ce second rang d'onglets au-dessus du contenu (reserve au desktop). */
-  .tabs-nav {
-    display: none;
-  }
-
-  /* Drill-down (voir Navigation.jsx) : ces 2 regles ne doivent s'appliquer
-     qu'ici (mobile) -- sur desktop, .sidebar remplace .bottom-nav
-     entierement (display:none, cf media query suivant), et .nav-drilled
-     ne doit pas pouvoir re-afficher .bottom-nav-tools par-dessus. */
-  .navigation.nav-drilled .bottom-nav-sections {
-    display: none;
-  }
-
-  .navigation.nav-drilled .bottom-nav-tools {
-    display: flex;
+  .tabs-nav button {
+    padding: 0.55rem 0.75rem;
+    font-size: 0.85rem;
   }
 
   .bottom-nav button {
@@ -586,10 +559,9 @@ tbody tr:last-child td {
 }
 
 /* Desktop : la sidebar remplace la barre du bas pour choisir la section
-   (plus de place pour l'afficher en permanence, pas besoin de
-   drill-down) ; le choix de l'outil dans la section active reste au
-   2e rang d'onglets au-dessus du contenu (.tabs-nav, visible par
-   defaut). */
+   (plus de place pour l'afficher en permanence). Le choix de l'outil dans
+   la section active reste au 2e rang d'onglets au-dessus du contenu
+   (.tabs-nav), identique sur mobile. */
 @media (min-width: 641px) {
   .sidebar {
     display: flex;
