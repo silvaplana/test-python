@@ -152,8 +152,9 @@ class HelloAsso:
         Un adherent = un item de type "Membership" dans une commande (une commande
         peut contenir plusieurs adherents, ex: fratrie payee par un meme parent).
         Retourne pour chaque adherent : nom, prenom, email du payeur, montant paye
-        (en euros), statut, date de commande, et les champs personnalises du
-        formulaire (telephone, adresse, date de naissance, etc.) sous forme de dict.
+        (en euros), statut, date de commande, code promo eventuellement applique
+        (None sinon), et les champs personnalises du formulaire (telephone,
+        adresse, date de naissance, etc.) sous forme de dict.
         """
         members: list[dict] = []
         for order in self.get_form_orders(form_slug, form_type):
@@ -173,6 +174,9 @@ class HelloAsso:
                         "amount": item.get("amount", 0) / 100,
                         "state": item.get("state"),
                         "orderDate": order.get("date"),
+                        # "discount" absent (pas None) si aucun code promo
+                        # n'a ete applique sur cet item.
+                        "promoCode": (item.get("discount") or {}).get("code"),
                         "customFields": custom_fields,
                     }
                 )
