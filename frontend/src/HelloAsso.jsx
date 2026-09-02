@@ -75,10 +75,24 @@ export function MembersTable() {
     setPendingIdentifiers((prev) => new Set(prev).add(identifier))
     setTransferErrors((prev) => ({ ...prev, [identifier]: null }))
     try {
+      // gender/birthDate/etc. ne servent que si l'adherent n'a pas
+      // d'ancienne licence renouvelable (chemin "nouvelle demande" cote
+      // backend) : on les envoie systematiquement, au cas ou.
+      const fields = member.customFields || {}
       const response = await fetch(`${API_URL}/ffst/demandes_renouvellement`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lastName: member.lastName, firstName: member.firstName }),
+        body: JSON.stringify({
+          lastName: member.lastName,
+          firstName: member.firstName,
+          gender: fields['Genre(H/F)'],
+          birthDate: fields['date de naissance'],
+          addressLine1: fields['Adresse'],
+          postalCode: fields['code postal'],
+          city: fields['Ville'],
+          phone: fields['Numéro de téléphone'],
+          email: member.email,
+        }),
       })
       if (!response.ok) {
         const body = await response.json().catch(() => null)
