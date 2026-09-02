@@ -10,8 +10,8 @@ app FastAPI :
   `src/helloasso/helloasso.py` pour le detail des methodes et
   `.env.example` pour la config requise.
 - **ffst** : scraping du portail de licences FFST (`GET /ffst/licences`,
-  `GET /ffst/demandes`, pas d'API — parsing d'un bloc XML integre a la
-  page HTML) — voir `src/ffst/ffst.py`.
+  `GET /ffst/demandes_validated`, pas d'API — parsing d'un bloc XML
+  integre a la page HTML) — voir `src/ffst/ffst.py`.
 - **financialbalance** : upload de l'archive des relevés bancaires
   (`POST /financialbalance/archives`) puis analyse IA (Claude, via l'API
   Anthropic) en flux Server-Sent Events (`GET /financialbalance/analysis`)
@@ -39,7 +39,7 @@ backend/
 │   ├── ffst/
 │   │   ├── __init__.py
 │   │   ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
-│   │   └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes
+│   │   └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes_validated
 │   └── financialbalance/
 │       ├── __init__.py
 │       ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
@@ -72,7 +72,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /helloasso/members` -> liste des adhérents de cette campagne
 - `GET /helloasso/unpaid` -> adhérents avec au moins un paiement refusé
 - `GET /ffst/licences` -> liste des licences FFST du club (saison en cours)
-- `GET /ffst/demandes` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
+- `GET /ffst/demandes_validated` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
 - `POST /financialbalance/archives` (multipart, champ `file`) -> stocke une archive `.zip` de relevés bancaires
 - `GET /financialbalance/analysis` -> flux SSE : progression puis bilan IA (résumé + tableau par catégorie) de la dernière archive envoyée
 

@@ -66,7 +66,7 @@ export function LicencesTable() {
 }
 
 export function DemandesTable() {
-  const { data: demandes, error, refetch } = useFfstFetch('/ffst/demandes')
+  const { data: demandes, error, refetch } = useFfstFetch('/ffst/demandes_validated')
 
   return (
     <section>
