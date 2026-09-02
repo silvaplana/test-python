@@ -22,9 +22,9 @@ function App() {
             key: 'ffst',
             label: 'FFST',
             tools: [
-              { label: 'Licenciés', content: <LicencesTable /> },
-              { label: 'Demandes validées', content: <DemandesTable /> },
               { label: 'Demandes brouillon', content: <DraftTable /> },
+              { label: 'Demandes validées', content: <DemandesTable /> },
+              { label: 'Licenciés', content: <LicencesTable /> },
             ],
           },
           {

@@ -264,6 +264,7 @@ export function UnpaidTable() {
 }
 
 export function CampaignTitle() {
-  const { data: campaign } = useHelloAssoFetch('/helloasso/campaign')
-  return <h1 className="campaign-title">{campaign?.title ?? '…'}</h1>
+  // Nom du club plutot que le titre (variable d'une saison a l'autre) du
+  // formulaire d'adhesion HelloAsso : plus de fetch necessaire ici.
+  return <h1 className="campaign-title">Alliance Sambo Combat La Ciotat</h1>
 }
