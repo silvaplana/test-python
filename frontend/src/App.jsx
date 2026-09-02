@@ -22,8 +22,8 @@ function App() {
             key: 'ffst',
             label: 'FFST',
             tools: [
-              { label: 'Demandes brouillon', content: <DraftTable /> },
-              { label: 'Demandes validées', content: <DemandesTable /> },
+              { label: 'Demandes brouillon', shortLabel: 'Brouillon', content: <DraftTable /> },
+              { label: 'Demandes validées', shortLabel: 'Validées', content: <DemandesTable /> },
               { label: 'Licenciés', content: <LicencesTable /> },
             ],
           },

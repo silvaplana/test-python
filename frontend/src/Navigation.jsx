@@ -71,7 +71,11 @@ function Navigation({ header, sections }) {
                 className={i === activeTool ? 'tab-active' : undefined}
                 onClick={() => selectTool(activeSection, i)}
               >
-                {tool.label}
+                {/* .tab-label-short remplace .tab-label-full sur mobile (voir
+                    App.css) -- reprend tool.label si aucun raccourci fourni,
+                    pour que les outils sans shortLabel restent lisibles. */}
+                <span className="tab-label-full">{tool.label}</span>
+                <span className="tab-label-short">{tool.shortLabel ?? tool.label}</span>
               </button>
             ))}
           </div>
