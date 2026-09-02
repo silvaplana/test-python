@@ -111,3 +111,49 @@ export function DemandesTable() {
   )
 }
 
+export function DraftTable() {
+  const { data: demandes, error, refetch } = useFfstFetch('/ffst/demandes_draft')
+
+  return (
+    <section>
+      <div className="section-header">
+        <h2>Demandes de licences FFST en brouillon ({demandes?.length ?? '…'})</h2>
+        <button onClick={refetch}>Rafraîchir</button>
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      {demandes && (demandes.length === 0 ? (
+        <p className="empty-state">Aucune demande en brouillon 🎉</p>
+      ) : (
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nom et Prénom</th>
+                <th className="col-secondary">Né(e) le</th>
+                <th className="col-secondary">Type</th>
+                <th className="col-secondary">Licence n°</th>
+                <th className="col-secondary">Demandé le</th>
+                <th>Etat</th>
+              </tr>
+            </thead>
+            <tbody>
+              {demandes.map((d, i) => (
+                <tr key={i}>
+                  <td>{d['Nom et Prénom']}</td>
+                  <td className="col-secondary">{d['Né(e) le']}</td>
+                  <td className="col-secondary">{d['Type']}</td>
+                  <td className="col-secondary">{d['Licence n°']}</td>
+                  <td className="col-secondary">{d['Demandé le ']}</td>
+                  <td>{d['Etat']}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </section>
+  )
+}
+

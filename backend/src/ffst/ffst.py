@@ -41,13 +41,14 @@ class FfstAuthError(RuntimeError):
 class Ffst:
     """Client pour le portail de gestion des licences FFST.
 
-    Chaque appel public (get_licences(), get_demandes_validated()) effectue
-    une nouvelle connexion (le site ne propose pas de rafraichissement des
-    donnees hors connexion). get_demandes_validated() a besoin d'une
+    Chaque appel public (get_licences(), get_demandes_validated(),
+    get_demandes_draft()) effectue une nouvelle connexion (le site ne
+    propose pas de rafraichissement des donnees hors connexion).
+    get_demandes_validated() et get_demandes_draft() ont besoin d'une
     navigation supplementaire apres la connexion (clic simule sur un
-    bouton) : les deux requetes partagent alors le meme client httpx
-    (memes cookies), contrairement a get_licences() qui n'a besoin que de
-    la connexion.
+    bouton different pour chacune) : les deux requetes partagent alors le
+    meme client httpx (memes cookies), contrairement a get_licences() qui
+    n'a besoin que de la connexion.
 
     Le site ne supporte pas bien les connexions concurrentes sur le meme
     compte (des requetes simultanees font parfois echouer la connexion,
@@ -185,6 +186,37 @@ class Ffst:
         print(f"Ffst.get_demandes_validated: {len(demandes)} demande(s) en cours")
         return demandes
 
+    def get_demandes_draft(self) -> list[dict]:
+        """Retourne les demandes de licence en brouillon (enregistrees mais
+        pas encore validees/soumises a la FFST) pour le club -- le
+        "panier" du portail.
+
+        Se connecte puis simule le clic sur le lien "N demande(s) de
+        licence sont enregistrees (cliquer sur le panier pour les
+        valider)" (bouton WEBDEV M39, formulaire VISU_LICENCES_CLUB) depuis
+        la page des licences, pour naviguer vers la page "Panier". Meme
+        mecanisme de session partagee que get_demandes_validated().
+
+        Contrairement a get_demandes_validated(), IDDemande est toujours
+        vide ici (aucun numero de demande tant qu'elle n'est pas validee).
+        Une liste vide est le cas normal : la plupart du temps le panier
+        est vide.
+        """
+        with self._lock, httpx.Client(follow_redirects=True, timeout=20) as client:
+            licences_page_html = self._login(client)
+            draft_page_html = self._click_bouton(
+                client, licences_page_html, form_name="VISU_LICENCES_CLUB", button_id="M39"
+            )
+
+        if "Panier" not in draft_page_html:
+            raise RuntimeError(
+                "Navigation vers le panier de demandes en brouillon a echoue (site modifie ?)"
+            )
+
+        demandes = self._parse_wd_table(draft_page_html)
+        print(f"Ffst.get_demandes_draft: {len(demandes)} demande(s) en brouillon")
+        return demandes
+
 
 def main() -> None:
     load_dotenv()  # charge backend/.env si present
@@ -204,6 +236,8 @@ def main() -> None:
     for licence in client.get_licences():
         print(licence)
     for demande in client.get_demandes_validated():
+        print(demande)
+    for demande in client.get_demandes_draft():
         print(demande)
 
 

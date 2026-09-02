@@ -18,6 +18,7 @@ class FfstReceiver:
     def _register_routes(self) -> None:
         self.app.get("/ffst/licences")(self.getLicences)
         self.app.get("/ffst/demandes_validated")(self.getDemandesValidated)
+        self.app.get("/ffst/demandes_draft")(self.getDemandesDraft)
 
     def getLicences(self) -> list[dict]:
         """Endpoint REST GET /ffst/licences. Retourne les licences du club."""
@@ -28,3 +29,9 @@ class FfstReceiver:
         de licence (nouvelles demandes et renouvellements) en cours pour le
         club."""
         return self.client.get_demandes_validated()
+
+    def getDemandesDraft(self) -> list[dict]:
+        """Endpoint REST GET /ffst/demandes_draft. Retourne les demandes de
+        licence en brouillon (enregistrees mais pas encore validees/soumises
+        a la FFST, le "panier" du portail) pour le club."""
+        return self.client.get_demandes_draft()
