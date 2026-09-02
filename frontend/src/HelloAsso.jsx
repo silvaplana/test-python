@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import clubLogo from './assets/club-logo.png'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -265,6 +266,13 @@ export function UnpaidTable() {
 
 export function CampaignTitle() {
   // Nom du club plutot que le titre (variable d'une saison a l'autre) du
-  // formulaire d'adhesion HelloAsso : plus de fetch necessaire ici.
-  return <h1 className="campaign-title">Alliance Sambo Combat La Ciotat</h1>
+  // formulaire d'adhesion HelloAsso : plus de fetch necessaire ici. Logo
+  // recupere manuellement depuis le tableau de bord HelloAsso du club
+  // (pas accessible via l'API, page admin necessitant une connexion).
+  return (
+    <h1 className="campaign-title">
+      <img src={clubLogo} alt="" className="club-logo" />
+      Alliance Sambo Combat La Ciotat
+    </h1>
+  )
 }
