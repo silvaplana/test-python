@@ -425,6 +425,14 @@ class Ffst:
         renouvellement (deja renseigne par l'adherent lors de sa demande
         precedente).
 
+        Toute fonction autre que "005-PRATIQUANT" declenche en plus une
+        tentative de renseignement de la "Commune de naissance" (exigee
+        par la FFST, absente de HelloAsso) a partir de city -- voir
+        _remplir_informations_demande. Dans tous les cas, la confirmation
+        FFST est verifiee apres soumission (voir
+        _verifier_confirmation_enregistrement) : RuntimeError si la
+        demande a ete rejetee plutot qu'un faux succes silencieux.
+
         Les deux chemins cochent "Vous etes en possession de l'attestation
         d'assurance signee par l'adherent" avant de soumettre : la demande
         creee est facturee par la FFST (24 EUR au moment de l'ecriture de
@@ -454,7 +462,17 @@ class Ffst:
             browser = playwright.chromium.launch()
             try:
                 page = browser.new_page()
-                page.on("dialog", lambda dialog: dialog.accept())
+                # Les popups JS (confirmation ou rejet de la demande, voir
+                # _verifier_confirmation_enregistrement) doivent etre
+                # acceptees pour que Playwright continue -- mais leur texte
+                # est conserve (attribut ajoute sur l'objet page) pour
+                # detecter un rejet silencieux plutot que de l'avaler sans
+                # verification.
+                page.ffst_dialog_messages = []
+                page.on(
+                    "dialog",
+                    lambda dialog: (page.ffst_dialog_messages.append(dialog.message), dialog.accept()),
+                )
                 self._se_connecter_via_navigateur(page)
 
                 infos = dict(
@@ -562,8 +580,10 @@ class Ffst:
         page.get_by_role(
             "checkbox", name="Vous êtes en possession de l'attestation d'assurance signée par l'adhérent"
         ).check()
+        page.ffst_dialog_messages.clear()
         page.get_by_role("button", name="Enregistrer votre demande").click()
         page.wait_for_load_state("networkidle")
+        self._verifier_confirmation_enregistrement(page, last_name, first_name)
 
     def _saisir_nouvelle_demande_via_navigateur(
         self,
@@ -618,8 +638,31 @@ class Ffst:
 
         page.check("#A78_1")  # Droit a l'image (decision produit, pas une donnee HelloAsso)
         page.check("#A35_1")  # Attestation d'assurance
+        page.ffst_dialog_messages.clear()
         page.get_by_role("button", name="Enregistrer votre demande").click()
         page.wait_for_load_state("networkidle")
+        self._verifier_confirmation_enregistrement(page, last_name, first_name)
+
+    def _verifier_confirmation_enregistrement(self, page, last_name: str, first_name: str) -> None:
+        """Verifie que la FFST a bien confirme l'enregistrement de la
+        demande ("Votre demande a bien ete enregistree", popup JS) apres le
+        clic sur "Enregistrer votre demande".
+
+        Indispensable : un champ obligatoire manquant ou invalide (ex:
+        commune de naissance non trouvee, coordonnees manquantes pour un
+        Président/Trésorier/Secrétaire) ne fait pas echouer le clic ni la
+        navigation -- la FFST affiche une simple alerte JS, silencieusement
+        acceptee par le gestionnaire de dialogues (necessaire pour que
+        Playwright continue), et rien d'autre ne signale l'echec. Sans
+        cette verification, une demande rejetee semblerait avoir reussi.
+        """
+        messages = getattr(page, "ffst_dialog_messages", [])
+        if any("bien" in m.lower() and "enregistr" in m.lower() for m in messages):
+            return
+        detail = messages[-1] if messages else "aucune confirmation recue de la FFST (site modifie ?)"
+        raise RuntimeError(
+            f"La demande pour {last_name} {first_name} n'a pas ete enregistree par la FFST : {detail}"
+        )
 
     def _remplir_informations_demande(
         self,
@@ -646,6 +689,15 @@ class Ffst:
         Ne touche pas au champ discipline (A33) : lecture seule pour un
         renouvellement, a definir separement par l'appelant pour une
         nouvelle demande (seule utilisatrice de ce champ editable).
+
+        Toute fonction autre que "005-PRATIQUANT" fait apparaitre un champ
+        supplementaire obligatoire, "Commune de naissance" (absent de
+        HelloAsso) : on tente la ville de l'adresse actuelle en
+        approximation (seule donnee disponible), via le widget de
+        recherche du formulaire (champ A61 + bouton de recherche #A76 +
+        resultats dans le select A54) -- RuntimeError si la recherche ne
+        renvoie aucun resultat ou plusieurs (impossible de choisir sans
+        ambiguite), a completer alors manuellement sur le portail FFST.
         """
         gender_normalized = (gender or "").strip()[:1].upper()
         if gender_normalized not in ("H", "F"):
@@ -683,6 +735,32 @@ class Ffst:
         remplir('[name="A18"]', birth_date)
         page.select_option('[name="A39"]', label=fonction)
         stabiliser()
+
+        # Champ "Commune de naissance" : n'existe dans le DOM que pour les
+        # fonctions autres que pratiquant (confirme par inspection : absent
+        # pour "005-PRATIQUANT", present sinon).
+        if page.locator('[name="A61"]').count() > 0:
+            page.fill('[name="A61"]', city)
+            page.click("#A76")
+            stabiliser()
+            options = page.eval_on_selector(
+                '[name="A54"]', "el => Array.from(el.options).map(o => ({value: o.value, text: o.text}))"
+            )
+            candidats = [o for o in options if o["text"] != "Sélectionnez"]
+            if not candidats:
+                raise RuntimeError(
+                    f"Commune de naissance introuvable pour '{city}' (obligatoire pour la fonction "
+                    f"{fonction!r}) : a completer manuellement sur le portail FFST"
+                )
+            if len(candidats) > 1:
+                raise RuntimeError(
+                    f"Plusieurs communes correspondent a '{city}' (obligatoire pour la fonction "
+                    f"{fonction!r}), impossible de choisir automatiquement : a completer manuellement "
+                    "sur le portail FFST"
+                )
+            page.select_option('[name="A54"]', value=candidats[0]["value"])
+            stabiliser()
+
         remplir('[name="A27"]', postal_code)  # avant l'adresse : declenche une suggestion de ville
         remplir('[name="A24"]', address_line1)
         remplir('[name="A28"]', city)
