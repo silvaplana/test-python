@@ -1,6 +1,5 @@
 """Point d'entree unique du backend : assemble les differents modules
-(motor, helloasso, ffst, ...) sur une seule app FastAPI / un seul service
-HTTP.
+(helloasso, ffst, ...) sur une seule app FastAPI / un seul service HTTP.
 
 N'appartient a aucun des modules qu'il assemble (voir DEPLOY.md :
 un seul conteneur "backend" pour tout le projet).
@@ -10,19 +9,25 @@ import os
 
 import uvicorn
 from dotenv import load_dotenv
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
-from motor import MotorModel, MotorReceiver
 
 load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
 
-model = MotorModel()
-receiver = MotorReceiver(model)
-
-# instance FastAPI exposee pour uvicorn / TestClient
-app = receiver.app
+# instance FastAPI exposee pour uvicorn / TestClient, partagee par tous
+# les modules montes ci-dessous.
+app = FastAPI(title="samboAdmin API")
+app.add_middleware(
+    # Autorise le frontend React (Vite, servi sur un autre port) a appeler l'API.
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Monte les routes HelloAsso (/helloasso/members, /helloasso/unpaid) sur la
 # meme app : un seul service HTTP pour tout le backend (voir DEPLOY.md).

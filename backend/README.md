@@ -4,7 +4,6 @@ API REST (FastAPI) packagée avec `pyproject.toml` et un layout `src/`. Un
 seul point d'entrée (`app.main`) assemble plusieurs modules sur la même
 app FastAPI :
 
-- **motor** : `MotorReceiver` / `MotorModel` (`GET`/`POST /motor`)
 - **helloasso** : client API HelloAsso (`GET /helloasso/campaign`,
   `/helloasso/members`, `/helloasso/unpaid`) — voir
   `src/helloasso/helloasso.py` pour le detail des methodes et
@@ -32,11 +31,7 @@ backend/
 ├── .env.example            # variables HELLOASSO_* et FFST_* attendues
 ├── src/
 │   ├── app/
-│   │   └── main.py         # point d'entrée : assemble motor + helloasso sur une app FastAPI, lance uvicorn
-│   ├── motor/
-│   │   ├── __init__.py
-│   │   ├── model.py        # MotorModel : etat + getMotor()/setMotor()
-│   │   └── receiver.py     # MotorReceiver : endpoints REST FastAPI GET/POST /motor
+│   │   └── main.py         # point d'entrée : cree l'app FastAPI + CORS, assemble tous les modules, lance uvicorn
 │   ├── helloasso/
 │   │   ├── __init__.py
 │   │   ├── helloasso.py    # HelloAsso : client OAuth2 + appels API (organisation, formulaires, commandes)
@@ -49,8 +44,7 @@ backend/
 │       ├── __init__.py
 │       ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
 │       └── receiver.py          # FinancialBalanceReceiver : endpoints /financialbalance/archives, /analysis (SSE)
-└── tests/
-    └── test_motor.py       # test pytest : POST setMotor("toto") puis GET getMotor
+└── tests/                  # pas de test pour l'instant (voir "Tests" plus bas)
 ```
 
 ## Installation (venv + pip)
@@ -71,8 +65,6 @@ python -m app.main
 
 Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 
-- `GET /motor` -> retourne le nom du moteur courant (`MotorModel.getMotor()`)
-- `POST /motor` avec body `{"motorName": "toto"}` -> définit le nom du moteur (`MotorModel.setMotor()`)
 - `GET /helloasso/campaign` -> titre de la campagne d'adhésion configurée (`HELLOASSO_FORM_SLUG`)
 - `GET /helloasso/members` -> liste des adhérents de cette campagne
 - `GET /helloasso/unpaid` -> adhérents avec au moins un paiement refusé
@@ -87,8 +79,6 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 Exemple :
 
 ```bash
-curl -X POST http://localhost:8000/motor -H "Content-Type: application/json" -d '{"motorName": "toto"}'
-curl http://localhost:8000/motor
 curl http://localhost:8000/helloasso/members
 curl http://localhost:8000/ffst/licences
 ```
@@ -99,4 +89,6 @@ curl http://localhost:8000/ffst/licences
 pytest
 ```
 
-Le test `tests/test_motor.py` envoie une requête `POST /motor` avec `motorName="toto"`, puis vérifie que `GET /motor` retourne bien `"toto"`.
+Pas de test pour l'instant (le seul existant, `test_motor.py`, ciblait le
+module `motor`, retiré car du code mort — aucun endpoint `/motor` n'était
+appelé par le frontend).

@@ -11,7 +11,7 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY src ./src
 
-# Installe le package "motor" et ses dépendances de RUNTIME uniquement
+# Installe le package backend et ses dépendances de RUNTIME uniquement
 # (fastapi, uvicorn) — pas pytest/httpx qui sont réservés au développement.
 RUN pip install --no-cache-dir .
 
