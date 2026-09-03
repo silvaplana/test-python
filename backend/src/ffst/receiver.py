@@ -89,9 +89,14 @@ class FfstReceiver:
         si l'adherent n'a jamais ete licencie, une nouvelle demande a
         partir des champs HelloAsso gender/birthDate/addressLine1/etc.
         (voir Ffst.create_demande_renouvellement).
+
+        La reponse peut inclure des avertissements non bloquants (ex:
+        commune de naissance de repli utilisee pour une fonction autre que
+        pratiquant), a afficher a l'utilisateur -- la demande est malgre
+        tout bien enregistree.
         """
         try:
-            self.client.create_demande_renouvellement(
+            warnings = self.client.create_demande_renouvellement(
                 request.lastName,
                 request.firstName,
                 fonction=request.fonction,
@@ -107,7 +112,7 @@ class FfstReceiver:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except RuntimeError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
-        return {"status": "ok"}
+        return {"status": "ok", "warnings": warnings}
 
     def deleteDemandeDraft(self, request: DemandeDraftRequest) -> dict:
         """Endpoint REST DELETE /ffst/demandes_draft. Supprime une demande

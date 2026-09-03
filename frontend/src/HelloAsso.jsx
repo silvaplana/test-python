@@ -83,6 +83,10 @@ export function MembersTable() {
   // erreur eventuelle (ex: aucun ancien licencie correspondant trouve).
   const [pendingIdentifiers, setPendingIdentifiers] = useState(new Set())
   const [actionErrors, setActionErrors] = useState({})
+  // Avertissements non bloquants renvoyes par le backend (ex: commune de
+  // naissance de repli utilisee pour une fonction autre que pratiquant) :
+  // la demande est bien enregistree, mais l'utilisateur doit le savoir.
+  const [actionWarnings, setActionWarnings] = useState({})
   // Identifiant de l'adherent pour lequel le selecteur de role ("Autre
   // rôle") est ouvert (un seul a la fois) + role choisi dans ce selecteur,
   // valides seulement au clic sur "Valider" (jamais soumis directement).
@@ -103,15 +107,19 @@ export function MembersTable() {
   async function appelerFfst(identifier, method, path, body) {
     setPendingIdentifiers((prev) => new Set(prev).add(identifier))
     setActionErrors((prev) => ({ ...prev, [identifier]: null }))
+    setActionWarnings((prev) => ({ ...prev, [identifier]: null }))
     try {
       const response = await fetch(`${API_URL}${path}`, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
+      const responseBody = await response.json().catch(() => null)
       if (!response.ok) {
-        const responseBody = await response.json().catch(() => null)
         throw new Error(responseBody?.detail || `Échec (${response.status})`)
+      }
+      if (responseBody?.warnings?.length) {
+        setActionWarnings((prev) => ({ ...prev, [identifier]: responseBody.warnings.join(' ') }))
       }
       refetchDraftDemandes()
     } catch (err) {
@@ -261,6 +269,7 @@ export function MembersTable() {
                             </button>
                           )}
                           {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
+                          {actionWarnings[identifier] && <p className="warning">{actionWarnings[identifier]}</p>}
                         </>
                       )}
                     </td>

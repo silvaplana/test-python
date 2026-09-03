@@ -97,6 +97,14 @@ FFST_FONCTIONS = [
     "066-SECRETAIRE - JUGE",
 ]
 
+# Ville de repli pour le champ FFST "Commune de naissance" (obligatoire pour
+# toute fonction autre que "005-PRATIQUANT", absent de HelloAsso) quand la
+# ville de l'adresse de l'adherent n'est pas reconnue par la recherche du
+# formulaire -- voir Ffst._remplir_informations_demande. Ville du club :
+# hypothese la plus probable a defaut d'autre info, a corriger sur le
+# portail FFST si elle est fausse pour l'adherent concerne.
+COMMUNE_NAISSANCE_PAR_DEFAUT = "La Ciotat"
+
 
 class Ffst:
     """Client pour le portail de gestion des licences FFST.
@@ -387,10 +395,12 @@ class Ffst:
         city: str | None = None,
         phone: str | None = None,
         email: str | None = None,
-    ) -> None:
+    ) -> list[str]:
         """Soumet une demande de licence pour un adherent du club, en
         essayant d'abord le renouvellement (chemin 1) puis, si l'adherent
         n'a jamais ete licencie au club, une nouvelle demande (chemin 2).
+        Retourne une liste d'avertissements non bloquants (vide si aucun),
+        voir plus bas.
 
         Contrairement aux methodes de lecture ci-dessus (simples POST via
         httpx), ces deux pages du portail sont des formulaires dont l'etat
@@ -427,10 +437,13 @@ class Ffst:
 
         Toute fonction autre que "005-PRATIQUANT" declenche en plus une
         tentative de renseignement de la "Commune de naissance" (exigee
-        par la FFST, absente de HelloAsso) a partir de city -- voir
-        _remplir_informations_demande. Dans tous les cas, la confirmation
-        FFST est verifiee apres soumission (voir
-        _verifier_confirmation_enregistrement) : RuntimeError si la
+        par la FFST, absente de HelloAsso) a partir de city, avec repli
+        sur COMMUNE_NAISSANCE_PAR_DEFAUT si city n'est pas reconnue (voir
+        _remplir_informations_demande) -- ce repli est signale dans la
+        liste retournee, a afficher a l'utilisateur (la vraie commune
+        devra alors etre corrigee manuellement sur le portail FFST). Dans
+        tous les cas, la confirmation FFST est verifiee apres soumission
+        (voir _verifier_confirmation_enregistrement) : RuntimeError si la
         demande a ete rejetee plutot qu'un faux succes silencieux.
 
         Les deux chemins cochent "Vous etes en possession de l'attestation
@@ -469,6 +482,11 @@ class Ffst:
                 # detecter un rejet silencieux plutot que de l'avaler sans
                 # verification.
                 page.ffst_dialog_messages = []
+                # Avertissements non bloquants (ex: commune de naissance de
+                # repli utilisee, voir _remplir_informations_demande) --
+                # a faire remonter a l'utilisateur, contrairement aux
+                # RuntimeError qui interrompent la demande.
+                page.ffst_warnings = []
                 page.on(
                     "dialog",
                     lambda dialog: (page.ffst_dialog_messages.append(dialog.message), dialog.accept()),
@@ -489,10 +507,12 @@ class Ffst:
                     self._renouveler_via_navigateur(page, last_name, first_name, **infos)
                 except FfstLicencieIntrouvableError:
                     self._saisir_nouvelle_demande_via_navigateur(page, last_name, first_name, **infos)
+                warnings = list(page.ffst_warnings)
             finally:
                 browser.close()
 
         print(f"Ffst.create_demande_renouvellement: demande soumise pour {last_name} {first_name}")
+        return warnings
 
     def _se_connecter_via_navigateur(self, page) -> None:
         page.goto(f"{self.BASE_URL}{self.LOGIN_PATH}")
@@ -695,9 +715,13 @@ class Ffst:
         HelloAsso) : on tente la ville de l'adresse actuelle en
         approximation (seule donnee disponible), via le widget de
         recherche du formulaire (champ A61 + bouton de recherche #A76 +
-        resultats dans le select A54) -- RuntimeError si la recherche ne
-        renvoie aucun resultat ou plusieurs (impossible de choisir sans
-        ambiguite), a completer alors manuellement sur le portail FFST.
+        resultats dans le select A54). Si cette recherche ne renvoie
+        aucun resultat ou plusieurs (impossible de choisir sans
+        ambiguite), on retente avec COMMUNE_NAISSANCE_PAR_DEFAUT (ville du
+        club) : succes -> avertissement ajoute a page.ffst_warnings (a
+        faire remonter a l'utilisateur, la vraie commune devra etre
+        corrigee sur le portail FFST) ; echec des deux tentatives ->
+        RuntimeError.
         """
         gender_normalized = (gender or "").strip()[:1].upper()
         if gender_normalized not in ("H", "F"):
@@ -727,7 +751,8 @@ class Ffst:
         # (aucun de ces champs n'a de <label for=...> exploitable par
         # Playwright, contrairement aux pages de lecture) : A10 nom, A12
         # prenom, A15 sexe (1=Masculin/2=Feminin), A18 date de naissance,
-        # A39 fonction, A24/A27/A28 adresse, A30 tel. mobile, A31 email.
+        # A39 fonction, A24/A27/A28 adresse, A29 tel. fixe, A30 tel.
+        # mobile, A31 email.
         remplir('[name="A10"]', last_name)
         remplir('[name="A12"]', first_name)
         page.check(f'[name="A15"][value="{"1" if gender_normalized == "H" else "2"}"]')
@@ -740,23 +765,32 @@ class Ffst:
         # fonctions autres que pratiquant (confirme par inspection : absent
         # pour "005-PRATIQUANT", present sinon).
         if page.locator('[name="A61"]').count() > 0:
-            page.fill('[name="A61"]', city)
-            page.click("#A76")
-            stabiliser()
-            options = page.eval_on_selector(
-                '[name="A54"]', "el => Array.from(el.options).map(o => ({value: o.value, text: o.text}))"
-            )
-            candidats = [o for o in options if o["text"] != "Sélectionnez"]
-            if not candidats:
-                raise RuntimeError(
-                    f"Commune de naissance introuvable pour '{city}' (obligatoire pour la fonction "
-                    f"{fonction!r}) : a completer manuellement sur le portail FFST"
+
+            def rechercher_commune(ville: str) -> list[dict]:
+                page.fill('[name="A61"]', ville)
+                page.click("#A76")
+                stabiliser()
+                options = page.eval_on_selector(
+                    '[name="A54"]', "el => Array.from(el.options).map(o => ({value: o.value, text: o.text}))"
                 )
-            if len(candidats) > 1:
-                raise RuntimeError(
-                    f"Plusieurs communes correspondent a '{city}' (obligatoire pour la fonction "
-                    f"{fonction!r}), impossible de choisir automatiquement : a completer manuellement "
-                    "sur le portail FFST"
+                return [o for o in options if o["text"] != "Sélectionnez"]
+
+            candidats = rechercher_commune(city)
+            if len(candidats) != 1:
+                candidats_repli = rechercher_commune(COMMUNE_NAISSANCE_PAR_DEFAUT)
+                if len(candidats_repli) != 1:
+                    raise RuntimeError(
+                        f"Commune de naissance introuvable ni pour '{city}' ni pour le repli "
+                        f"'{COMMUNE_NAISSANCE_PAR_DEFAUT}' (obligatoire pour la fonction {fonction!r}) : "
+                        "a completer manuellement sur le portail FFST"
+                    )
+                candidats = candidats_repli
+                if not hasattr(page, "ffst_warnings"):
+                    page.ffst_warnings = []
+                page.ffst_warnings.append(
+                    f"Commune de naissance de {last_name} {first_name} introuvable pour '{city}' : "
+                    f"'{COMMUNE_NAISSANCE_PAR_DEFAUT}' utilisee par defaut, a corriger sur le portail "
+                    "FFST si besoin."
                 )
             page.select_option('[name="A54"]', value=candidats[0]["value"])
             stabiliser()
@@ -765,7 +799,13 @@ class Ffst:
         remplir('[name="A24"]', address_line1)
         remplir('[name="A28"]', city)
         if phone:
-            remplir('[name="A30"]', phone)  # Tel. mobile (decision produit : voir docstring)
+            # HelloAsso ne fournit qu'un seul numero, sans distinguer
+            # fixe/mobile : rempli dans les deux champs (decision produit)
+            # pour que la FFST l'accepte quel que soit celui qu'elle exige
+            # (obligatoire pour President/Tresorier/Secretaire, voir
+            # docstring de create_demande_renouvellement).
+            remplir('[name="A29"]', phone)  # Tel. fixe
+            remplir('[name="A30"]', phone)  # Tel. mobile
         if email:
             remplir('[name="A31"]', email)
 

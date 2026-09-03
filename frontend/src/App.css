@@ -306,6 +306,11 @@ td button + .ffst-role-picker,
   margin-top: 1rem;
 }
 
+.warning {
+  color: #facc15;
+  margin-top: 1rem;
+}
+
 .upload-row {
   display: flex;
   align-items: center;
