@@ -348,18 +348,25 @@ class Ffst:
 
         Chemin 1 (renouvellement) : recherche par nom+prenom parmi les
         anciens licencies du club, doit isoler une seule correspondance
-        (sinon RuntimeError si ambigu). Reprend automatiquement les
-        coordonnees de la licence precedente -- gender/birth_date/etc. ne
-        sont pas necessaires ici.
+        (sinon RuntimeError si ambigu). Le formulaire qui suit arrive
+        pre-rempli avec les coordonnees de la licence precedente, mais
+        celles-ci peuvent etre perimees (adherent qui a demenage/change de
+        telephone depuis) : elles sont donc ecrasees avec les informations
+        HelloAsso ci-dessous, exactement comme le chemin 2, plutot que
+        d'etre reprises telles quelles.
 
         Chemin 2 (nouvelle demande), utilise seulement si le chemin 1 ne
-        trouve personne : necessite gender ("Homme"/"Femme"/"H"/"F", peu
-        importe la casse ou la forme), birth_date (JJ/MM/AAAA),
-        address_line1, postal_code et city -- leve RuntimeError listant ce
-        qui manque si l'appelant ne les a pas fournis. phone et email sont
-        optionnels (le formulaire FFST ne les exige pas). La fonction est
-        toujours "005-PRATIQUANT" et "Droit a l'image" toujours coche
-        (decisions produit, pas une donnee FFST/HelloAsso).
+        trouve personne : formulaire vierge, memes informations.
+
+        Dans les deux cas, gender ("Homme"/"Femme"/"H"/"F", peu importe la
+        casse ou la forme), birth_date (JJ/MM/AAAA), address_line1,
+        postal_code et city sont desormais obligatoires (RuntimeError
+        listant ce qui manque sinon) ; phone et email restent optionnels
+        (le formulaire FFST ne les exige pas). La fonction est toujours
+        "005-PRATIQUANT" et "Droit a l'image" toujours coche pour une
+        nouvelle demande (decisions produit, pas une donnee FFST/HelloAsso)
+        -- pas touche pour un renouvellement (deja renseigne par
+        l'adherent lors de sa demande precedente).
 
         Les deux chemins cochent "Vous etes en possession de l'attestation
         d'assurance signee par l'adherent" avant de soumettre : la demande
@@ -367,6 +374,23 @@ class Ffst:
         cette methode) -- a n'appeler que sur action explicite de
         l'utilisateur, jamais automatiquement.
         """
+        manquants = [
+            libelle
+            for libelle, valeur in {
+                "sexe": gender,
+                "date de naissance": birth_date,
+                "adresse": address_line1,
+                "code postal": postal_code,
+                "ville": city,
+            }.items()
+            if not valeur
+        ]
+        if manquants:
+            raise RuntimeError(
+                f"Informations manquantes pour soumettre une demande pour {last_name} {first_name} : "
+                f"{', '.join(manquants)}"
+            )
+
         with self._lock, sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             try:
@@ -374,38 +398,19 @@ class Ffst:
                 page.on("dialog", lambda dialog: dialog.accept())
                 self._se_connecter_via_navigateur(page)
 
+                infos = dict(
+                    gender=gender,
+                    birth_date=birth_date,
+                    address_line1=address_line1,
+                    postal_code=postal_code,
+                    city=city,
+                    phone=phone,
+                    email=email,
+                )
                 try:
-                    self._renouveler_via_navigateur(page, last_name, first_name)
+                    self._renouveler_via_navigateur(page, last_name, first_name, **infos)
                 except FfstLicencieIntrouvableError:
-                    manquants = [
-                        libelle
-                        for libelle, valeur in {
-                            "sexe": gender,
-                            "date de naissance": birth_date,
-                            "adresse": address_line1,
-                            "code postal": postal_code,
-                            "ville": city,
-                        }.items()
-                        if not valeur
-                    ]
-                    if manquants:
-                        raise RuntimeError(
-                            f"{last_name} {first_name} n'a pas d'ancienne licence renouvelable "
-                            f"et il manque des informations pour saisir une nouvelle demande : "
-                            f"{', '.join(manquants)}"
-                        ) from None
-                    self._saisir_nouvelle_demande_via_navigateur(
-                        page,
-                        last_name,
-                        first_name,
-                        gender=gender,
-                        birth_date=birth_date,
-                        address_line1=address_line1,
-                        postal_code=postal_code,
-                        city=city,
-                        phone=phone,
-                        email=email,
-                    )
+                    self._saisir_nouvelle_demande_via_navigateur(page, last_name, first_name, **infos)
             finally:
                 browser.close()
 
@@ -423,7 +428,20 @@ class Ffst:
         if "Visu_Licences_Club" not in page.content():
             raise FfstAuthError("Authentification FFST echouee (identifiants incorrects ?)")
 
-    def _renouveler_via_navigateur(self, page, last_name: str, first_name: str) -> None:
+    def _renouveler_via_navigateur(
+        self,
+        page,
+        last_name: str,
+        first_name: str,
+        *,
+        gender: str,
+        birth_date: str,
+        address_line1: str,
+        postal_code: str,
+        city: str,
+        phone: str | None,
+        email: str | None,
+    ) -> None:
         # Equivalent au clic sur "Renouveler les licences" (bouton WEBDEV
         # M31, dans un menu deroulant "Demandes") : on appelle directement
         # la fonction JS declenchee par ce bouton plutot que de chercher a
@@ -452,7 +470,32 @@ class Ffst:
         checkboxes.first.check()
 
         page.get_by_role("button", name="Renouveler les licences sélectionnées").click()
+        # Meme instabilite constatee que pour "nouvelle demande" (page
+        # reconstruite en 2 temps cote client) : attendre un champ concret
+        # du formulaire final avant d'y toucher (voir
+        # _saisir_nouvelle_demande_via_navigateur).
+        page.wait_for_selector('[name="A33"]', state="attached", timeout=15000)
         page.wait_for_load_state("networkidle")
+
+        # Ce formulaire arrive pre-rempli avec les coordonnees de
+        # l'ANCIENNE licence (adresse, telephone, ...), potentiellement
+        # perimees (l'adherent a pu demenager/changer de numero depuis) :
+        # on les ecrase avec les informations HelloAsso les plus recentes
+        # plutot que de les laisser telles quelles. Ne touche pas a la
+        # discipline (A33) : en lecture seule ici (deja fixee par
+        # l'ancienne licence), contrairement a une nouvelle demande.
+        self._remplir_informations_demande(
+            page,
+            last_name,
+            first_name,
+            gender=gender,
+            birth_date=birth_date,
+            address_line1=address_line1,
+            postal_code=postal_code,
+            city=city,
+            phone=phone,
+            email=email,
+        )
 
         page.get_by_role(
             "checkbox", name="Vous êtes en possession de l'attestation d'assurance signée par l'adhérent"
@@ -487,6 +530,58 @@ class Ffst:
         page.wait_for_selector('[name="A33"]', state="attached", timeout=15000)
         page.wait_for_load_state("networkidle")
 
+        # Seul ce chemin (formulaire vierge, aucun historique de licence a
+        # reprendre) doit definir la discipline : en lecture seule pour un
+        # renouvellement (voir _renouveler_via_navigateur). Seule
+        # discipline du club : Sambo (0470-SAMBO).
+        page.select_option('[name="A33"]', label="0470-SAMBO")
+        page.wait_for_load_state("networkidle")
+        page.wait_for_timeout(300)
+        page.wait_for_selector('[name="A33"]', state="attached", timeout=15000)
+
+        self._remplir_informations_demande(
+            page,
+            last_name,
+            first_name,
+            gender=gender,
+            birth_date=birth_date,
+            address_line1=address_line1,
+            postal_code=postal_code,
+            city=city,
+            phone=phone,
+            email=email,
+        )
+
+        page.check("#A78_1")  # Droit a l'image (decision produit, pas une donnee HelloAsso)
+        page.check("#A35_1")  # Attestation d'assurance
+        page.get_by_role("button", name="Enregistrer votre demande").click()
+        page.wait_for_load_state("networkidle")
+
+    def _remplir_informations_demande(
+        self,
+        page,
+        last_name: str,
+        first_name: str,
+        *,
+        gender: str,
+        birth_date: str,
+        address_line1: str,
+        postal_code: str,
+        city: str,
+        phone: str | None,
+        email: str | None,
+    ) -> None:
+        """Remplit les champs communs aux 2 formulaires de demande (nom,
+        prenom, sexe, date de naissance, fonction, adresse, telephone,
+        email) avec les informations fournies -- utilise aussi bien pour
+        un renouvellement (deja pre-rempli avec d'anciennes coordonnees) que
+        pour une nouvelle demande (formulaire vierge), justement pour
+        remplacer d'eventuelles anciennes coordonnees perimees.
+
+        Ne touche pas au champ discipline (A33) : lecture seule pour un
+        renouvellement, a definir separement par l'appelant pour une
+        nouvelle demande (seule utilisatrice de ce champ editable).
+        """
         gender_normalized = (gender or "").strip()[:1].upper()
         if gender_normalized not in ("H", "F"):
             raise RuntimeError(
@@ -513,13 +608,9 @@ class Ffst:
 
         # Noms de champs WEBDEV confirmes par inspection du formulaire
         # (aucun de ces champs n'a de <label for=...> exploitable par
-        # Playwright, contrairement aux pages de lecture) : A33 discipline,
-        # A10 nom, A12 prenom, A15 sexe (1=Masculin/2=Feminin), A18 date de
-        # naissance, A39 fonction, A24/A27/A28 adresse, A29/A30 telephones,
-        # A31 email, A78 droit a l'image, A35 attestation assurance. Seule
-        # discipline du club : Sambo (0470-SAMBO).
-        page.select_option('[name="A33"]', label="0470-SAMBO")
-        stabiliser()
+        # Playwright, contrairement aux pages de lecture) : A10 nom, A12
+        # prenom, A15 sexe (1=Masculin/2=Feminin), A18 date de naissance,
+        # A39 fonction, A24/A27/A28 adresse, A30 tel. mobile, A31 email.
         remplir('[name="A10"]', last_name)
         remplir('[name="A12"]', first_name)
         page.check(f'[name="A15"][value="{"1" if gender_normalized == "H" else "2"}"]')
@@ -534,11 +625,6 @@ class Ffst:
             remplir('[name="A30"]', phone)  # Tel. mobile (decision produit : voir docstring)
         if email:
             remplir('[name="A31"]', email)
-
-        page.check('#A78_1')  # Droit a l'image
-        page.check('#A35_1')  # Attestation d'assurance
-        page.get_by_role("button", name="Enregistrer votre demande").click()
-        page.wait_for_load_state("networkidle")
 
 
 def main() -> None:
