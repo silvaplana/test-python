@@ -1,21 +1,24 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from .ffst import Ffst, FfstAuthError
+from .ffst import FFST_FONCTIONS, Ffst, FfstAuthError
 
 
 class DemandeRenouvellementRequest(BaseModel):
     """Corps de la requete POST /ffst/demandes_renouvellement.
 
-    gender/birthDate/addressLine1/postalCode/city/phone/email ne sont
-    utilises que si l'adherent n'a pas d'ancienne licence renouvelable
-    (chemin "nouvelle demande", voir Ffst.create_demande_renouvellement) :
-    optionnels ici, mais leur absence fait alors echouer la requete avec
-    le detail de ce qui manque.
+    fonction doit etre l'une des valeurs de GET /ffst/fonctions, par
+    defaut "005-PRATIQUANT" (le cas le plus courant). gender/birthDate/
+    addressLine1/postalCode/city/phone/email ne sont utilises que si
+    l'adherent n'a pas d'ancienne licence renouvelable (chemin "nouvelle
+    demande", voir Ffst.create_demande_renouvellement) : optionnels ici,
+    mais leur absence fait alors echouer la requete avec le detail de ce
+    qui manque.
     """
 
     lastName: str
     firstName: str
+    fonction: str = "005-PRATIQUANT"
     gender: str | None = None
     birthDate: str | None = None
     addressLine1: str | None = None
@@ -48,12 +51,20 @@ class FfstReceiver:
         self.app.get("/ffst/licences")(self.getLicences)
         self.app.get("/ffst/demandes_validated")(self.getDemandesValidated)
         self.app.get("/ffst/demandes_draft")(self.getDemandesDraft)
+        self.app.get("/ffst/fonctions")(self.getFonctions)
         self.app.post("/ffst/demandes_renouvellement")(self.createDemandeRenouvellement)
         self.app.delete("/ffst/demandes_draft")(self.deleteDemandeDraft)
 
     def getLicences(self) -> list[dict]:
         """Endpoint REST GET /ffst/licences. Retourne les licences du club."""
         return self.client.get_licences()
+
+    def getFonctions(self) -> list[str]:
+        """Endpoint REST GET /ffst/fonctions. Retourne la liste des valeurs
+        possibles pour le champ "fonction" d'une demande de licence (voir
+        FFST_FONCTIONS), pour peupler un choix dans l'IHM avant de soumettre
+        une demande pour un role autre que pratiquant."""
+        return FFST_FONCTIONS
 
     def getDemandesValidated(self) -> list[dict]:
         """Endpoint REST GET /ffst/demandes_validated. Retourne les demandes
@@ -83,6 +94,7 @@ class FfstReceiver:
             self.client.create_demande_renouvellement(
                 request.lastName,
                 request.firstName,
+                fonction=request.fonction,
                 gender=request.gender,
                 birth_date=request.birthDate,
                 address_line1=request.addressLine1,

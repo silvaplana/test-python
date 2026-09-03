@@ -272,6 +272,16 @@ tbody tr:last-child td {
   border-bottom: none;
 }
 
+td button + button,
+td button + .ffst-role-picker,
+.ffst-role-picker {
+  margin-left: 0.5rem;
+}
+
+.ffst-role-picker select {
+  margin-right: 0.5rem;
+}
+
 .unpaid-amount {
   color: #f87171;
   font-weight: 600;

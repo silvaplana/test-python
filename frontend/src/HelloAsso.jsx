@@ -73,6 +73,7 @@ export function MembersTable() {
     '/ffst/demandes_validated'
   )
   const { data: draftDemandes, refetch: refetchDraftDemandes } = useHelloAssoFetch('/ffst/demandes_draft')
+  const { data: fonctions } = useHelloAssoFetch('/ffst/fonctions')
   const ffstDataLoaded = licences !== null && validatedDemandes !== null && draftDemandes !== null
   const licenceIdentifiers = ffstIdentifiers(licences)
   const validatedIdentifiers = ffstIdentifiers(validatedDemandes)
@@ -82,6 +83,11 @@ export function MembersTable() {
   // erreur eventuelle (ex: aucun ancien licencie correspondant trouve).
   const [pendingIdentifiers, setPendingIdentifiers] = useState(new Set())
   const [actionErrors, setActionErrors] = useState({})
+  // Identifiant de l'adherent pour lequel le selecteur de role ("Autre
+  // rôle") est ouvert (un seul a la fois) + role choisi dans ce selecteur,
+  // valides seulement au clic sur "Valider" (jamais soumis directement).
+  const [roleFormIdentifier, setRoleFormIdentifier] = useState(null)
+  const [selectedFonction, setSelectedFonction] = useState('')
 
   // Rafraichit les 4 sources (adherents + les 3 listes FFST utilisees pour
   // la colonne Statut FFST) : sinon un changement fait a la main sur le
@@ -119,7 +125,7 @@ export function MembersTable() {
     }
   }
 
-  function creerDemande(member, identifier) {
+  function creerDemande(member, identifier, fonction) {
     // gender/birthDate/etc. ne servent que si l'adherent n'a pas
     // d'ancienne licence renouvelable (chemin "nouvelle demande" cote
     // backend) : on les envoie systematiquement, au cas ou.
@@ -127,6 +133,7 @@ export function MembersTable() {
     appelerFfst(identifier, 'POST', '/ffst/demandes_renouvellement', {
       lastName: member.lastName,
       firstName: member.firstName,
+      fonction,
       gender: fields['Genre(H/F)'],
       birthDate: fields['date de naissance'],
       addressLine1: fields['Adresse'],
@@ -142,6 +149,25 @@ export function MembersTable() {
       lastName: member.lastName,
       firstName: member.firstName,
     })
+  }
+
+  // Ouvre le selecteur de role pour un adherent (bouton "Autre rôle") :
+  // pre-selectionne le premier role de la liste, valide seulement au clic
+  // explicite sur "Valider" (jamais de soumission directe).
+  function ouvrirChoixRole(identifier) {
+    setRoleFormIdentifier(identifier)
+    setSelectedFonction(fonctions?.[0] || '')
+  }
+
+  function annulerChoixRole() {
+    setRoleFormIdentifier(null)
+    setSelectedFonction('')
+  }
+
+  function validerChoixRole(member, identifier) {
+    creerDemande(member, identifier, selectedFonction)
+    setRoleFormIdentifier(null)
+    setSelectedFonction('')
   }
 
   return (
@@ -192,9 +218,42 @@ export function MembersTable() {
                       {ffstDataLoaded && (
                         <>
                           {ffstStatus === 'Inconnu' && (
-                            <button onClick={() => creerDemande(m, identifier)} disabled={pending}>
-                              {pending ? <LoadingLabel text="Envoi en cours" /> : 'Faire la demande'}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => creerDemande(m, identifier, '005-PRATIQUANT')}
+                                disabled={pending}
+                              >
+                                {pending ? <LoadingLabel text="Envoi en cours" /> : 'Faire la demande Pratiquant'}
+                              </button>
+                              {roleFormIdentifier === identifier ? (
+                                <span className="ffst-role-picker">
+                                  <select
+                                    value={selectedFonction}
+                                    onChange={(e) => setSelectedFonction(e.target.value)}
+                                    disabled={pending}
+                                  >
+                                    {(fonctions || []).map((f) => (
+                                      <option key={f} value={f}>
+                                        {f}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    onClick={() => validerChoixRole(m, identifier)}
+                                    disabled={pending || !selectedFonction}
+                                  >
+                                    Valider
+                                  </button>
+                                  <button onClick={annulerChoixRole} disabled={pending}>
+                                    Annuler
+                                  </button>
+                                </span>
+                              ) : (
+                                <button onClick={() => ouvrirChoixRole(identifier)} disabled={pending}>
+                                  Faire la demande Autre rôle
+                                </button>
+                              )}
+                            </>
                           )}
                           {ffstStatus === 'Brouillon' && (
                             <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>

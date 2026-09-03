@@ -45,6 +45,59 @@ class FfstLicencieIntrouvableError(RuntimeError):
     basculer sur le chemin "nouvelle demande" plutot qu'echouer."""
 
 
+# Options exactes du champ "Fonction*" (A39) du formulaire de demande de
+# licence, confirmees par inspection en direct (page.eval_on_selector sur
+# le <select>). A tenir a jour si le portail en ajoute/retire -- pas
+# d'endpoint pour les recuperer dynamiquement, ce champ n'existe que dans
+# le HTML/JS de la page (comme les tableaux WEBDEV lus ailleurs dans ce
+# module).
+FFST_FONCTIONS = [
+    "001-PRESIDENT",
+    "002-SECRETAIRE",
+    "003-TRESORIER",
+    "004-ENTRAINEUR",
+    "005-PRATIQUANT",
+    "006-JUGE",
+    "007-ARBITRE",
+    "008-ADMINISTRATIF",
+    "010-VICE PRESIDENT",
+    "011-TRESORIER PRATIQUANT",
+    "012-SECRETAIRE PRATIQUANT",
+    "013-ADMINISTRATIF PRATIQUANT",
+    "014-DIRIGEANT PRATIQUANT",
+    "015-DIRIGEANT",
+    "016-PRESIDENT ENTRAINEUR",
+    "017-SECRETAIRE ENTRAINEUR",
+    "018-TRESORIER ENTRAINEUR",
+    "019-PRESIDENT PRATIQUANT",
+    "021-ADMINISTRATIF JUGE",
+    "022-ADMINISTRATIF/JUGE/ENT",
+    "024-SECRETAIRE ADJOINT",
+    "025-TRESORIER ADJOINT",
+    "026-ENT/ADM/PRATIQUANT",
+    "028-PRESIDENT D'HONNEUR",
+    "029-ENTRAINEUR - JUGE",
+    "030-ADMINISTRATIF ENTRAINEUR",
+    "032-PRESIDENT ADJOINT",
+    "034-ENTRAINEUR - PRATIQUANT",
+    "036-Vice Président/Entraîneur",
+    "038-JUGE - PRATIQUANT",
+    "042-RESPONSABLE SECTION",
+    "043-MEDECIN",
+    "053-INSTRUCTEUR",
+    "056-PRESIDENT NATIONAL",
+    "057-TRESORIERE NATIONALE",
+    "059-TRESORIER - JUGE",
+    "060-MEMBRE D HONNEUR",
+    "061-ARBITRE - PRATIQUANT",
+    "062-PRESIDENT - ARBITRE",
+    "063-TRESORIER - ARBITRE",
+    "064-SECRETAIRE - ARBITRE",
+    "065-ENTRAINEUR - ARBITRE",
+    "066-SECRETAIRE - JUGE",
+]
+
+
 class Ffst:
     """Client pour le portail de gestion des licences FFST.
 
@@ -326,6 +379,7 @@ class Ffst:
         last_name: str,
         first_name: str,
         *,
+        fonction: str = "005-PRATIQUANT",
         gender: str | None = None,
         birth_date: str | None = None,
         address_line1: str | None = None,
@@ -362,11 +416,14 @@ class Ffst:
         casse ou la forme), birth_date (JJ/MM/AAAA), address_line1,
         postal_code et city sont desormais obligatoires (RuntimeError
         listant ce qui manque sinon) ; phone et email restent optionnels
-        (le formulaire FFST ne les exige pas). La fonction est toujours
-        "005-PRATIQUANT" et "Droit a l'image" toujours coche pour une
-        nouvelle demande (decisions produit, pas une donnee FFST/HelloAsso)
-        -- pas touche pour un renouvellement (deja renseigne par
-        l'adherent lors de sa demande precedente).
+        (le formulaire FFST ne les exige pas). fonction doit etre l'une des
+        valeurs de FFST_FONCTIONS (RuntimeError sinon), par defaut
+        "005-PRATIQUANT" (le cas le plus courant : la plupart des
+        adherents d'un club ne sont que pratiquants). "Droit a l'image"
+        est toujours coche pour une nouvelle demande (decision produit,
+        pas une donnee FFST/HelloAsso) -- pas touche pour un
+        renouvellement (deja renseigne par l'adherent lors de sa demande
+        precedente).
 
         Les deux chemins cochent "Vous etes en possession de l'attestation
         d'assurance signee par l'adherent" avant de soumettre : la demande
@@ -390,6 +447,8 @@ class Ffst:
                 f"Informations manquantes pour soumettre une demande pour {last_name} {first_name} : "
                 f"{', '.join(manquants)}"
             )
+        if fonction not in FFST_FONCTIONS:
+            raise RuntimeError(f"Fonction FFST inconnue : {fonction!r} (voir FFST_FONCTIONS)")
 
         with self._lock, sync_playwright() as playwright:
             browser = playwright.chromium.launch()
@@ -399,6 +458,7 @@ class Ffst:
                 self._se_connecter_via_navigateur(page)
 
                 infos = dict(
+                    fonction=fonction,
                     gender=gender,
                     birth_date=birth_date,
                     address_line1=address_line1,
@@ -434,6 +494,7 @@ class Ffst:
         last_name: str,
         first_name: str,
         *,
+        fonction: str,
         gender: str,
         birth_date: str,
         address_line1: str,
@@ -488,6 +549,7 @@ class Ffst:
             page,
             last_name,
             first_name,
+            fonction=fonction,
             gender=gender,
             birth_date=birth_date,
             address_line1=address_line1,
@@ -509,6 +571,7 @@ class Ffst:
         last_name: str,
         first_name: str,
         *,
+        fonction: str,
         gender: str,
         birth_date: str,
         address_line1: str,
@@ -543,6 +606,7 @@ class Ffst:
             page,
             last_name,
             first_name,
+            fonction=fonction,
             gender=gender,
             birth_date=birth_date,
             address_line1=address_line1,
@@ -563,6 +627,7 @@ class Ffst:
         last_name: str,
         first_name: str,
         *,
+        fonction: str,
         gender: str,
         birth_date: str,
         address_line1: str,
@@ -616,7 +681,7 @@ class Ffst:
         page.check(f'[name="A15"][value="{"1" if gender_normalized == "H" else "2"}"]')
         stabiliser()
         remplir('[name="A18"]', birth_date)
-        page.select_option('[name="A39"]', label="005-PRATIQUANT")
+        page.select_option('[name="A39"]', label=fonction)
         stabiliser()
         remplir('[name="A27"]', postal_code)  # avant l'adresse : declenche une suggestion de ville
         remplir('[name="A24"]', address_line1)
