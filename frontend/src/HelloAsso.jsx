@@ -349,8 +349,8 @@ export function MembersHistoryTable() {
           <table>
             <thead>
               <tr>
-                <th>Nom</th>
-                <th>Prénom</th>
+                <th>Nom payeur</th>
+                <th>Prénom payeur</th>
                 <th>Nb saisons</th>
                 <th className="col-secondary">Saisons</th>
               </tr>
