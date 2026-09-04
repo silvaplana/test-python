@@ -108,12 +108,13 @@ export function MembersTable() {
   const validatedIdentifiers = ffstIdentifiers(validatedDemandes)
   const draftIdentifiers = ffstIdentifiers(draftDemandes)
   // Anciennete (colonne "Ancienneté" + verification du code promo, voir
-  // promoCodeError) : l'historique donne le "Nb saisons" par adherent, la
-  // campagne en cours donne la saison a en exclure (voir anciennete()).
-  // Le titre de la campagne contient toujours la saison au format
-  // "20XX-20YY" (ex: "... pour la saison 2026-2027"), au meme format que
-  // les libelles de saison de l'historique -- pas besoin d'une 2e source
-  // pour ca.
+  // promoCodeError) : l'historique donne le "Nb saisons" par PAYEUR (pas
+  // par adherent -- un mineur inscrit par un parent n'y apparait jamais
+  // sous son propre nom, voir payerIdentifier plus bas), la campagne en
+  // cours donne la saison a en exclure (voir anciennete()). Le titre de
+  // la campagne contient toujours la saison au format "20XX-20YY" (ex:
+  // "... pour la saison 2026-2027"), au meme format que les libelles de
+  // saison de l'historique -- pas besoin d'une 2e source pour ca.
   const { data: campaign } = useHelloAssoFetch('/helloasso/campaign')
   const { data: history } = useHelloAssoFetch('/members_history')
   const currentSeason = campaign?.title?.match(/20\d{2}-20\d{2}/)?.[0] ?? null
@@ -256,7 +257,17 @@ export function MembersTable() {
                     : draftIdentifiers.has(identifier)
                       ? 'Brouillon'
                       : 'Inconnu'
-                const seniority = anciennete(historyByIdentifier.get(identifier), currentSeason)
+                // L'historique liste le payeur (souvent un parent), pas
+                // l'adherent (ex: un mineur inscrit par lui) -- l'un peut
+                // avoir plusieurs saisons d'anciennete que l'autre n'a
+                // pas. On recherche donc l'identite du payeur, pas celle
+                // de l'adherent (repli sur celle-ci si le payeur n'a pas
+                // de nom, ex: tres vieilles commandes).
+                const payerIdentifier = memberIdentifier(
+                  m.payerLastName || m.lastName,
+                  m.payerFirstName || m.firstName
+                )
+                const seniority = anciennete(historyByIdentifier.get(payerIdentifier), currentSeason)
                 const promoError = history ? promoCodeError(m.promoCode, seniority) : null
                 return (
                   <tr key={i}>

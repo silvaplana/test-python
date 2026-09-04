@@ -155,6 +155,13 @@ class HelloAsso:
         (en euros), statut, date de commande, code promo eventuellement applique
         (None sinon), et les champs personnalises du formulaire (telephone,
         adresse, date de naissance, etc.) sous forme de dict.
+
+        payerFirstName/payerLastName (identite du payeur, distincte de
+        firstName/lastName pour un mineur inscrit par un parent) sont aussi
+        exposes : c'est cette identite-la, pas celle de l'adherent, qui
+        figure dans /members_history ("Nom/Prenom payeur", voir son
+        module) -- necessaire cote frontend pour y retrouver correctement
+        l'anciennete d'un mineur paye par un parent.
         """
         members: list[dict] = []
         for order in self.get_form_orders(form_slug, form_type):
@@ -171,6 +178,8 @@ class HelloAsso:
                         "firstName": user.get("firstName") or payer.get("firstName"),
                         "lastName": user.get("lastName") or payer.get("lastName"),
                         "email": payer.get("email"),
+                        "payerFirstName": payer.get("firstName"),
+                        "payerLastName": payer.get("lastName"),
                         "amount": item.get("amount", 0) / 100,
                         "state": item.get("state"),
                         "orderDate": order.get("date"),
