@@ -302,6 +302,20 @@ td button + .ffst-role-picker,
   white-space: nowrap;
 }
 
+/* Code promo incoherent avec l'anciennete reelle de l'adherent (voir
+   promoCodeError dans HelloAsso.jsx) : rouge comme .unpaid-amount, meme
+   niveau de gravite (a corriger), pas juste un avertissement informatif
+   (voir .warning, jaune, pour ca). */
+.promo-code-error {
+  color: #f87171;
+  font-weight: 600;
+}
+
+.promo-code-warning {
+  font-weight: 400;
+  font-size: 0.85rem;
+}
+
 .unpaid-amount {
   color: #f87171;
   font-weight: 600;

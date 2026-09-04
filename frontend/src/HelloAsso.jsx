@@ -62,6 +62,35 @@ function ffstIdentifiers(ffstRows) {
   )
 }
 
+// Codes promo type "ANCIEN_N" (ex: ANCIEN_2) : le seul type de code promo
+// verifie pour l'instant. N = anciennete minimum requise (en saisons
+// precedentes, "Nouvelle saison" comprise) -- valide aussi pour une
+// anciennete superieure a N, pas seulement egale.
+const ANCIEN_CODE_RE = /^ANCIEN_(\d+)$/i
+
+// Anciennete d'un adherent (nb de saisons precedentes, hors saison en
+// cours) a partir de sa ligne dans l'historique (/members_history,
+// colonne "Nb saisons" de l'onglet Historique) : la saison en cours ne
+// doit pas compter, un adherent qui vient de la payer n'a par definition
+// aucune anciennete pour elle. historyRow absent (jamais adherent avant)
+// = 0.
+function anciennete(historyRow, currentSeason) {
+  if (!historyRow) return 0
+  const count = historyRow.campaigns.length
+  return currentSeason && historyRow.campaigns.includes(currentSeason) ? count - 1 : count
+}
+
+// Message d'incoherence entre un code promo et l'anciennete reelle de
+// l'adherent (voir ANCIEN_CODE_RE), ou null si le code est absent, d'un
+// autre type, ou coherent.
+function promoCodeError(promoCode, seniority) {
+  const match = promoCode?.match(ANCIEN_CODE_RE)
+  if (!match) return null
+  const required = Number(match[1])
+  if (seniority >= required) return null
+  return `Ancienneté insuffisante pour ${promoCode} : ${seniority} saison${seniority > 1 ? 's' : ''} trouvée${seniority > 1 ? 's' : ''} (${required}+ requise${required > 1 ? 's' : ''})`
+}
+
 export function MembersTable() {
   const { data: members, error, refetch: refetchMembers } = useHelloAssoFetch('/helloasso/members')
   // La colonne Statut FFST distingue 4 cas pour chaque adherent, par
@@ -78,6 +107,19 @@ export function MembersTable() {
   const licenceIdentifiers = ffstIdentifiers(licences)
   const validatedIdentifiers = ffstIdentifiers(validatedDemandes)
   const draftIdentifiers = ffstIdentifiers(draftDemandes)
+  // Anciennete (colonne "Ancienneté" + verification du code promo, voir
+  // promoCodeError) : l'historique donne le "Nb saisons" par adherent, la
+  // campagne en cours donne la saison a en exclure (voir anciennete()).
+  // Le titre de la campagne contient toujours la saison au format
+  // "20XX-20YY" (ex: "... pour la saison 2026-2027"), au meme format que
+  // les libelles de saison de l'historique -- pas besoin d'une 2e source
+  // pour ca.
+  const { data: campaign } = useHelloAssoFetch('/helloasso/campaign')
+  const { data: history } = useHelloAssoFetch('/members_history')
+  const currentSeason = campaign?.title?.match(/20\d{2}-20\d{2}/)?.[0] ?? null
+  const historyByIdentifier = new Map(
+    (history ?? []).map((h) => [memberIdentifier(h.lastName, h.firstName), h])
+  )
   // Etat des actions FFST en cours, par adherent (identifier) : en cours
   // (pilote un vrai navigateur cote backend, plusieurs secondes) et
   // erreur eventuelle (ex: aucun ancien licencie correspondant trouve).
@@ -197,6 +239,7 @@ export function MembersTable() {
                 <th>Email</th>
                 <th>Montant</th>
                 <th>Code promo</th>
+                <th className="col-secondary">Ancienneté</th>
                 <th className="col-secondary">Statut HelloAsso</th>
                 <th>Statut FFST</th>
                 <th>Actions FFST</th>
@@ -213,13 +256,24 @@ export function MembersTable() {
                     : draftIdentifiers.has(identifier)
                       ? 'Brouillon'
                       : 'Inconnu'
+                const seniority = anciennete(historyByIdentifier.get(identifier), currentSeason)
+                const promoError = history ? promoCodeError(m.promoCode, seniority) : null
                 return (
                   <tr key={i}>
                     <td>{m.lastName}</td>
                     <td>{m.firstName}</td>
                     <td>{m.email}</td>
                     <td>{euros(m.amount)}</td>
-                    <td>{m.promoCode || '—'}</td>
+                    <td className={promoError ? 'promo-code-error' : undefined}>
+                      {m.promoCode || '—'}
+                      {promoError && (
+                        <span className="promo-code-warning" title={promoError}>
+                          {' '}
+                          ⚠️ {seniority} saison{seniority > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </td>
+                    <td className="col-secondary">{history ? `${seniority} saison${seniority > 1 ? 's' : ''}` : '…'}</td>
                     <td className="col-secondary">{m.state}</td>
                     <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
                     <td>
