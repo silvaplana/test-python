@@ -354,7 +354,7 @@ export function MembersHistoryTable() {
                 <th>Nom payeur</th>
                 <th>Prénom payeur</th>
                 <th>Nb saisons</th>
-                <th className="col-secondary">Saisons</th>
+                <th>Saisons</th>
               </tr>
             </thead>
             <tbody>
@@ -363,7 +363,7 @@ export function MembersHistoryTable() {
                   <td>{m.lastName}</td>
                   <td>{m.firstName}</td>
                   <td>{m.campaignCount}</td>
-                  <td className="col-secondary campaigns-cell">
+                  <td className="campaigns-cell">
                     {m.campaigns.map((c) => (
                       <span key={c} className="campaign-tag">
                         {c}
