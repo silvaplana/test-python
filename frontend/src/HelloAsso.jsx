@@ -339,7 +339,8 @@ export function MembersHistoryTable() {
     <section>
       <div className="section-header">
         <h2>
-          Historique des adhérents ({history?.length ?? '…'}) (/!\ liste provisoire, peut contenir des erreurs)
+          Historique des adhérents HelloAsso ({history?.length ?? '…'}) (/!\ liste provisoire, peut contenir des
+          erreurs)
         </h2>
         <button onClick={refetch}>Rafraîchir</button>
       </div>
