@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
+from members_history import MembersHistory, MembersHistoryReceiver
 
 load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
 
@@ -66,6 +67,12 @@ financialbalance_client = FinancialBalance(
     storage_dir=os.environ.get("FINANCIALBALANCE_STORAGE_DIR", "data/bank_archives"),
 )
 financialbalance_receiver = FinancialBalanceReceiver(client=financialbalance_client, app=app)
+
+# Monte les routes de l'historique des adherents (/members_history) sur la
+# meme app. Aucune config requise : lit un fichier xlsx embarque dans le
+# backend (voir members_history/members_history.py), pas une API externe.
+members_history_client = MembersHistory()
+members_history_receiver = MembersHistoryReceiver(client=members_history_client, app=app)
 
 
 def main() -> None:

@@ -15,6 +15,7 @@ dependencies = [
     "python-multipart",
     "anthropic",
     "playwright",
+    "openpyxl",
 ]
 
 [project.optional-dependencies]
@@ -26,3 +27,9 @@ helloasso = "helloasso.helloasso:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+# Fichier xlsx source de members_history (voir sa docstring de module) :
+# sans ca, "pip install ." (utilise par le Dockerfile) n'embarquerait que
+# les .py, pas ce fichier de donnees.
+members_history = ["data/*.xlsx"]

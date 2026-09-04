@@ -22,6 +22,12 @@ app FastAPI :
   — résumé synthétique + ventilation par catégorie. Voir
   `src/financialbalance/financialbalance.py` et `ANTHROPIC_API_KEY` dans
   `.env.example`.
+- **members_history** : historique des adhérents (payeurs) toutes saisons
+  confondues (`GET /members_history`) — ne parle à aucune API, lit un
+  fichier xlsx statique embarqué dans le backend
+  (`src/members_history/data/liste_adherents_nombre_campagnes.xlsx`,
+  généré manuellement hors de ce repo) ; pour le mettre à jour, remplacer
+  ce fichier et redéployer. Voir `src/members_history/members_history.py`.
 
 ## Structure
 
@@ -40,10 +46,15 @@ backend/
 │   │   ├── __init__.py
 │   │   ├── ffst.py         # Ffst : connexion WEBDEV + parsing XML des licences
 │   │   └── receiver.py     # FfstReceiver : endpoints REST FastAPI /ffst/licences, /ffst/demandes_validated, /ffst/demandes_draft, /ffst/demandes_renouvellement
-│   └── financialbalance/
+│   ├── financialbalance/
+│   │   ├── __init__.py
+│   │   ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
+│   │   └── receiver.py          # FinancialBalanceReceiver : endpoints /financialbalance/archives, /analysis (SSE)
+│   └── members_history/
 │       ├── __init__.py
-│       ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
-│       └── receiver.py          # FinancialBalanceReceiver : endpoints /financialbalance/archives, /analysis (SSE)
+│       ├── data/liste_adherents_nombre_campagnes.xlsx  # fichier source, embarque dans l'image
+│       ├── members_history.py   # MembersHistory : parsing du xlsx
+│       └── receiver.py          # MembersHistoryReceiver : endpoint /members_history
 └── tests/                  # pas de test pour l'instant (voir "Tests" plus bas)
 ```
 
@@ -76,6 +87,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `DELETE /ffst/demandes_draft` avec body `{"lastName", "firstName"}` -> supprime une demande en brouillon (doit correspondre à une seule ligne du panier)
 - `POST /financialbalance/archives` (multipart, champ `file`) -> stocke une archive `.zip` de relevés bancaires
 - `GET /financialbalance/analysis` -> flux SSE : progression puis bilan IA (résumé + tableau par catégorie) de la dernière archive envoyée
+- `GET /members_history` -> historique des adhérents (payeurs) toutes saisons confondues (nom, prénom, nombre de saisons, détail des saisons), à partir du fichier xlsx embarqué
 
 Exemple :
 

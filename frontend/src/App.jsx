@@ -1,5 +1,5 @@
 import './App.css'
-import { CampaignTitle, MembersTable, UnpaidTable } from './HelloAsso.jsx'
+import { CampaignTitle, MembersHistoryTable, MembersTable, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import Navigation from './Navigation.jsx'
@@ -16,6 +16,7 @@ function App() {
             tools: [
               { label: 'Adhérents', content: <MembersTable /> },
               { label: 'Impayés', content: <UnpaidTable /> },
+              { label: 'Historique', content: <MembersHistoryTable /> },
             ],
           },
           {

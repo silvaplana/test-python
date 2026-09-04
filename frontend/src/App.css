@@ -282,6 +282,26 @@ td button + .ffst-role-picker,
   margin-right: 0.5rem;
 }
 
+/* Historique des adherents : une "puce" par saison plutot qu'une liste
+   texte brute separee par des virgules, pour rester lisible meme avec 5
+   saisons dans la meme cellule. white-space:normal (contrairement au
+   nowrap par defaut des td) : la cellule doit pouvoir passer sur
+   plusieurs lignes de puces. */
+.campaigns-cell {
+  white-space: normal;
+}
+
+.campaign-tag {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  margin: 0.1rem 0.25rem 0.1rem 0;
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
 .unpaid-amount {
   color: #f87171;
   font-weight: 600;

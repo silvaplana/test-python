@@ -332,6 +332,52 @@ export function UnpaidTable() {
   )
 }
 
+export function MembersHistoryTable() {
+  const { data: history, error, refetch } = useHelloAssoFetch('/members_history')
+
+  return (
+    <section>
+      <div className="section-header">
+        <h2>Historique des adhérents ({history?.length ?? '…'})</h2>
+        <button onClick={refetch}>Rafraîchir</button>
+      </div>
+
+      {error && <p className="error">{error}</p>}
+
+      {history && (
+        <div className="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Prénom</th>
+                <th>Nb saisons</th>
+                <th className="col-secondary">Saisons</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((m, i) => (
+                <tr key={i}>
+                  <td>{m.lastName}</td>
+                  <td>{m.firstName}</td>
+                  <td>{m.campaignCount}</td>
+                  <td className="col-secondary campaigns-cell">
+                    {m.campaigns.map((c) => (
+                      <span key={c} className="campaign-tag">
+                        {c}
+                      </span>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  )
+}
+
 export function CampaignTitle() {
   // Nom du club plutot que le titre (variable d'une saison a l'autre) du
   // formulaire d'adhesion HelloAsso : plus de fetch necessaire ici. Logo
