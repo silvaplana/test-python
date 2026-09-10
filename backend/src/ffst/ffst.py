@@ -761,10 +761,17 @@ class Ffst:
         page.select_option('[name="A39"]', label=fonction)
         stabiliser()
 
-        # Champ "Commune de naissance" : n'existe dans le DOM que pour les
-        # fonctions autres que pratiquant (confirme par inspection : absent
-        # pour "005-PRATIQUANT", present sinon).
-        if page.locator('[name="A61"]').count() > 0:
+        # Champ "Commune de naissance" : visible seulement pour les
+        # fonctions autres que pratiquant. Sur le formulaire "nouvelle
+        # demande", il est carrement absent du DOM pour "005-PRATIQUANT"
+        # (count() == 0) -- mais sur le formulaire "renouvellement", il y
+        # reste toujours present (count() == 1), juste masque en CSS
+        # (bug constate en prod le 2026-09-10 : count() > 0 le traitait
+        # a tort comme visible pour un renouvellement de pratiquant, d'ou
+        # un page.fill() qui timeout puisque l'element n'est jamais
+        # visible -- 500 systematique). is_visible() gere les 2 cas
+        # (renvoie False si l'element est absent OU masque).
+        if page.locator('[name="A61"]').is_visible():
 
             def rechercher_commune(ville: str) -> list[dict]:
                 page.fill('[name="A61"]', ville)
