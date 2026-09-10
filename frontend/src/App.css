@@ -335,6 +335,19 @@ td button + .ffst-role-picker,
   margin-top: 1rem;
 }
 
+/* Rappel affiche sous les boutons d'action FFST pendant qu'une action est
+   en cours (voir "pending" dans HelloAsso.jsx) : le libelle du bouton
+   (LoadingLabel, avec ses 3 points animes) suffit a montrer qu'il se
+   passe quelque chose, mais pas a en expliquer la duree -- sans ce
+   rappel, 20-30s d'attente (pilotage d'un vrai navigateur sur le portail
+   FFST) ressemble a un blocage. */
+.pending-hint {
+  color: var(--text);
+  font-style: italic;
+  font-size: 0.85rem;
+  margin-top: 0.5rem;
+}
+
 .success-state {
   color: #4ade80;
   margin-top: 1rem;

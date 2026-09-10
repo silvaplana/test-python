@@ -333,6 +333,12 @@ export function MembersTable() {
                               {pending ? <LoadingLabel text="Suppression en cours" /> : 'Supprimer la demande'}
                             </button>
                           )}
+                          {pending && (
+                            <p className="pending-hint">
+                              ⏳ Le portail FFST est piloté automatiquement (vrai navigateur) : ça peut prendre
+                              jusqu'à 30 secondes, merci de patienter sans recharger la page.
+                            </p>
+                          )}
                           {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
                           {actionWarnings[identifier] && <p className="warning">{actionWarnings[identifier]}</p>}
                         </>
