@@ -17,12 +17,14 @@ import { useState } from 'react'
 // fois visite (juste cache via l'attribut HTML "hidden"), pour ne pas
 // perdre l'etat d'une tache en cours (ex: Bilan financier et son analyse
 // IA en flux SSE) en changeant de section/outil.
-function Navigation({ header, sections }) {
-  const [activeSection, setActiveSection] = useState(0)
+function Navigation({ header, sections, initialSection = 0, initialTool = 0 }) {
+  const [activeSection, setActiveSection] = useState(initialSection)
   // Outil actif par section (index) : se souvient du dernier outil
   // consulte dans chaque section quand on y revient.
-  const [activeTools, setActiveTools] = useState(() => sections.map(() => 0))
-  const [visited, setVisited] = useState(() => new Set(['0-0']))
+  const [activeTools, setActiveTools] = useState(() =>
+    sections.map((_, i) => (i === initialSection ? initialTool : 0))
+  )
+  const [visited, setVisited] = useState(() => new Set([`${initialSection}-${initialTool}`]))
 
   const activeTool = activeTools[activeSection]
 
@@ -77,6 +79,7 @@ function Navigation({ header, sections }) {
                     pour que les outils sans shortLabel restent lisibles. */}
                 <span className="tab-label-full">{tool.label}</span>
                 <span className="tab-label-short">{tool.shortLabel ?? tool.label}</span>
+                {tool.badge}
               </button>
             ))}
           </div>

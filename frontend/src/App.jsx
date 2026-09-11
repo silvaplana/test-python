@@ -10,17 +10,24 @@ function App() {
     <div className="app">
       <Navigation
         header={<CampaignTitle />}
+        // TEMPORAIRE (test des notifications push/badge en conditions
+        // reelles) : demarre sur Profil plutot que HelloAsso, sinon
+        // MembersTable marque tout comme "vu" des le chargement et les
+        // badges ci-dessous n'ont jamais l'occasion de s'afficher. A
+        // remettre a 0 (HelloAsso, comportement normal) une fois valide.
+        initialSection={3}
         sections={[
           {
             key: 'helloasso',
             label: 'HelloAsso',
             // Badge "nouveaux adherents non consultes" (voir HelloAsso.jsx) :
-            // sur la section, pas sur l'outil "Adherents" precis, pour rester
-            // visible dans la sidebar/bottom-nav (1er niveau de navigation)
-            // sans avoir a ouvrir la section au prealable.
+            // sur la section (sidebar/bottom-nav, visible sans avoir a ouvrir
+            // la section) ET sur l'outil "Adherents" precis (sous-onglet, une
+            // fois dans la section) -- les 2 s'effacent des que l'onglet
+            // Adherents devient reellement actif.
             badge: <NewMembersBadge />,
             tools: [
-              { label: 'Adhérents', content: (active) => <MembersTable active={active} /> },
+              { label: 'Adhérents', badge: <NewMembersBadge />, content: (active) => <MembersTable active={active} /> },
               { label: 'Impayés', content: () => <UnpaidTable /> },
               { label: 'Historique', content: () => <MembersHistoryTable /> },
             ],
