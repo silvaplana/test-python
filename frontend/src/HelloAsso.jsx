@@ -95,6 +95,24 @@ function calculerAge(birthDate) {
   return years
 }
 
+// Puces de filtre par age (barre de filtres façon WhatsApp, voir
+// MembersTable) : Juniors/Seniors (mineur/majeur) + des tranches de 10
+// ans plus fines, toutes mutuellement exclusives entre elles (un seul
+// filtre actif a la fois, "tous" par defaut). "test" absent pour "tous"
+// (aucune condition, y compris pour les adherents sans date de naissance
+// exploitable).
+const AGE_FILTERS = [
+  { value: 'tous', label: 'Tous' },
+  { value: 'juniors', label: 'Juniors', test: (age) => age < 18 },
+  { value: 'seniors', label: 'Seniors', test: (age) => age >= 18 },
+  { value: '-10', label: '-10', test: (age) => age < 10 },
+  { value: '10-20', label: '10-20', test: (age) => age >= 10 && age < 20 },
+  { value: '20-30', label: '20-30', test: (age) => age >= 20 && age < 30 },
+  { value: '30-40', label: '30-40', test: (age) => age >= 30 && age < 40 },
+  { value: '40-50', label: '40-50', test: (age) => age >= 40 && age < 50 },
+  { value: '50+', label: '50+', test: (age) => age >= 50 },
+]
+
 // Codes promo type "ANCIEN_N" (ex: ANCIEN_2) : le seul type de code promo
 // verifie pour l'instant. N = anciennete minimum requise (en saisons
 // precedentes, "Nouvelle saison" comprise) -- valide aussi pour une
@@ -254,22 +272,20 @@ export function MembersTable() {
     setSelectedFonction('')
   }
 
-  // Filtres façon WhatsApp (barre de recherche + puces "Tous/Juniors/
-  // Seniors") : recherche textuelle sur nom/prénom/email, + un des 3
-  // filtres d'age (mutuellement exclusifs, comme les puces WhatsApp).
-  // Juniors/Seniors s'appuient sur la date de naissance HelloAsso (18 ans
-  // = majorite) : un adherent sans date de naissance exploitable
-  // n'apparait dans aucun des deux (mais reste visible dans "Tous").
+  // Filtres façon WhatsApp (barre de recherche + puces d'age, voir
+  // AGE_FILTERS) : recherche textuelle sur nom/prénom/email, + une puce
+  // d'age (mutuellement exclusives entre elles, comme les puces
+  // WhatsApp). S'appuient sur la date de naissance HelloAsso : un
+  // adherent sans date de naissance exploitable n'apparait dans aucune
+  // (mais reste visible dans "Tous").
   const [recherche, setRecherche] = useState('')
   const [filtreAge, setFiltreAge] = useState('tous')
 
   const membresVisibles = (members ?? []).filter((m) => {
-    if (filtreAge !== 'tous') {
+    const filtre = AGE_FILTERS.find((f) => f.value === filtreAge)
+    if (filtre?.test) {
       const birthDate = parserDateNaissance(m.customFields?.['date de naissance'])
-      if (!birthDate) return false
-      const estMineur = calculerAge(birthDate) < 18
-      if (filtreAge === 'juniors' && !estMineur) return false
-      if (filtreAge === 'seniors' && estMineur) return false
+      if (!birthDate || !filtre.test(calculerAge(birthDate))) return false
     }
     if (recherche.trim()) {
       const cible = normaliserTexte(`${m.lastName} ${m.firstName} ${m.email}`)
@@ -300,11 +316,7 @@ export function MembersTable() {
               />
             </label>
             <div className="filter-chips" role="group" aria-label="Filtrer par âge">
-              {[
-                ['tous', 'Tous'],
-                ['juniors', 'Juniors'],
-                ['seniors', 'Seniors'],
-              ].map(([value, label]) => (
+              {AGE_FILTERS.map(({ value, label }) => (
                 <button
                   key={value}
                   className={filtreAge === value ? 'filter-chip filter-chip-active' : 'filter-chip'}
