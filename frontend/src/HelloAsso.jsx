@@ -162,18 +162,57 @@ function markMembersSeen(members) {
     // grave pour cette fonctionnalite de confort.
   }
   window.dispatchEvent(new Event(SEEN_CHANGED_EVENT))
+  resetBadgeCount()
 }
 
-// Nombre d'adherents jamais vus sur cet appareil -- partage entre
-// NewMembersBadge (affichage, rendu a 2 endroits : section HelloAsso +
-// sous-onglet Adherents, voir App.jsx) et AppBadgeController (icone de
-// l'app). Facture a part de NewMembersBadge justement pour qu'un SEUL
-// endroit pilote l'icone (voir AppBadgeController) : 2 instances de
-// NewMembersBadge montees en meme temps y appelaient chacune
-// setAppBadge/clearAppBadge independamment, avec des donnees legerement
-// desynchronisees (fetch separes) -- l'icone pouvait rester bloquee sur
-// la valeur ecrite en dernier par l'une des deux au lieu de refleter
-// l'etat reel.
+// Compteur du badge d'icone (Badging API), stocke dans IndexedDB -- voir
+// le commentaire jumeau dans public/sw.js pour le detail. Incremente PAR
+// LE SERVICE WORKER a chaque notification push recue (seul moyen de le
+// faire evoluer pendant que l'appli est fermee, localStorage n'y etant
+// pas accessible), remis a 0 ICI quand l'onglet Adherents devient actif
+// (voir markMembersSeen ci-dessus). Duplique volontairement la petite
+// mecanique IndexedDB de sw.js : un fichier public/ statique ne peut pas
+// importer un module du bundle Vite.
+const BADGE_DB_NAME = 'samboadmin-badge'
+const BADGE_STORE = 'kv'
+const BADGE_KEY = 'count'
+
+function openBadgeDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BADGE_DB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(BADGE_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function resetBadgeCount() {
+  try {
+    const db = await openBadgeDb()
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(BADGE_STORE, 'readwrite')
+      tx.objectStore(BADGE_STORE).put(0, BADGE_KEY)
+      tx.oncomplete = resolve
+      tx.onerror = () => reject(tx.error)
+    })
+  } catch (err) {
+    console.error('reinitialisation du compteur de badge a echoue:', err)
+  }
+  if ('clearAppBadge' in navigator) {
+    navigator.clearAppBadge().catch((err) => console.error('clearAppBadge a echoue:', err))
+  }
+}
+
+// Nombre d'adherents jamais vus sur cet appareil, pour l'affichage
+// visuel (NewMembersBadge, rendu a 2 endroits : section HelloAsso +
+// sous-onglet Adherents, voir App.jsx). L'icone de l'app (Badging API)
+// n'en depend PAS directement -- voir resetBadgeCount plus haut et
+// public/sw.js : elle est pilotee par le service worker (seul capable
+// de la faire evoluer pendant que l'appli est fermee), pas par ce hook,
+// pour eviter 2 sources independantes de verite qui se contredisent
+// (bug constate : l'icone restait bloquee quand 2 composants montes en
+// meme temps l'ecrivaient chacun de son cote avec des donnees legerement
+// desynchronisees).
 function useUnseenMembersCount() {
   const { data: members } = useHelloAssoFetch('/helloasso/members')
   // Sert juste a forcer un nouveau rendu quand SEEN_CHANGED_EVENT est
@@ -217,33 +256,12 @@ function useUnseenMembersCount() {
 
 // Badge affiche a cote du libelle "HelloAsso"/"Adherents" dans la
 // navigation (voir App.jsx, section.badge et tool.badge) : purement
-// visuel, ne touche pas a l'icone de l'app (voir AppBadgeController).
+// visuel, ne touche pas a l'icone de l'app (voir resetBadgeCount et
+// public/sw.js -- pilotee par le service worker).
 export function NewMembersBadge() {
   const count = useUnseenMembersCount()
   if (count === 0) return null
   return <span className="nav-badge">{count}</span>
-}
-
-// Pilote l'icone de l'app (Badging API) : a monter UNE SEULE FOIS (voir
-// App.jsx), independamment du nombre d'endroits ou NewMembersBadge est
-// affiche visuellement -- voir le commentaire de useUnseenMembersCount.
-// Ne rend rien (juste un effet de bord). Prise en charge Chrome/Edge
-// (Android + desktop) mais pas Safari/iOS a ce jour -- feature-detection,
-// pas de degradation geree pour iOS au-dela du badge dans l'appli
-// elle-meme et des notifications push.
-export function AppBadgeController() {
-  const count = useUnseenMembersCount()
-
-  useEffect(() => {
-    if (!('setAppBadge' in navigator)) return
-    if (count > 0) {
-      navigator.setAppBadge(count).catch((err) => console.error('setAppBadge a echoue:', err))
-    } else {
-      navigator.clearAppBadge?.().catch((err) => console.error('clearAppBadge a echoue:', err))
-    }
-  }, [count])
-
-  return null
 }
 
 // TEMPORAIRE (debug, voir Profile.jsx) : simule un nouvel adherent non

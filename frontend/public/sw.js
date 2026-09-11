@@ -24,6 +24,47 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(fetch(event.request))
 })
 
+// Compteur du badge d'icone (Badging API), stocke dans IndexedDB : c'est
+// le SEUL moyen de le faire evoluer pendant que l'appli est fermee
+// (notification recue en arriere-plan) -- localStorage n'existe pas dans
+// un service worker, contrairement a IndexedDB, accessible aussi bien
+// ici que depuis la page principale (voir resetBadgeCount dans
+// HelloAsso.jsx, qui remet ce compteur a 0 quand l'onglet Adherents
+// devient actif). Volontairement un simple entier incremente a chaque
+// push recu (pas le compte exact d'adherents non consultes, qui
+// necessiterait de recalculer le diff complet ici) : suffisant pour
+// signaler "il y a du nouveau depuis la derniere consultation", et reste
+// coherent avec le badge affiche dans l'appli (les 2 sont remis a 0 au
+// meme moment).
+const BADGE_DB_NAME = 'samboadmin-badge'
+const BADGE_STORE = 'kv'
+const BADGE_KEY = 'count'
+
+function openBadgeDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BADGE_DB_NAME, 1)
+    req.onupgradeneeded = () => req.result.createObjectStore(BADGE_STORE)
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function incrementBadgeCount() {
+  const db = await openBadgeDb()
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(BADGE_STORE, 'readwrite')
+    const store = tx.objectStore(BADGE_STORE)
+    const getReq = store.get(BADGE_KEY)
+    let next
+    getReq.onsuccess = () => {
+      next = (getReq.result || 0) + 1
+      store.put(next, BADGE_KEY)
+    }
+    tx.oncomplete = () => resolve(next)
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
 // Reception d'une notification push (voir PushNotifications.send_push_to_all
 // cote backend, payload JSON {title, body, url}).
 self.addEventListener('push', (event) => {
@@ -35,12 +76,25 @@ self.addEventListener('push', (event) => {
     // service worker) : on garde le titre par defaut.
   }
   event.waitUntil(
-    self.registration.showNotification(data.title, {
-      body: data.body,
-      icon: 'icons/icon-192.png',
-      badge: 'icons/icon-192.png',
-      data: { url: data.url || '.' },
-    })
+    (async () => {
+      // Icone de l'app : voir le commentaire de BADGE_DB_NAME plus haut.
+      // "navigator" existe dans un service worker (WorkerNavigator), pas
+      // besoin de self.navigator.
+      if ('setAppBadge' in navigator) {
+        try {
+          const count = await incrementBadgeCount()
+          await navigator.setAppBadge(count)
+        } catch (err) {
+          console.error('setAppBadge (push) a echoue:', err)
+        }
+      }
+      await self.registration.showNotification(data.title, {
+        body: data.body,
+        icon: 'icons/icon-192.png',
+        badge: 'icons/icon-192.png',
+        data: { url: data.url || '.' },
+      })
+    })()
   )
 })
 
