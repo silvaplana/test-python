@@ -237,6 +237,70 @@
 
 /* Le contenu (tableau) peut deborder en largeur sur petit ecran : il
    scroll horizontalement dans son propre conteneur plutot que la page. */
+/* Filtres façon WhatsApp (barre de recherche pilule + puces "Tous/
+   Juniors/Seniors" juste en dessous), voir MembersTable dans
+   HelloAsso.jsx. */
+.member-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.member-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--code-bg);
+}
+
+.member-search input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+}
+
+.member-search input::placeholder {
+  color: var(--text);
+}
+
+.filter-chips {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.filter-chip {
+  padding: 0.4rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.filter-chip:hover {
+  border-color: var(--accent-border);
+}
+
+.filter-chip-active,
+.filter-chip-active:hover {
+  background: var(--accent-bg);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border);

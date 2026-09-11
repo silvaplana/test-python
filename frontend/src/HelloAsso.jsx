@@ -62,6 +62,39 @@ function ffstIdentifiers(ffstRows) {
   )
 }
 
+// Texte normalise (sans accents, insensible a la casse) pour la recherche
+// textuelle des adherents : "é"/"e" ou "Denane"/"denane" doivent matcher
+// pareil.
+function normaliserTexte(text) {
+  return (text || '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+}
+
+// Date de naissance HelloAsso (customFields['date de naissance'], format
+// JJ/MM/AAAA) -> objet Date, ou null si absente/mal formee (filtre
+// Juniors/Seniors non applicable pour cet adherent dans ce cas, voir
+// MembersTable).
+function parserDateNaissance(value) {
+  const match = (value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (!match) return null
+  const [, jour, mois, annee] = match
+  return new Date(Number(annee), Number(mois) - 1, Number(jour))
+}
+
+// Age en annees revolues a la date du jour, a partir d'une date de
+// naissance deja parsee (voir parserDateNaissance).
+function calculerAge(birthDate) {
+  const today = new Date()
+  let years = today.getFullYear() - birthDate.getFullYear()
+  const anniversairePasse =
+    today.getMonth() > birthDate.getMonth() ||
+    (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate())
+  if (!anniversairePasse) years -= 1
+  return years
+}
+
 // Codes promo type "ANCIEN_N" (ex: ANCIEN_2) : le seul type de code promo
 // verifie pour l'instant. N = anciennete minimum requise (en saisons
 // precedentes, "Nouvelle saison" comprise) -- valide aussi pour une
@@ -221,6 +254,30 @@ export function MembersTable() {
     setSelectedFonction('')
   }
 
+  // Filtres façon WhatsApp (barre de recherche + puces "Tous/Juniors/
+  // Seniors") : recherche textuelle sur nom/prénom/email, + un des 3
+  // filtres d'age (mutuellement exclusifs, comme les puces WhatsApp).
+  // Juniors/Seniors s'appuient sur la date de naissance HelloAsso (18 ans
+  // = majorite) : un adherent sans date de naissance exploitable
+  // n'apparait dans aucun des deux (mais reste visible dans "Tous").
+  const [recherche, setRecherche] = useState('')
+  const [filtreAge, setFiltreAge] = useState('tous')
+
+  const membresVisibles = (members ?? []).filter((m) => {
+    if (filtreAge !== 'tous') {
+      const birthDate = parserDateNaissance(m.customFields?.['date de naissance'])
+      if (!birthDate) return false
+      const estMineur = calculerAge(birthDate) < 18
+      if (filtreAge === 'juniors' && !estMineur) return false
+      if (filtreAge === 'seniors' && estMineur) return false
+    }
+    if (recherche.trim()) {
+      const cible = normaliserTexte(`${m.lastName} ${m.firstName} ${m.email}`)
+      if (!cible.includes(normaliserTexte(recherche))) return false
+    }
+    return true
+  })
+
   return (
     <section>
       <div className="section-header">
@@ -231,125 +288,159 @@ export function MembersTable() {
       {error && <p className="error">{error}</p>}
 
       {members && (
-        <div className="table-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Nom</th>
-                <th>Prénom</th>
-                <th>Email</th>
-                <th>Montant</th>
-                <th>Code promo</th>
-                <th className="col-secondary">Ancienneté</th>
-                <th className="col-secondary">Statut HelloAsso</th>
-                <th>Statut FFST</th>
-                <th>Actions FFST</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m, i) => {
-                const identifier = memberIdentifier(m.lastName, m.firstName)
-                const pending = pendingIdentifiers.has(identifier)
-                const ffstStatus = licenceIdentifiers.has(identifier)
-                  ? 'Licence créée'
-                  : validatedIdentifiers.has(identifier)
-                    ? 'Validée, à payer'
-                    : draftIdentifiers.has(identifier)
-                      ? 'Brouillon'
-                      : 'Inconnu'
-                // L'historique liste le payeur (souvent un parent), pas
-                // l'adherent (ex: un mineur inscrit par lui) -- l'un peut
-                // avoir plusieurs saisons d'anciennete que l'autre n'a
-                // pas. On recherche donc l'identite du payeur, pas celle
-                // de l'adherent (repli sur celle-ci si le payeur n'a pas
-                // de nom, ex: tres vieilles commandes).
-                const payerIdentifier = memberIdentifier(
-                  m.payerLastName || m.lastName,
-                  m.payerFirstName || m.firstName
-                )
-                const seniority = anciennete(historyByIdentifier.get(payerIdentifier), currentSeason)
-                const promoError = history ? promoCodeError(m.promoCode, seniority) : null
-                return (
-                  <tr key={i}>
-                    <td>{m.lastName}</td>
-                    <td>{m.firstName}</td>
-                    <td>{m.email}</td>
-                    <td>{euros(m.amount)}</td>
-                    <td className={promoError ? 'promo-code-error' : undefined}>
-                      {m.promoCode || '—'}
-                      {promoError && (
-                        <span className="promo-code-warning" title={promoError}>
-                          {' '}
-                          ⚠️ {seniority} saison{seniority > 1 ? 's' : ''}
-                        </span>
-                      )}
-                    </td>
-                    <td className="col-secondary">{history ? `${seniority} saison${seniority > 1 ? 's' : ''}` : '…'}</td>
-                    <td className="col-secondary">{m.state}</td>
-                    <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
-                    <td>
-                      {ffstDataLoaded && (
-                        <>
-                          {ffstStatus === 'Inconnu' && (
+        <>
+          <div className="member-filters">
+            <label className="member-search">
+              <span aria-hidden="true">🔍</span>
+              <input
+                type="search"
+                placeholder="Rechercher un adhérent..."
+                value={recherche}
+                onChange={(e) => setRecherche(e.target.value)}
+              />
+            </label>
+            <div className="filter-chips" role="group" aria-label="Filtrer par âge">
+              {[
+                ['tous', 'Tous'],
+                ['juniors', 'Juniors'],
+                ['seniors', 'Seniors'],
+              ].map(([value, label]) => (
+                <button
+                  key={value}
+                  className={filtreAge === value ? 'filter-chip filter-chip-active' : 'filter-chip'}
+                  aria-pressed={filtreAge === value}
+                  onClick={() => setFiltreAge(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {membresVisibles.length === 0 ? (
+            <p className="empty-state">Aucun adhérent ne correspond à ces critères</p>
+          ) : (
+            <div className="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Nom</th>
+                    <th>Prénom</th>
+                    <th>Email</th>
+                    <th>Montant</th>
+                    <th>Code promo</th>
+                    <th className="col-secondary">Ancienneté</th>
+                    <th className="col-secondary">Statut HelloAsso</th>
+                    <th>Statut FFST</th>
+                    <th>Actions FFST</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {membresVisibles.map((m, i) => {
+                    const identifier = memberIdentifier(m.lastName, m.firstName)
+                    const pending = pendingIdentifiers.has(identifier)
+                    const ffstStatus = licenceIdentifiers.has(identifier)
+                      ? 'Licence créée'
+                      : validatedIdentifiers.has(identifier)
+                        ? 'Validée, à payer'
+                        : draftIdentifiers.has(identifier)
+                          ? 'Brouillon'
+                          : 'Inconnu'
+                    // L'historique liste le payeur (souvent un parent), pas
+                    // l'adherent (ex: un mineur inscrit par lui) -- l'un peut
+                    // avoir plusieurs saisons d'anciennete que l'autre n'a
+                    // pas. On recherche donc l'identite du payeur, pas celle
+                    // de l'adherent (repli sur celle-ci si le payeur n'a pas
+                    // de nom, ex: tres vieilles commandes).
+                    const payerIdentifier = memberIdentifier(
+                      m.payerLastName || m.lastName,
+                      m.payerFirstName || m.firstName
+                    )
+                    const seniority = anciennete(historyByIdentifier.get(payerIdentifier), currentSeason)
+                    const promoError = history ? promoCodeError(m.promoCode, seniority) : null
+                    return (
+                      <tr key={i}>
+                        <td>{m.lastName}</td>
+                        <td>{m.firstName}</td>
+                        <td>{m.email}</td>
+                        <td>{euros(m.amount)}</td>
+                        <td className={promoError ? 'promo-code-error' : undefined}>
+                          {m.promoCode || '—'}
+                          {promoError && (
+                            <span className="promo-code-warning" title={promoError}>
+                              {' '}
+                              ⚠️ {seniority} saison{seniority > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </td>
+                        <td className="col-secondary">{history ? `${seniority} saison${seniority > 1 ? 's' : ''}` : '…'}</td>
+                        <td className="col-secondary">{m.state}</td>
+                        <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
+                        <td>
+                          {ffstDataLoaded && (
                             <>
-                              <button
-                                onClick={() => creerDemande(m, identifier, '005-PRATIQUANT')}
-                                disabled={pending}
-                              >
-                                {pending ? <LoadingLabel text="Envoi en cours" /> : 'Faire la demande Pratiquant'}
-                              </button>
-                              {roleFormIdentifier === identifier ? (
-                                <span className="ffst-role-picker">
-                                  <select
-                                    value={selectedFonction}
-                                    onChange={(e) => setSelectedFonction(e.target.value)}
+                              {ffstStatus === 'Inconnu' && (
+                                <>
+                                  <button
+                                    onClick={() => creerDemande(m, identifier, '005-PRATIQUANT')}
                                     disabled={pending}
                                   >
-                                    {(fonctions || []).map((f) => (
-                                      <option key={f} value={f}>
-                                        {f}
-                                      </option>
-                                    ))}
-                                  </select>
-                                  <button
-                                    onClick={() => validerChoixRole(m, identifier)}
-                                    disabled={pending || !selectedFonction}
-                                  >
-                                    Valider
+                                    {pending ? <LoadingLabel text="Envoi en cours" /> : 'Faire la demande Pratiquant'}
                                   </button>
-                                  <button onClick={annulerChoixRole} disabled={pending}>
-                                    Annuler
-                                  </button>
-                                </span>
-                              ) : (
-                                <button onClick={() => ouvrirChoixRole(identifier)} disabled={pending}>
-                                  Faire la demande Autre rôle
+                                  {roleFormIdentifier === identifier ? (
+                                    <span className="ffst-role-picker">
+                                      <select
+                                        value={selectedFonction}
+                                        onChange={(e) => setSelectedFonction(e.target.value)}
+                                        disabled={pending}
+                                      >
+                                        {(fonctions || []).map((f) => (
+                                          <option key={f} value={f}>
+                                            {f}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <button
+                                        onClick={() => validerChoixRole(m, identifier)}
+                                        disabled={pending || !selectedFonction}
+                                      >
+                                        Valider
+                                      </button>
+                                      <button onClick={annulerChoixRole} disabled={pending}>
+                                        Annuler
+                                      </button>
+                                    </span>
+                                  ) : (
+                                    <button onClick={() => ouvrirChoixRole(identifier)} disabled={pending}>
+                                      Faire la demande Autre rôle
+                                    </button>
+                                  )}
+                                </>
+                              )}
+                              {ffstStatus === 'Brouillon' && (
+                                <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>
+                                  {pending ? <LoadingLabel text="Suppression en cours" /> : 'Supprimer la demande'}
                                 </button>
                               )}
+                              {pending && (
+                                <p className="pending-hint">
+                                  ⏳ Le portail FFST est piloté automatiquement (vrai navigateur) : ça peut prendre
+                                  jusqu'à 30 secondes, merci de patienter sans recharger la page.
+                                </p>
+                              )}
+                              {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
+                              {actionWarnings[identifier] && <p className="warning">{actionWarnings[identifier]}</p>}
                             </>
                           )}
-                          {ffstStatus === 'Brouillon' && (
-                            <button onClick={() => supprimerDemande(m, identifier)} disabled={pending}>
-                              {pending ? <LoadingLabel text="Suppression en cours" /> : 'Supprimer la demande'}
-                            </button>
-                          )}
-                          {pending && (
-                            <p className="pending-hint">
-                              ⏳ Le portail FFST est piloté automatiquement (vrai navigateur) : ça peut prendre
-                              jusqu'à 30 secondes, merci de patienter sans recharger la page.
-                            </p>
-                          )}
-                          {actionErrors[identifier] && <p className="error">{actionErrors[identifier]}</p>}
-                          {actionWarnings[identifier] && <p className="warning">{actionWarnings[identifier]}</p>}
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
     </section>
   )
