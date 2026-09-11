@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { debugForgetOneSeenMember } from './HelloAsso.jsx'
 import { getPushState, subscribeToPush, unsubscribeFromPush } from './push.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -91,6 +92,19 @@ export function Profile() {
           d'accueil") avant de pouvoir activer les notifications — c'est une limite d'iOS/Safari, pas de cette
           application.
         </p>
+      </div>
+
+      {/* TEMPORAIRE (debug) : le badge "nouveaux adherents" compare a une
+          memoire propre a cet appareil (localStorage), independante de
+          celle du serveur -- simuler une nouvelle inscription cote
+          serveur (SSH) ne peut donc pas la faire apparaitre ici. Ce
+          bouton simule directement cote client, pour verifier
+          badge/icone sans attendre une vraie inscription. A retirer une
+          fois valide. */}
+      <div className="profile-card">
+        <h3>🔧 Debug</h3>
+        <p>Simule un nouvel adhérent non consulté sur cet appareil (badge + icône), sans rien changer côté serveur.</p>
+        <button onClick={() => debugForgetOneSeenMember()}>Simuler un nouvel adhérent</button>
       </div>
     </section>
   )

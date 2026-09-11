@@ -1,5 +1,5 @@
 import './App.css'
-import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
+import { AppBadgeController, CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import { Profile } from './Profile.jsx'
@@ -8,6 +8,10 @@ import Navigation from './Navigation.jsx'
 function App() {
   return (
     <div className="app">
+      {/* Une seule instance, independante de la navigation (contrairement
+          a NewMembersBadge, affiche a 2 endroits) : voir la docstring de
+          useUnseenMembersCount dans HelloAsso.jsx. */}
+      <AppBadgeController />
       <Navigation
         header={<CampaignTitle />}
         // TEMPORAIRE (test des notifications push/badge en conditions

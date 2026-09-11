@@ -589,6 +589,10 @@ td button + .ffst-role-picker,
   box-shadow: var(--shadow);
 }
 
+.profile-card + .profile-card {
+  margin-top: 1rem;
+}
+
 .profile-card h3 {
   margin: 0 0 0.5rem;
   font-size: 1.05rem;
@@ -598,6 +602,24 @@ td button + .ffst-role-picker,
   margin: 0 0 1rem;
   font-size: 0.9rem;
   color: var(--text);
+}
+
+.profile-card > button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.profile-card > button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
 }
 
 .toggle-row {

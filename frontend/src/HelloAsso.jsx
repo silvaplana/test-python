@@ -164,12 +164,17 @@ function markMembersSeen(members) {
   window.dispatchEvent(new Event(SEEN_CHANGED_EVENT))
 }
 
-// Badge affiche a cote du libelle "HelloAsso" dans la navigation (voir
-// App.jsx, section.badge) : nombre d'adherents jamais vus sur cet
-// appareil. Fetch independant de MembersTable (comme le reste de
-// l'appli, ex: /ffst/licences deja fetche a plusieurs endroits) : reste
-// a jour meme si on n'a jamais ouvert l'onglet Adherents.
-export function NewMembersBadge() {
+// Nombre d'adherents jamais vus sur cet appareil -- partage entre
+// NewMembersBadge (affichage, rendu a 2 endroits : section HelloAsso +
+// sous-onglet Adherents, voir App.jsx) et AppBadgeController (icone de
+// l'app). Facture a part de NewMembersBadge justement pour qu'un SEUL
+// endroit pilote l'icone (voir AppBadgeController) : 2 instances de
+// NewMembersBadge montees en meme temps y appelaient chacune
+// setAppBadge/clearAppBadge independamment, avec des donnees legerement
+// desynchronisees (fetch separes) -- l'icone pouvait rester bloquee sur
+// la valeur ecrite en dernier par l'une des deux au lieu de refleter
+// l'etat reel.
+function useUnseenMembersCount() {
   const { data: members } = useHelloAssoFetch('/helloasso/members')
   // Sert juste a forcer un nouveau rendu quand SEEN_CHANGED_EVENT est
   // recu (ex: MembersTable vient de marquer des adherents comme vus) :
@@ -190,20 +195,59 @@ export function NewMembersBadge() {
   }, [members])
 
   const seen = readSeenMemberIds()
-  const count = seen === null ? 0 : (members ?? []).filter((m) => m.id != null && !seen.has(m.id)).length
+  return seen === null ? 0 : (members ?? []).filter((m) => m.id != null && !seen.has(m.id)).length
+}
 
-  // Badge sur l'icone de l'appli (PWA installee) : API Badging, prise en
-  // charge Chrome/Edge (Android + desktop) mais pas Safari/iOS a ce jour
-  // -- feature-detection, pas de degradation geree pour iOS au-dela du
-  // badge dans l'appli elle-meme (ci-dessous) et des notifications push.
-  useEffect(() => {
-    if (!('setAppBadge' in navigator)) return
-    if (count > 0) navigator.setAppBadge(count).catch(() => {})
-    else navigator.clearAppBadge?.().catch(() => {})
-  }, [count])
-
+// Badge affiche a cote du libelle "HelloAsso"/"Adherents" dans la
+// navigation (voir App.jsx, section.badge et tool.badge) : purement
+// visuel, ne touche pas a l'icone de l'app (voir AppBadgeController).
+export function NewMembersBadge() {
+  const count = useUnseenMembersCount()
   if (count === 0) return null
   return <span className="nav-badge">{count}</span>
+}
+
+// Pilote l'icone de l'app (Badging API) : a monter UNE SEULE FOIS (voir
+// App.jsx), independamment du nombre d'endroits ou NewMembersBadge est
+// affiche visuellement -- voir le commentaire de useUnseenMembersCount.
+// Ne rend rien (juste un effet de bord). Prise en charge Chrome/Edge
+// (Android + desktop) mais pas Safari/iOS a ce jour -- feature-detection,
+// pas de degradation geree pour iOS au-dela du badge dans l'appli
+// elle-meme et des notifications push.
+export function AppBadgeController() {
+  const count = useUnseenMembersCount()
+
+  useEffect(() => {
+    if (!('setAppBadge' in navigator)) return
+    if (count > 0) {
+      navigator.setAppBadge(count).catch((err) => console.error('setAppBadge a echoue:', err))
+    } else {
+      navigator.clearAppBadge?.().catch((err) => console.error('clearAppBadge a echoue:', err))
+    }
+  }, [count])
+
+  return null
+}
+
+// TEMPORAIRE (debug, voir Profile.jsx) : simule un nouvel adherent non
+// consulte SUR CET APPAREIL, en "oubliant" un id deja memorise --
+// contrairement a une nouvelle inscription simulee cote serveur (voir
+// PushNotifications.check_for_new_members), qui ne peut pas se refleter
+// ici : le badge cote client compare a sa propre memoire locale
+// (localStorage), independante de celle du serveur. A retirer une fois
+// les badges valides en conditions reelles.
+export function debugForgetOneSeenMember() {
+  const seen = readSeenMemberIds()
+  if (!seen || seen.size === 0) return false
+  const ids = [...seen]
+  ids.pop()
+  try {
+    localStorage.setItem(SEEN_MEMBER_IDS_KEY, JSON.stringify(ids))
+  } catch {
+    return false
+  }
+  window.dispatchEvent(new Event(SEEN_CHANGED_EVENT))
+  return true
 }
 
 // Codes promo type "ANCIEN_N" (ex: ANCIEN_2) : le seul type de code promo
