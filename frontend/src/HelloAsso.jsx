@@ -315,22 +315,23 @@ export function MembersTable() {
                 onChange={(e) => setRecherche(e.target.value)}
               />
             </label>
-            {/* Menu deroulant (plutot que des puces qui passaient sur 2
-                lignes) : tient sur 1 ligne quel que soit le nombre
-                d'options, a cote de la recherche -- laisse plus de place
-                verticale au tableau en dessous. */}
-            <select
-              className="age-filter-select"
-              aria-label="Filtrer par âge"
-              value={filtreAge}
-              onChange={(e) => setFiltreAge(e.target.value)}
-            >
+            {/* Puces (pas un menu deroulant, essaye puis explicitement
+                rejete) : toutes affichees sur une seule ligne, celles qui
+                ne tiennent pas defilent horizontalement (voir
+                overflow-x sur .filter-chips) plutot que de passer a la
+                ligne. */}
+            <div className="filter-chips" role="group" aria-label="Filtrer par âge">
               {AGE_FILTERS.map(({ value, label }) => (
-                <option key={value} value={value}>
+                <button
+                  key={value}
+                  className={filtreAge === value ? 'filter-chip filter-chip-active' : 'filter-chip'}
+                  aria-pressed={filtreAge === value}
+                  onClick={() => setFiltreAge(value)}
+                >
                   {label}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
           </div>
 
           {membresVisibles.length === 0 ? (
