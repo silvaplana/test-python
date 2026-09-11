@@ -323,14 +323,23 @@ class Ffst:
                 "Navigation vers le panier de demandes en brouillon a echoue (site modifie ?)"
             )
 
-        cible = f"{last_name} {first_name}".strip().upper()
+        # HelloAsso fournit parfois nom/prenom avec un espace superflu en
+        # debut/fin (constate en prod : lastName="Barrachina " pour Tom
+        # Barrachina) -- un simple .strip() ne suffit pas, il ne nettoie
+        # que les bords de la chaine concatenee, pas l'espace double que
+        # ca laisse entre nom et prenom. " ".join(...split()) normalise
+        # tous les espaces (comme memberIdentifier() cote frontend, qui
+        # fait ce meme rapprochement pour la colonne Statut FFST) : sans
+        # ca, la demande venait bien d'etre creee avec succes (recherche
+        # FFST insensible a cet espace) mais introuvable a la suppression.
+        cible = " ".join(f"{last_name} {first_name}".split()).upper()
 
         def trouver_index() -> int:
             demandes = self._parse_wd_table(page.content())
             indices = [
                 i
                 for i, d in enumerate(demandes)
-                if (d.get("Nom et Prénom") or "").strip().upper() == cible
+                if " ".join((d.get("Nom et Prénom") or "").split()).upper() == cible
             ]
             if not indices:
                 return -1
