@@ -673,6 +673,45 @@ td button + .ffst-role-picker,
   cursor: not-allowed;
 }
 
+/* Prompt de mot de passe (voir Profile.jsx, activation des photos) :
+   champ + 2 boutons sur une ligne, sous la puce correspondante. */
+.password-prompt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.password-prompt input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.password-prompt button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.password-prompt button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
 .profile-hint {
   margin-top: 1rem;
   font-size: 0.85rem;
