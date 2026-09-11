@@ -68,9 +68,17 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 1.8rem;
-  line-height: 1.3;
-  margin-bottom: 2rem;
+  /* clamp() plutot qu'une taille fixe : reste lisible sur desktop tout en
+     retrecissant sur petit ecran pour ne jamais depasser 1 ligne (donc
+     jamais plus haut que le logo, cf. .club-logo) -- white-space/overflow
+     ci-dessous comme filet de securite si meme la taille minimale ne
+     suffisait pas (tronque au lieu de repasser a la ligne). */
+  font-size: clamp(1rem, 3.2vw, 1.8rem);
+  line-height: 1.2;
+  margin-bottom: 1.25rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .club-logo {
@@ -235,14 +243,14 @@
   background: var(--accent-bg);
 }
 
-/* Le contenu (tableau) peut deborder en largeur sur petit ecran : il
-   scroll horizontalement dans son propre conteneur plutot que la page. */
-/* Filtres façon WhatsApp (barre de recherche pilule + puces "Tous/
-   Juniors/Seniors" juste en dessous), voir MembersTable dans
-   HelloAsso.jsx. */
+/* Filtres des adherents (barre de recherche pilule + menu deroulant
+   d'age juste a cote), voir MembersTable dans HelloAsso.jsx. Sur 1 seule
+   ligne (contrairement aux puces essayees avant : passaient sur 2 lignes
+   une fois les tranches d'age ajoutees) pour laisser plus de place
+   verticale au tableau en dessous. */
 .member-filters {
   display: flex;
-  flex-direction: column;
+  align-items: center;
   gap: 0.75rem;
   margin-bottom: 1.25rem;
 }
@@ -251,6 +259,8 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex: 1;
+  min-width: 0;
   padding: 0.55rem 1rem;
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -271,36 +281,20 @@
   color: var(--text);
 }
 
-.filter-chips {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.filter-chip {
-  padding: 0.4rem 1.1rem;
+.age-filter-select {
+  flex-shrink: 0;
+  padding: 0.55rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: none;
-  color: var(--text);
+  background: var(--code-bg);
+  color: var(--text-h);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   cursor: pointer;
-  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
 }
 
-.filter-chip:hover {
-  border-color: var(--accent-border);
-}
-
-.filter-chip-active,
-.filter-chip-active:hover {
-  background: var(--accent-bg);
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
+/* Le contenu (tableau) peut deborder en largeur sur petit ecran : il
+   scroll horizontalement dans son propre conteneur plutot que la page. */
 .table-wrapper {
   overflow-x: auto;
   border: 1px solid var(--border);

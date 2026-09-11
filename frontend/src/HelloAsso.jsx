@@ -297,7 +297,7 @@ export function MembersTable() {
   return (
     <section>
       <div className="section-header">
-        <h2>Adhérents HelloAsso ({members?.length ?? '…'})</h2>
+        <h2>Adhérents ({members?.length ?? '…'})</h2>
         <button onClick={refetchAll}>Rafraîchir</button>
       </div>
 
@@ -315,18 +315,22 @@ export function MembersTable() {
                 onChange={(e) => setRecherche(e.target.value)}
               />
             </label>
-            <div className="filter-chips" role="group" aria-label="Filtrer par âge">
+            {/* Menu deroulant (plutot que des puces qui passaient sur 2
+                lignes) : tient sur 1 ligne quel que soit le nombre
+                d'options, a cote de la recherche -- laisse plus de place
+                verticale au tableau en dessous. */}
+            <select
+              className="age-filter-select"
+              aria-label="Filtrer par âge"
+              value={filtreAge}
+              onChange={(e) => setFiltreAge(e.target.value)}
+            >
               {AGE_FILTERS.map(({ value, label }) => (
-                <button
-                  key={value}
-                  className={filtreAge === value ? 'filter-chip filter-chip-active' : 'filter-chip'}
-                  aria-pressed={filtreAge === value}
-                  onClick={() => setFiltreAge(value)}
-                >
+                <option key={value} value={value}>
                   {label}
-                </button>
+                </option>
               ))}
-            </div>
+            </select>
           </div>
 
           {membresVisibles.length === 0 ? (
