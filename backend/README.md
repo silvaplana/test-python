@@ -5,9 +5,13 @@ seul point d'entrée (`app.main`) assemble plusieurs modules sur la même
 app FastAPI :
 
 - **helloasso** : client API HelloAsso (`GET /helloasso/campaign`,
-  `/helloasso/members`, `/helloasso/unpaid`) — voir
+  `/helloasso/members`, `/helloasso/unpaid`, `/helloasso/photo`) — voir
   `src/helloasso/helloasso.py` pour le detail des methodes et
-  `.env.example` pour la config requise.
+  `.env.example` pour la config requise. `/helloasso/photo` relaie (avec
+  authentification, requise par HelloAsso) et redimensionne en vignette
+  les photos d'adherent, avec un cache disque (`HELLOASSO_PHOTO_CACHE_DIR`,
+  defaut `data/photos_cache`) : une photo n'est telechargee/redimensionnee
+  qu'une seule fois.
 - **ffst** : scraping du portail de licences FFST (`GET /ffst/licences`,
   `GET /ffst/demandes_validated`, `GET /ffst/demandes_draft`, pas d'API —
   parsing d'un bloc XML integre a la page HTML) + `POST
@@ -93,6 +97,7 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `GET /helloasso/campaign` -> titre de la campagne d'adhésion configurée (`HELLOASSO_FORM_SLUG`)
 - `GET /helloasso/members` -> liste des adhérents de cette campagne
 - `GET /helloasso/unpaid` -> adhérents avec au moins un paiement refusé
+- `GET /helloasso/photo?url=...` -> relaie (authentifié) + redimensionne en vignette carrée une photo d'adhérent (`url` = valeur déjà présente dans `customFields["photo d'identité"]`, doit pointer vers `docs.helloasso.com`)
 - `GET /ffst/licences` -> liste des licences FFST du club (saison en cours)
 - `GET /ffst/demandes_validated` -> demandes de nouvelle licence / renouvellement en cours (liste vide = cas normal)
 - `GET /ffst/demandes_draft` -> demandes en brouillon, pas encore validées/soumises (le "panier" du portail ; liste vide = cas normal)

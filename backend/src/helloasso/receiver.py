@@ -1,6 +1,17 @@
-from fastapi import FastAPI
+import re
+from urllib.parse import urlparse
 
-from .helloasso import HelloAsso
+import httpx
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
+
+from .helloasso import HelloAsso, HelloAssoAuthError
+
+# Restreint /helloasso/photo aux URL HelloAsso reelles (voir getPhoto) :
+# sans ca, ce endpoint deviendrait un proxy HTTP generique authentifie
+# avec les identifiants du club, un risque de securite (SSRF) pour un
+# gain nul (aucun autre hote n'a besoin de ce relais).
+PHOTO_URL_PATH_RE = re.compile(r"^/customFieldsAnswer/\d+$")
 
 # Etats HelloAsso (PaymentState) indiquant un paiement reellement refuse/en
 # echec definitif. A distinguer des etats "futur/en attente" (Pending,
@@ -44,6 +55,7 @@ class HelloAssoReceiver:
         self.app.get("/helloasso/campaign")(self.getCampaign)
         self.app.get("/helloasso/members")(self.getMembers)
         self.app.get("/helloasso/unpaid")(self.getUnpaid)
+        self.app.get("/helloasso/photo")(self.getPhoto)
 
     def getCampaign(self) -> dict:
         """Endpoint REST GET /helloasso/campaign. Retourne le titre de la campagne."""
@@ -80,3 +92,33 @@ class HelloAssoReceiver:
                 }
             )
         return unpaid
+
+    def getPhoto(self, url: str) -> Response:
+        """Endpoint REST GET /helloasso/photo?url=... . Relaie (avec
+        authentification) une photo hebergee par HelloAsso -- typiquement
+        customFields["photo d'identité"] d'un adherent, deja presente
+        telle quelle dans la reponse de /helloasso/members. Le navigateur
+        ne peut pas la charger directement (401 sans le jeton OAuth2 du
+        club, confirme en conditions reelles).
+
+        url doit pointer vers docs.helloasso.com (voir PHOTO_URL_PATH_RE) :
+        sans cette restriction, ce endpoint authentifierait n'importe
+        quelle URL fournie avec les identifiants du club (SSRF).
+        """
+        parsed = urlparse(url)
+        if (
+            parsed.scheme != "https"
+            or parsed.netloc != "docs.helloasso.com"
+            or not PHOTO_URL_PATH_RE.match(parsed.path)
+        ):
+            raise HTTPException(status_code=400, detail="URL de photo invalide")
+        try:
+            thumbnail = self.client.get_photo_thumbnail(url)
+        except HelloAssoAuthError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"Échec de récupération de la photo : {exc}") from exc
+        # Cache navigateur genereux (photo statique une fois uploadee) :
+        # evite de re-solliciter ce relais (et HelloAsso) a chaque
+        # rafraichissement du tableau des adherents.
+        return Response(content=thumbnail, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})

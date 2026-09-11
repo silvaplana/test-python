@@ -39,6 +39,13 @@ helloasso_client = HelloAsso(
     client_secret=os.environ.get("HELLOASSO_CLIENT_SECRET", ""),
     organization_slug=os.environ.get("HELLOASSO_ORGANIZATION_SLUG"),
     sandbox=os.environ.get("HELLOASSO_SANDBOX", "").lower() in ("1", "true", "yes"),
+    # Cache disque des vignettes de photo d'adherent (voir
+    # HelloAsso.get_photo_thumbnail) : doit pointer vers un repertoire
+    # persistant (volume Docker, meme necessite que
+    # financialbalance_client/notifications_client plus bas) sous peine
+    # de re-telecharger+redimensionner la photo d'origine (jusqu'a
+    # plusieurs Mo) de chaque adherent a chaque redeploiement.
+    photo_cache_dir=os.environ.get("HELLOASSO_PHOTO_CACHE_DIR", "data/photos_cache"),
 )
 helloasso_receiver = HelloAssoReceiver(
     client=helloasso_client,

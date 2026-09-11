@@ -342,6 +342,37 @@
   font-weight: 600;
 }
 
+/* Vignette photo d'adherent (voir MemberPhoto dans HelloAsso.jsx),
+   colonne dediee du tableau Adherents. */
+.member-photo-header {
+  width: 2.75rem;
+}
+
+.member-photo-cell {
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}
+
+.member-photo,
+.member-photo-placeholder {
+  display: block;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 999px;
+  background: var(--code-bg);
+}
+
+.member-photo {
+  object-fit: cover;
+}
+
+.member-photo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+}
+
 /* Le contenu (tableau) peut deborder en largeur sur petit ecran : il
    scroll horizontalement dans son propre conteneur plutot que la page. */
 .table-wrapper {

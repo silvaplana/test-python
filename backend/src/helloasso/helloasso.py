@@ -15,11 +15,14 @@ Voir .env.example a la racine de backend/.
 
 from __future__ import annotations
 
+import io
 import os
 import time
+from pathlib import Path
 
 import httpx
 from dotenv import load_dotenv
+from PIL import Image, ImageOps
 
 
 class HelloAssoAuthError(RuntimeError):
@@ -47,6 +50,7 @@ class HelloAsso:
         client_secret: str,
         organization_slug: str | None = None,
         sandbox: bool = False,
+        photo_cache_dir: Path | str = "data/photos_cache",
     ) -> None:
         self.client_id = client_id
         self.client_secret = client_secret
@@ -54,6 +58,8 @@ class HelloAsso:
         self.base_url = self.SANDBOX_URL if sandbox else self.PRODUCTION_URL
         self._access_token: str | None = None
         self._token_expiry: float = 0.0
+        self.photo_cache_dir = Path(photo_cache_dir)
+        self.photo_cache_dir.mkdir(parents=True, exist_ok=True)
 
     def authenticate(self) -> str:
         """Recupere un access_token via le flow OAuth2 client_credentials."""
@@ -198,6 +204,53 @@ class HelloAsso:
                 )
         print(f"HelloAsso.get_members: {len(members)} adherent(s) extrait(s) pour {form_slug}")
         return members
+
+    def get_photo_thumbnail(self, url: str, size: int = 128) -> bytes:
+        """Recupere une photo hebergee par HelloAsso (ex: customFields
+        ["photo d'identité"] d'un adherent, voir get_members) et la
+        redimensionne en vignette carree, encodee JPEG.
+
+        Necessaire cote backend : ces photos sont protegees par le meme
+        jeton OAuth2 que le reste de l'API (401 sans lui, confirme en
+        conditions reelles), le navigateur ne peut donc pas les charger
+        directement -- voir HelloAssoReceiver.getPhoto, qui relaie cet
+        appel. La redimension est egalement necessaire : les photos
+        d'origine (souvent prises au telephone, non recadrees) pesent
+        couramment plusieurs Mo, inadaptees a un tableau de plusieurs
+        dizaines d'adherents.
+
+        Mise en cache sur disque (photo_cache_dir, doit pointer vers un
+        volume persistant) : une photo d'adherent ne change quasiment
+        jamais une fois uploadee, pas la peine de re-telecharger (jusqu'a
+        plusieurs Mo) et re-redimensionner l'original a chaque affichage
+        du tableau Adherents -- lent, et sollicite HelloAsso pour rien.
+        Le dernier segment de l'URL (voir HelloAssoReceiver.getPhoto, qui
+        en garantit le format) identifie de facon stable et unique ce
+        fichier uploade, utilise comme clef de cache.
+        """
+        cache_path = self.photo_cache_dir / f"{url.rsplit('/', 1)[-1]}_{size}.jpg"
+        if cache_path.exists():
+            return cache_path.read_bytes()
+
+        response = httpx.get(url, headers=self._headers(), follow_redirects=True, timeout=15)
+        response.raise_for_status()
+        image = Image.open(io.BytesIO(response.content))
+        # Respecte l'orientation EXIF (photos de telephone) : sans ca,
+        # certaines vignettes ressortiraient pivotees de 90/180 degres.
+        image = ImageOps.exif_transpose(image)
+        image = image.convert("RGB")
+        # Recadrage carre centre avant redimension : evite une vignette
+        # deformee/etiree quand la photo d'origine n'est pas carree.
+        w, h = image.size
+        side = min(w, h)
+        left, top = (w - side) // 2, (h - side) // 2
+        image = image.crop((left, top, left + side, top + side))
+        image = image.resize((size, size), Image.LANCZOS)
+        buf = io.BytesIO()
+        image.save(buf, format="JPEG", quality=82)
+        thumbnail = buf.getvalue()
+        cache_path.write_bytes(thumbnail)
+        return thumbnail
 
     def get_member_payments(self, form_slug: str, form_type: str = "Membership") -> list[dict]:
         """Retourne chaque adherent avec le detail de ses paiements.

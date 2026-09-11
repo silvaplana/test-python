@@ -17,6 +17,7 @@ dependencies = [
     "playwright",
     "openpyxl",
     "pywebpush",
+    "Pillow",
 ]
 
 [project.optional-dependencies]

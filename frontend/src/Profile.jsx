@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { debugForgetOneSeenMember } from './HelloAsso.jsx'
+import { debugForgetOneSeenMember, setShowPhotos, useShowPhotos } from './HelloAsso.jsx'
 import { getPushState, subscribeToPush, unsubscribeFromPush } from './push.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -13,6 +13,7 @@ export function Profile() {
   const [state, setState] = useState(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
+  const showPhotos = useShowPhotos()
 
   function refreshState() {
     getPushState()
@@ -92,6 +93,23 @@ export function Profile() {
           d'accueil") avant de pouvoir activer les notifications — c'est une limite d'iOS/Safari, pas de cette
           application.
         </p>
+      </div>
+
+      <div className="profile-card">
+        <h3>Affichage</h3>
+        <p>
+          Affiche la photo d'identité de chaque adhérent (fournie à HelloAsso) dans le tableau Adhérents. À
+          désactiver sur une connexion lente si le tableau met du temps à charger.
+        </p>
+        <label className="toggle-row">
+          <input
+            type="checkbox"
+            name="show-photos"
+            checked={showPhotos}
+            onChange={(e) => setShowPhotos(e.target.checked)}
+          />
+          <span>Afficher les photos des élèves</span>
+        </label>
       </div>
 
       {/* TEMPORAIRE (debug) : le badge "nouveaux adherents" compare a une

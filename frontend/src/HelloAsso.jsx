@@ -7,6 +7,75 @@ function euros(amount) {
   return `${amount.toFixed(2)} €`
 }
 
+// Reglage "Afficher les photos des élèves" (onglet Profil) : par
+// appareil (localStorage), oui par defaut. Desactivable notamment pour
+// eviter de charger des dizaines de vignettes (photo d'identite, voir
+// MemberPhoto) sur une connexion lente. SHOW_PHOTOS_CHANGED_EVENT :
+// meme mecanisme que SEEN_CHANGED_EVENT plus bas -- Profile.jsx et
+// MembersTable sont montes en meme temps (Navigation garde tout monte,
+// voir son commentaire d'en-tete), ce custom event est le seul moyen
+// pour l'un de savoir que l'autre vient de changer ce reglage.
+const SHOW_PHOTOS_KEY = 'helloasso-show-photos'
+const SHOW_PHOTOS_CHANGED_EVENT = 'helloasso-show-photos-changed'
+
+function readShowPhotos() {
+  try {
+    const raw = localStorage.getItem(SHOW_PHOTOS_KEY)
+    return raw === null ? true : raw === '1'
+  } catch {
+    return true
+  }
+}
+
+export function setShowPhotos(value) {
+  try {
+    localStorage.setItem(SHOW_PHOTOS_KEY, value ? '1' : '0')
+  } catch {
+    // Stockage indisponible : le reglage ne sera simplement pas retenu
+    // d'une visite a l'autre, pas grave pour ce confort d'affichage.
+  }
+  window.dispatchEvent(new Event(SHOW_PHOTOS_CHANGED_EVENT))
+}
+
+// Hook pour les composants devant refleter ce reglage en direct (voir
+// SHOW_PHOTOS_CHANGED_EVENT ci-dessus).
+export function useShowPhotos() {
+  const [, forceRerender] = useState(0)
+  useEffect(() => {
+    const onChange = () => forceRerender((n) => n + 1)
+    window.addEventListener(SHOW_PHOTOS_CHANGED_EVENT, onChange)
+    return () => window.removeEventListener(SHOW_PHOTOS_CHANGED_EVENT, onChange)
+  }, [])
+  return readShowPhotos()
+}
+
+// Vignette de la photo d'adherent (customFields["photo d'identité"] de
+// /helloasso/members, deja fournie par HelloAsso pour la demande de
+// licence FFST). Passe par /helloasso/photo (backend) : ces photos sont
+// protegees par le jeton OAuth2 du club, le navigateur ne peut pas les
+// charger directement depuis docs.helloasso.com. Repli silencieux sur
+// une icone generique si absente ou en echec de chargement (ex: adherent
+// qui n'a pas encore fourni de photo).
+function MemberPhoto({ url }) {
+  const [failed, setFailed] = useState(false)
+  if (!url || failed) {
+    return (
+      <span className="member-photo-placeholder" aria-hidden="true">
+        👤
+      </span>
+    )
+  }
+  return (
+    <img
+      className="member-photo"
+      src={`${API_URL}/helloasso/photo?url=${encodeURIComponent(url)}`}
+      alt=""
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 // Libelle d'action en cours (ex: "Envoi en cours") : italique + 3 points
 // animes en boucle (voir .loading-label/.loading-dots dans App.css),
 // plutot qu'un simple "..." statique.
@@ -316,6 +385,7 @@ function promoCodeError(promoCode, seniority) {
 
 export function MembersTable({ active }) {
   const { data: members, error, refetch: refetchMembers } = useHelloAssoFetch('/helloasso/members')
+  const showPhotos = useShowPhotos()
   // Efface le badge "nouveaux adherents" (voir NewMembersBadge) quand cet
   // onglet devient reellement actif (pas juste monte, voir markMembersSeen) :
   // c'est la definition de "consulte" donnee pour cette fonctionnalite.
@@ -525,6 +595,7 @@ export function MembersTable({ active }) {
                     <th>Email</th>
                     <th>Montant</th>
                     <th>Code promo</th>
+                    {showPhotos && <th className="member-photo-header">Photo</th>}
                     <th className="col-secondary">Ancienneté</th>
                     <th className="col-secondary">Statut HelloAsso</th>
                     <th>Statut FFST</th>
@@ -569,6 +640,11 @@ export function MembersTable({ active }) {
                             </span>
                           )}
                         </td>
+                        {showPhotos && (
+                          <td className="member-photo-cell">
+                            <MemberPhoto url={m.customFields?.["photo d'identité"]} />
+                          </td>
+                        )}
                         <td className="col-secondary">{history ? `${seniority} saison${seniority > 1 ? 's' : ''}` : '…'}</td>
                         <td className="col-secondary">{m.state}</td>
                         <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
