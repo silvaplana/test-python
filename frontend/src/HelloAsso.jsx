@@ -195,7 +195,24 @@ function useUnseenMembersCount() {
   }, [members])
 
   const seen = readSeenMemberIds()
-  return seen === null ? 0 : (members ?? []).filter((m) => m.id != null && !seen.has(m.id)).length
+  const rawCount = seen === null ? 0 : (members ?? []).filter((m) => m.id != null && !seen.has(m.id)).length
+
+  // Ne retarde que la BAISSE du compte (pas la hausse, affichee tout de
+  // suite) : le temps d'apercevoir le badge avant qu'il ne disparaisse,
+  // plutot qu'un flash instantane quand on atterrit directement sur
+  // l'onglet deja marque comme vu au meme clic (ex: "HelloAsso" ->
+  // "Adherents", son sous-onglet par defaut).
+  const [displayedCount, setDisplayedCount] = useState(rawCount)
+  useEffect(() => {
+    if (rawCount >= displayedCount) {
+      setDisplayedCount(rawCount)
+      return
+    }
+    const timer = setTimeout(() => setDisplayedCount(rawCount), 1000)
+    return () => clearTimeout(timer)
+  }, [rawCount, displayedCount])
+
+  return displayedCount
 }
 
 // Badge affiche a cote du libelle "HelloAsso"/"Adherents" dans la
