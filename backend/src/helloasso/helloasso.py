@@ -162,6 +162,12 @@ class HelloAsso:
         figure dans /members_history ("Nom/Prenom payeur", voir son
         module) -- necessaire cote frontend pour y retrouver correctement
         l'anciennete d'un mineur paye par un parent.
+
+        id (identifiant HelloAsso stable et unique de cet item, distinct
+        de order["id"]) : utilise par le module notifications pour
+        detecter les nouveaux adherents (bien plus fiable qu'un
+        rapprochement par nom, voir son historique de bugs whitespace/
+        payeur-vs-adherent sur ce meme genre de rapprochement).
         """
         members: list[dict] = []
         for order in self.get_form_orders(form_slug, form_type):
@@ -175,6 +181,7 @@ class HelloAsso:
                 }
                 members.append(
                     {
+                        "id": item.get("id"),
                         "firstName": user.get("firstName") or payer.get("firstName"),
                         "lastName": user.get("lastName") or payer.get("lastName"),
                         "email": payer.get("email"),

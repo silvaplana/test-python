@@ -220,6 +220,27 @@
   border-left-color: var(--accent);
 }
 
+/* Badge "nouveaux adherents non consultes" façon WhatsApp (voir
+   NewMembersBadge dans HelloAsso.jsx), a cote du libelle "HelloAsso"
+   dans la sidebar et la bottom-nav. Rouge comme .unpaid-amount/.error :
+   signale quelque chose a regarder, pas juste informatif. */
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 0.35rem;
+  margin-left: 0.4rem;
+  border-radius: 999px;
+  background: #f87171;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  vertical-align: middle;
+}
+
 .section-header {
   display: flex;
   align-items: center;
@@ -556,6 +577,53 @@ td button + .ffst-role-picker,
 .balance-action-card > button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Onglet Profil (voir Profile.jsx) : meme habillage "carte" que
+   .balance-action-card (bordure + ombre), pas de reutilisation directe
+   pour garder les 2 fonctionnalites decouplees en CSS. */
+.profile-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+}
+
+.profile-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.05rem;
+}
+
+.profile-card > p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  color: var(--text-h);
+}
+
+.toggle-row input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.toggle-row input:disabled {
+  cursor: not-allowed;
+}
+
+.profile-hint {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+  color: var(--text);
 }
 
 /* Question "veux-tu sauvegarder ce bilan ?" affichee juste apres un calcul

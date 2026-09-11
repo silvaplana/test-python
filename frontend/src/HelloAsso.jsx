@@ -113,6 +113,99 @@ const AGE_FILTERS = [
   { value: '50+', label: '50+', test: (age) => age >= 50 },
 ]
 
+// Badge "nouveaux adherents non consultes" (façon WhatsApp), voir
+// NewMembersBadge et App.jsx. Identifie les adherents par leur id
+// HelloAsso (voir helloasso.py:get_members), stable et unique --
+// beaucoup plus fiable qu'un rapprochement par nom (cf. l'historique de
+// bugs whitespace/payeur-vs-adherent sur ce genre de rapprochement dans
+// ce fichier). Stocke en localStorage : un badge "par appareil", pas
+// partage entre les utilisateurs du club.
+const SEEN_MEMBER_IDS_KEY = 'helloasso-seen-member-ids'
+// Les composants montes ailleurs dans l'arbre (le badge de la nav, monte
+// dans App.jsx) ne peuvent pas savoir qu'un autre composant (MembersTable)
+// vient d'ecrire dans le localStorage -- cet evenement custom les
+// previent pour qu'ils se recalculent, sans avoir besoin d'un store
+// partage (React context, etc.) pour un besoin aussi ponctuel.
+const SEEN_CHANGED_EVENT = 'helloasso-seen-members-changed'
+
+// null = jamais initialise (1ere visite de l'appli sur cet appareil,
+// distinct d'un tableau vide) : voir NewMembersBadge, qui memorise alors
+// silencieusement l'etat actuel comme point de depart plutot que de
+// compter tous les adherents existants comme "nouveaux".
+function readSeenMemberIds() {
+  try {
+    const raw = localStorage.getItem(SEEN_MEMBER_IDS_KEY)
+    return raw === null ? null : new Set(JSON.parse(raw))
+  } catch {
+    return null
+  }
+}
+
+// Marque des adherents comme "vus" (efface le badge pour eux). Appele
+// (a) silencieusement au tout premier chargement pour memoriser une
+// base de depart (voir NewMembersBadge), et (b) quand l'onglet Adherents
+// devient reellement actif (prop "active" de MembersTable, voir
+// Navigation.jsx) -- pas juste monte une fois, sinon un adherent arrive
+// pendant qu'on est sur un autre onglet ne serait jamais marque comme vu
+// en y revenant (l'onglet reste monte en permanence apres sa 1ere
+// visite).
+function markMembersSeen(members) {
+  const ids = (members ?? []).map((m) => m.id).filter((id) => id != null)
+  if (ids.length === 0) return
+  const seen = readSeenMemberIds() ?? new Set()
+  ids.forEach((id) => seen.add(id))
+  try {
+    localStorage.setItem(SEEN_MEMBER_IDS_KEY, JSON.stringify([...seen]))
+  } catch {
+    // Stockage indisponible (navigation privee stricte, quota...) : le
+    // badge ne se souviendra simplement pas d'une visite a l'autre, pas
+    // grave pour cette fonctionnalite de confort.
+  }
+  window.dispatchEvent(new Event(SEEN_CHANGED_EVENT))
+}
+
+// Badge affiche a cote du libelle "HelloAsso" dans la navigation (voir
+// App.jsx, section.badge) : nombre d'adherents jamais vus sur cet
+// appareil. Fetch independant de MembersTable (comme le reste de
+// l'appli, ex: /ffst/licences deja fetche a plusieurs endroits) : reste
+// a jour meme si on n'a jamais ouvert l'onglet Adherents.
+export function NewMembersBadge() {
+  const { data: members } = useHelloAssoFetch('/helloasso/members')
+  // Sert juste a forcer un nouveau rendu quand SEEN_CHANGED_EVENT est
+  // recu (ex: MembersTable vient de marquer des adherents comme vus) :
+  // readSeenMemberIds() est relu a chaque rendu, pas garde en state.
+  const [, forceRerender] = useState(0)
+
+  useEffect(() => {
+    const onSeenChanged = () => forceRerender((n) => n + 1)
+    window.addEventListener(SEEN_CHANGED_EVENT, onSeenChanged)
+    return () => window.removeEventListener(SEEN_CHANGED_EVENT, onSeenChanged)
+  }, [])
+
+  // 1ere visite de l'appli sur cet appareil (voir readSeenMemberIds) :
+  // memorise l'etat actuel sans afficher de badge, plutot que de compter
+  // tous les adherents existants comme "nouveaux".
+  useEffect(() => {
+    if (members && readSeenMemberIds() === null) markMembersSeen(members)
+  }, [members])
+
+  const seen = readSeenMemberIds()
+  const count = seen === null ? 0 : (members ?? []).filter((m) => m.id != null && !seen.has(m.id)).length
+
+  // Badge sur l'icone de l'appli (PWA installee) : API Badging, prise en
+  // charge Chrome/Edge (Android + desktop) mais pas Safari/iOS a ce jour
+  // -- feature-detection, pas de degradation geree pour iOS au-dela du
+  // badge dans l'appli elle-meme (ci-dessous) et des notifications push.
+  useEffect(() => {
+    if (!('setAppBadge' in navigator)) return
+    if (count > 0) navigator.setAppBadge(count).catch(() => {})
+    else navigator.clearAppBadge?.().catch(() => {})
+  }, [count])
+
+  if (count === 0) return null
+  return <span className="nav-badge">{count}</span>
+}
+
 // Codes promo type "ANCIEN_N" (ex: ANCIEN_2) : le seul type de code promo
 // verifie pour l'instant. N = anciennete minimum requise (en saisons
 // precedentes, "Nouvelle saison" comprise) -- valide aussi pour une
@@ -142,8 +235,14 @@ function promoCodeError(promoCode, seniority) {
   return `Ancienneté insuffisante pour ${promoCode} : ${seniority} saison${seniority > 1 ? 's' : ''} trouvée${seniority > 1 ? 's' : ''} (${required}+ requise${required > 1 ? 's' : ''})`
 }
 
-export function MembersTable() {
+export function MembersTable({ active }) {
   const { data: members, error, refetch: refetchMembers } = useHelloAssoFetch('/helloasso/members')
+  // Efface le badge "nouveaux adherents" (voir NewMembersBadge) quand cet
+  // onglet devient reellement actif (pas juste monte, voir markMembersSeen) :
+  // c'est la definition de "consulte" donnee pour cette fonctionnalite.
+  useEffect(() => {
+    if (active && members) markMembersSeen(members)
+  }, [active, members])
   // La colonne Statut FFST distingue 4 cas pour chaque adherent, par
   // ordre de priorite : licencie (payee), demande validee (a payer),
   // demande en brouillon (bouton pour la supprimer), ou aucun des 3
@@ -310,6 +409,7 @@ export function MembersTable() {
               <span aria-hidden="true">🔍</span>
               <input
                 type="search"
+                name="member-search"
                 placeholder="Rechercher un adhérent..."
                 value={recherche}
                 onChange={(e) => setRecherche(e.target.value)}

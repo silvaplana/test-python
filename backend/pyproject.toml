@@ -16,6 +16,7 @@ dependencies = [
     "anthropic",
     "playwright",
     "openpyxl",
+    "pywebpush",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +25,7 @@ dev = ["pytest"]
 [project.scripts]
 app = "app.main:main"
 helloasso = "helloasso.helloasso:main"
+generate-vapid-keys = "notifications.generate_vapid_keys:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

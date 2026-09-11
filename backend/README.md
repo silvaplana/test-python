@@ -28,6 +28,15 @@ app FastAPI :
   (`src/members_history/data/liste_adherents_nombre_campagnes.xlsx`,
   généré manuellement hors de ce repo) ; pour le mettre à jour, remplacer
   ce fichier et redéployer. Voir `src/members_history/members_history.py`.
+- **notifications** : notifications push "nouvel adhérent" (Web Push +
+  VAPID, voir `src/notifications/notifications.py`). Un thread de fond
+  (`_poll_new_members` dans `app/main.py`) interroge `HelloAsso.get_members()`
+  toutes les `NOTIFICATIONS_POLL_INTERVAL_SECONDS` (polling, pas de
+  webhook HelloAsso) et notifie tous les abonnés de tout nouvel `id`
+  d'adhérent jamais vu. Endpoints `GET /notifications/vapid_public_key`,
+  `POST /notifications/subscribe`, `POST /notifications/unsubscribe`
+  (utilisés par l'onglet Profil du frontend). Clés VAPID à générer une
+  fois via `generate-vapid-keys` (voir `.env.example`).
 
 ## Structure
 
@@ -50,11 +59,16 @@ backend/
 │   │   ├── __init__.py
 │   │   ├── financialbalance.py  # FinancialBalance : stockage archives + analyse IA (Claude)
 │   │   └── receiver.py          # FinancialBalanceReceiver : endpoints /financialbalance/archives, /analysis (SSE)
-│   └── members_history/
+│   ├── members_history/
+│   │   ├── __init__.py
+│   │   ├── data/liste_adherents_nombre_campagnes.xlsx  # fichier source, embarque dans l'image
+│   │   ├── members_history.py   # MembersHistory : parsing du xlsx
+│   │   └── receiver.py          # MembersHistoryReceiver : endpoint /members_history
+│   └── notifications/
 │       ├── __init__.py
-│       ├── data/liste_adherents_nombre_campagnes.xlsx  # fichier source, embarque dans l'image
-│       ├── members_history.py   # MembersHistory : parsing du xlsx
-│       └── receiver.py          # MembersHistoryReceiver : endpoint /members_history
+│       ├── notifications.py        # PushNotifications : abonnements + detection nouveaux adherents + envoi
+│       ├── receiver.py             # NotificationsReceiver : endpoints /notifications/...
+│       └── generate_vapid_keys.py  # script one-shot : genere VAPID_PRIVATE_KEY/VAPID_PUBLIC_KEY
 └── tests/                  # pas de test pour l'instant (voir "Tests" plus bas)
 ```
 
@@ -88,6 +102,9 @@ Le serveur écoute par défaut sur `http://0.0.0.0:8000`.
 - `POST /financialbalance/archives` (multipart, champ `file`) -> stocke une archive `.zip` de relevés bancaires
 - `GET /financialbalance/analysis` -> flux SSE : progression puis bilan IA (résumé + tableau par catégorie) de la dernière archive envoyée
 - `GET /members_history` -> historique des adhérents (payeurs) toutes saisons confondues (nom, prénom, nombre de saisons, détail des saisons), à partir du fichier xlsx embarqué
+- `GET /notifications/vapid_public_key` -> clé publique VAPID (base64url), nécessaire côté navigateur pour `PushManager.subscribe()`
+- `POST /notifications/subscribe` avec le corps `PushSubscription.toJSON()` du navigateur -> enregistre un abonnement aux notifications push
+- `POST /notifications/unsubscribe` avec `{"endpoint"}` -> retire un abonnement
 
 Exemple :
 

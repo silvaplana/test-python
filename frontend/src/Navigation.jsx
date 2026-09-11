@@ -54,6 +54,7 @@ function Navigation({ header, sections }) {
             onClick={() => selectSection(i)}
           >
             {section.label}
+            {section.badge}
           </button>
         ))}
       </nav>
@@ -82,19 +83,21 @@ function Navigation({ header, sections }) {
         )}
 
         {sections.map((section, sectionIndex) =>
-          section.tools.map(
-            (tool, toolIndex) =>
-              visited.has(`${sectionIndex}-${toolIndex}`) && (
-                <div
-                  key={tool.label}
-                  className="tabs-panel"
-                  role="tabpanel"
-                  hidden={sectionIndex !== activeSection || toolIndex !== activeTool}
-                >
-                  {tool.content}
-                </div>
-              )
-          )
+          section.tools.map((tool, toolIndex) => {
+            if (!visited.has(`${sectionIndex}-${toolIndex}`)) return null
+            const isActive = sectionIndex === activeSection && toolIndex === activeTool
+            return (
+              <div key={tool.label} className="tabs-panel" role="tabpanel" hidden={!isActive}>
+                {/* content est une fonction (pas un element tout fait) : lui
+                    permet de savoir s'il est reellement affiche en ce moment
+                    (pas juste monte -- un outil deja visite reste monte mais
+                    cache via "hidden" ci-dessus, voir le commentaire de
+                    Navigation en haut du fichier), ex. pour MembersTable qui
+                    doit distinguer "consulte maintenant" de "charge en fond". */}
+                {tool.content(isActive)}
+              </div>
+            )
+          })
         )}
       </div>
 
@@ -106,6 +109,7 @@ function Navigation({ header, sections }) {
             onClick={() => selectSection(i)}
           >
             {section.label}
+            {section.badge}
           </button>
         ))}
       </nav>
