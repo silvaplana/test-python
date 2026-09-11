@@ -14,12 +14,6 @@ function App() {
       <AppBadgeController />
       <Navigation
         header={<CampaignTitle />}
-        // TEMPORAIRE (test des notifications push/badge en conditions
-        // reelles) : demarre sur Profil plutot que HelloAsso, sinon
-        // MembersTable marque tout comme "vu" des le chargement et les
-        // badges ci-dessous n'ont jamais l'occasion de s'afficher. A
-        // remettre a 0 (HelloAsso, comportement normal) une fois valide.
-        initialSection={3}
         sections={[
           {
             key: 'helloasso',
