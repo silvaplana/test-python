@@ -30,7 +30,7 @@ export function FinancialBalance() {
   const eventSourceRef = useRef(null)
 
   useEffect(() => {
-    fetch(`${API_URL}/financialbalance/analyses/latest`)
+    fetch(`${API_URL}/financialbalance/analyses/latest`, { credentials: 'include' })
       .then((r) => r.ok && r.json())
       .then((data) => setSavedAnalysis(data || null))
       .catch(() => setSavedAnalysis(null))
@@ -48,7 +48,11 @@ export function FinancialBalance() {
 
     // Ferme un flux précédent éventuel avant d'en ouvrir un nouveau.
     eventSourceRef.current?.close()
-    const es = new EventSource(`${API_URL}/financialbalance/analysis`)
+    // withCredentials : sinon le cookie de session (voir Auth.jsx) n'est
+    // pas envoye sur cette requete cross-origin en dev local (defaut du
+    // navigateur pour EventSource, contrairement a fetch avec
+    // credentials: 'include') -- requiert require_auth cote backend.
+    const es = new EventSource(`${API_URL}/financialbalance/analysis`, { withCredentials: true })
     eventSourceRef.current = es
 
     es.onmessage = (e) => {
@@ -94,6 +98,7 @@ export function FinancialBalance() {
       formData.append('file', selected)
       const response = await fetch(`${API_URL}/financialbalance/archives`, {
         method: 'POST',
+        credentials: 'include',
         body: formData,
       })
       const data = await response.json().catch(() => null)
@@ -119,6 +124,7 @@ export function FinancialBalance() {
     try {
       const response = await fetch(`${API_URL}/financialbalance/analyses`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(analysis),
       })

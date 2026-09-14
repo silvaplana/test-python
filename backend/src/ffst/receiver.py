@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from pydantic import BaseModel
 
 from .ffst import FFST_FONCTIONS, Ffst, FfstAuthError
@@ -40,9 +40,11 @@ class FfstReceiver:
 
     Comme HelloAssoReceiver, enregistre ses routes sur une app FastAPI
     existante (partagee avec les autres modules), pas de service dedie.
+    En realite le routeur protege par require_auth (voir app/main.py),
+    d'ou FastAPI | APIRouter (meme interface .get/.post/.delete).
     """
 
-    def __init__(self, client: Ffst, app: FastAPI) -> None:
+    def __init__(self, client: Ffst, app: FastAPI | APIRouter) -> None:
         self.client = client
         self.app = app
         self._register_routes()

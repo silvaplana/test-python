@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 from pydantic import BaseModel
 
 from .notifications import PushNotifications
@@ -23,9 +23,11 @@ class NotificationsReceiver:
 
     Comme les autres receivers, enregistre ses routes sur une app FastAPI
     existante (partagee avec les autres modules), pas de service dedie.
+    En realite le routeur protege par require_auth (voir app/main.py),
+    d'ou FastAPI | APIRouter (meme interface .get/.post/.delete).
     """
 
-    def __init__(self, client: PushNotifications, app: FastAPI) -> None:
+    def __init__(self, client: PushNotifications, app: FastAPI | APIRouter) -> None:
         self.client = client
         self.app = app
         self._register_routes()

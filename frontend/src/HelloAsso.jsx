@@ -100,7 +100,7 @@ function useHelloAssoFetch(path) {
 
   const fetchData = useCallback(async () => {
     try {
-      const response = await fetch(`${API_URL}${path}`)
+      const response = await fetch(`${API_URL}${path}`, { credentials: 'include' })
       if (!response.ok) throw new Error(`GET ${path} a échoué (${response.status})`)
       setData(await response.json())
       setError(null)
@@ -453,6 +453,7 @@ export function MembersTable({ active }) {
     try {
       const response = await fetch(`${API_URL}${path}`, {
         method,
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })

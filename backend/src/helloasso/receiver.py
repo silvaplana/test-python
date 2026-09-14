@@ -2,7 +2,7 @@ import re
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import Response
 
 from .helloasso import HelloAsso, HelloAssoAuthError
@@ -36,12 +36,17 @@ class HelloAssoReceiver:
     Contrairement a MotorReceiver, ne cree pas sa propre app FastAPI : les
     routes sont enregistrees sur une app existante (partagee avec les autres
     modules du backend), pour ne faire tourner qu'un seul service HTTP.
+
+    app est en realite le routeur protege par require_auth (voir
+    app/main.py), pas l'app FastAPI elle-meme -- FastAPI | APIRouter
+    plutot que juste FastAPI, meme s'ils partagent l'interface utilisee
+    ici (.get/.post/.delete).
     """
 
     def __init__(
         self,
         client: HelloAsso,
-        app: FastAPI,
+        app: FastAPI | APIRouter,
         form_slug: str,
         form_type: str = "Membership",
     ) -> None:

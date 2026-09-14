@@ -10,9 +10,10 @@ import os
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from auth import AuthReceiver, require_auth
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
@@ -25,12 +26,38 @@ load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
 # les modules montes ci-dessous.
 app = FastAPI(title="samboAdmin API")
 app.add_middleware(
-    # Autorise le frontend React (Vite, servi sur un autre port) a appeler l'API.
+    # Autorise le frontend React (Vite, servi sur un autre port en dev
+    # local -- meme origine en prod via le gateway, ce middleware n'y
+    # entre pas en jeu) a appeler l'API. allow_credentials=True + une
+    # origine precise (pas de wildcard, incompatible avec les
+    # identifiants) : necessaire pour que le cookie de session (voir
+    # module auth) soit envoye/accepte sur ces requetes cross-origin en
+    # dev.
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"http://localhost:\d+",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Routes d'authentification (/auth/login, /auth/logout, /auth/status) :
+# montees directement sur l'app, jamais sur protected_router plus bas --
+# il faut pouvoir les appeler justement quand on n'est pas encore
+# authentifie (notamment /auth/login, sous peine de ne jamais pouvoir se
+# connecter).
+auth_receiver = AuthReceiver(app=app)
+
+# Toutes les autres routes de ce backend passent par ce routeur plutot
+# que par l'app directement : Depends(require_auth) s'applique alors a
+# chacune d'elles sans avoir a le repeter route par route. Inclus dans
+# l'app (app.include_router plus bas) une fois que tous les modules
+# ci-dessous y ont enregistre leurs routes -- voir require_auth pour la
+# doc complete de la dependance, et sa docstring/celle du module auth
+# pour ce que "sauf les fichiers statiques" (mentionne dans la demande
+# initiale) signifie concretement dans cette architecture (le frontend,
+# qui sert ses fichiers statiques lui-meme, hors de portee de ce
+# backend -- voir DEPLOY.md).
+protected_router = APIRouter(dependencies=[Depends(require_auth)])
 
 # Monte les routes HelloAsso (/helloasso/members, /helloasso/unpaid) sur la
 # meme app : un seul service HTTP pour tout le backend (voir DEPLOY.md).
@@ -49,7 +76,7 @@ helloasso_client = HelloAsso(
 )
 helloasso_receiver = HelloAssoReceiver(
     client=helloasso_client,
-    app=app,
+    app=protected_router,
     # Slug HelloAsso genere lors de la creation du formulaire, qui ne suit
     # pas forcement le titre affiche : ce formulaire est titre "saison
     # 2026-2027" mais garde le slug de l'annee precedente (suffixe "-2-2"
@@ -66,7 +93,7 @@ ffst_client = Ffst(
     user_part3=os.environ.get("FFST_USER_PART3", ""),
     password=os.environ.get("FFST_PASSWORD", ""),
 )
-ffst_receiver = FfstReceiver(client=ffst_client, app=app)
+ffst_receiver = FfstReceiver(client=ffst_client, app=protected_router)
 
 # Monte les routes du bilan financier (/financialbalance/archives) sur la
 # meme app. storage_dir doit pointer vers un repertoire persistant (volume
@@ -75,13 +102,13 @@ ffst_receiver = FfstReceiver(client=ffst_client, app=app)
 financialbalance_client = FinancialBalance(
     storage_dir=os.environ.get("FINANCIALBALANCE_STORAGE_DIR", "data/bank_archives"),
 )
-financialbalance_receiver = FinancialBalanceReceiver(client=financialbalance_client, app=app)
+financialbalance_receiver = FinancialBalanceReceiver(client=financialbalance_client, app=protected_router)
 
 # Monte les routes de l'historique des adherents (/members_history) sur la
 # meme app. Aucune config requise : lit un fichier xlsx embarque dans le
 # backend (voir members_history/members_history.py), pas une API externe.
 members_history_client = MembersHistory()
-members_history_receiver = MembersHistoryReceiver(client=members_history_client, app=app)
+members_history_receiver = MembersHistoryReceiver(client=members_history_client, app=protected_router)
 
 # Monte les routes de notifications push (/notifications/...) sur la meme
 # app. storage_dir doit pointer vers un repertoire persistant (volume
@@ -97,7 +124,13 @@ notifications_client = PushNotifications(
     vapid_public_key=os.environ.get("VAPID_PUBLIC_KEY", ""),
     vapid_subject=os.environ.get("VAPID_SUBJECT", "mailto:contact@example.com"),
 )
-notifications_receiver = NotificationsReceiver(client=notifications_client, app=app)
+notifications_receiver = NotificationsReceiver(client=notifications_client, app=protected_router)
+
+# Toutes les routes protegees ont ete enregistrees sur protected_router
+# ci-dessus (par les differents *_receiver) : les incorpore maintenant
+# dans l'app, Depends(require_auth) applique a chacune d'elles d'un
+# coup.
+app.include_router(protected_router)
 
 # Intervalle de verification des nouveaux adherents HelloAsso (polling,
 # voir notifications/notifications.py:check_for_new_members) -- pas de

@@ -18,6 +18,8 @@ dependencies = [
     "openpyxl",
     "pywebpush",
     "Pillow",
+    "bcrypt",
+    "itsdangerous",
 ]
 
 [project.optional-dependencies]
@@ -27,6 +29,7 @@ dev = ["pytest"]
 app = "app.main:main"
 helloasso = "helloasso.helloasso:main"
 generate-vapid-keys = "notifications.generate_vapid_keys:main"
+generate-password-hash = "auth.generate_password_hash:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

@@ -185,7 +185,7 @@ cd test-python
 
 (Pour les mises à jour futures : `git pull` puis rebuild, voir plus bas.)
 
-### c bis) Configurer les secrets HelloAsso (une seule fois)
+### c bis) Configurer les secrets (une seule fois)
 
 `docker-compose.yml` charge `backend/.env` au démarrage du conteneur
 `backend` (`env_file`), mais ce fichier n'est jamais commité (secrets).
@@ -193,7 +193,15 @@ Le créer une fois sur le VPS à partir du modèle :
 
 ```bash
 cp backend/.env.example backend/.env
-nano backend/.env   # y mettre les vraies valeurs HELLOASSO_*
+nano backend/.env   # y mettre les vraies valeurs HELLOASSO_*, APP_PASSWORD_HASH, ...
+```
+
+`APP_PASSWORD_HASH` (voir `backend/src/auth/`) : hash bcrypt du mot de
+passe unique partagé donnant accès à toute l'application. Le générer
+depuis le venv du backend :
+
+```bash
+cd backend && source venv/bin/activate && python -m auth.generate_password_hash
 ```
 
 ### d) Lancer les conteneurs

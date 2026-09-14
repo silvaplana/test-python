@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react'
+import { useAuth } from './Auth.jsx'
 import { debugForgetOneSeenMember, setShowPhotos, useShowPhotos } from './HelloAsso.jsx'
 import { getPushState, subscribeToPush, unsubscribeFromPush } from './push.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-// Mot de passe demande pour activer l'affichage des photos (pas pour le
-// desactiver) -- une simple friction voulue par le club, pas une vraie
-// mesure de securite : ce code frontend est visible de quiconque inspecte
-// le bundle JS, comme tout secret cote client.
-const SHOW_PHOTOS_PASSWORD = 'fedorkhamzat'
 
 // Onglet "Profil" : pour l'instant uniquement le reglage des
 // notifications push (voir push.js) -- prevoit d'autres reglages plus
@@ -20,12 +15,7 @@ export function Profile() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const showPhotos = useShowPhotos()
-  // Prompt de mot de passe pour activer l'affichage des photos (voir
-  // SHOW_PHOTOS_PASSWORD) : ouvert seulement en tentant de passer de
-  // desactive a active, jamais pour desactiver.
-  const [photosPasswordOpen, setPhotosPasswordOpen] = useState(false)
-  const [photosPasswordInput, setPhotosPasswordInput] = useState('')
-  const [photosPasswordError, setPhotosPasswordError] = useState(null)
+  const { logout } = useAuth()
 
   function refreshState() {
     getPushState()
@@ -37,32 +27,12 @@ export function Profile() {
     refreshState()
   }, [])
 
+  // Affichage des photos : oui par defaut (voir readShowPhotos dans
+  // HelloAsso.jsx), et sans mot de passe -- desormais seulement
+  // accessible a quelqu'un deja authentifie (voir Auth.jsx), donc plus
+  // besoin de cette friction supplementaire.
   function onTogglePhotos(e) {
-    if (e.target.checked) {
-      // Ne pas activer directement : ouvre le prompt, seul confirmerPhotosPassword() appelle setShowPhotos(true).
-      setPhotosPasswordOpen(true)
-      setPhotosPasswordInput('')
-      setPhotosPasswordError(null)
-    } else {
-      setShowPhotos(false)
-    }
-  }
-
-  function confirmerPhotosPassword() {
-    if (photosPasswordInput.toLowerCase() === SHOW_PHOTOS_PASSWORD.toLowerCase()) {
-      setShowPhotos(true)
-      setPhotosPasswordOpen(false)
-      setPhotosPasswordInput('')
-      setPhotosPasswordError(null)
-    } else {
-      setPhotosPasswordError('Mot de passe incorrect : activation refusée.')
-    }
-  }
-
-  function annulerPhotosPassword() {
-    setPhotosPasswordOpen(false)
-    setPhotosPasswordInput('')
-    setPhotosPasswordError(null)
+    setShowPhotos(e.target.checked)
   }
 
   async function toggle() {
@@ -136,7 +106,7 @@ export function Profile() {
       </div>
 
       <div className="profile-card">
-        <h3>Affichage</h3>
+        <h3>Affichage photos</h3>
         <p>
           Affiche la photo d'identité de chaque adhérent (fournie à HelloAsso) dans le tableau Adhérents. À
           désactiver sur une connexion lente si le tableau met du temps à charger.
@@ -145,21 +115,11 @@ export function Profile() {
           <input type="checkbox" name="show-photos" checked={showPhotos} onChange={onTogglePhotos} />
           <span>Afficher les photos des élèves</span>
         </label>
-        {photosPasswordOpen && (
-          <div className="password-prompt">
-            <input
-              type="password"
-              placeholder="Mot de passe"
-              value={photosPasswordInput}
-              onChange={(e) => setPhotosPasswordInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && confirmerPhotosPassword()}
-              autoFocus
-            />
-            <button onClick={confirmerPhotosPassword}>Valider</button>
-            <button onClick={annulerPhotosPassword}>Annuler</button>
-          </div>
-        )}
-        {photosPasswordError && <p className="error">{photosPasswordError}</p>}
+      </div>
+
+      <div className="profile-card">
+        <h3>Session</h3>
+        <button onClick={logout}>Se déconnecter</button>
       </div>
 
       {/* TEMPORAIRE (debug) : le badge "nouveaux adherents" compare a une

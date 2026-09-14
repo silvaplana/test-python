@@ -712,6 +712,74 @@ td button + .ffst-role-picker,
   background: var(--accent-bg);
 }
 
+/* Ecran de mot de passe (voir Auth.jsx, AuthGate) : point d'entree unique
+   de l'appli avant authentification -- pleine hauteur, centre, sans la
+   Navigation (sidebar/bottom-nav), qui reste cachee jusqu'a l'avoir
+   passe. */
+.login-screen {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100svh;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: 320px;
+}
+
+.login-logo {
+  width: 96px;
+  height: 96px;
+}
+
+.login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.65rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.login-form button {
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.login-form button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.login-form button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.login-form .error {
+  margin-top: 0;
+}
+
 .profile-hint {
   margin-top: 1rem;
   font-size: 0.85rem;

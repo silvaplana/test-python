@@ -51,7 +51,7 @@ export async function subscribeToPush(apiUrl) {
     )
   }
 
-  const keyResponse = await fetch(`${apiUrl}/notifications/vapid_public_key`)
+  const keyResponse = await fetch(`${apiUrl}/notifications/vapid_public_key`, { credentials: 'include' })
   if (!keyResponse.ok) throw new Error(`Échec de récupération de la clé VAPID (${keyResponse.status})`)
   const { publicKey } = await keyResponse.json()
 
@@ -63,6 +63,7 @@ export async function subscribeToPush(apiUrl) {
 
   const response = await fetch(`${apiUrl}/notifications/subscribe`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(subscription.toJSON()),
   })
@@ -80,6 +81,7 @@ export async function unsubscribeFromPush(apiUrl) {
   await subscription.unsubscribe()
   await fetch(`${apiUrl}/notifications/unsubscribe`, {
     method: 'POST',
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ endpoint }),
   })
