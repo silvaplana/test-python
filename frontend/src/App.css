@@ -366,11 +366,40 @@
   object-fit: cover;
 }
 
+.member-photo-clickable {
+  cursor: zoom-in;
+}
+
 .member-photo-placeholder {
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.1rem;
+}
+
+/* Photo agrandie au clic (voir PhotoLightbox dans HelloAsso.jsx) :
+   position:fixed plutot qu'un vrai composant modal (pas de bibliotheque
+   dediee dans ce projet) -- couvre le viewport quel que soit l'endroit
+   du tableau (potentiellement scrolle horizontalement) d'ou vient le
+   clic. */
+.photo-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.85);
+  cursor: zoom-out;
+}
+
+.photo-lightbox img {
+  max-width: 100%;
+  max-height: 100%;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
 
 /* Le contenu (tableau) peut deborder en largeur sur petit ecran : il

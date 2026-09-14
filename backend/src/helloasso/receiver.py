@@ -2,7 +2,7 @@ import re
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.responses import Response
 
 from .helloasso import HelloAsso, HelloAssoAuthError
@@ -98,8 +98,8 @@ class HelloAssoReceiver:
             )
         return unpaid
 
-    def getPhoto(self, url: str) -> Response:
-        """Endpoint REST GET /helloasso/photo?url=... . Relaie (avec
+    def getPhoto(self, url: str, size: int = Query(default=128, ge=32, le=640)) -> Response:
+        """Endpoint REST GET /helloasso/photo?url=...&size=... . Relaie (avec
         authentification) une photo hebergee par HelloAsso -- typiquement
         customFields["photo d'identité"] d'un adherent, deja presente
         telle quelle dans la reponse de /helloasso/members. Le navigateur
@@ -109,6 +109,11 @@ class HelloAssoReceiver:
         url doit pointer vers docs.helloasso.com (voir PHOTO_URL_PATH_RE) :
         sans cette restriction, ce endpoint authentifierait n'importe
         quelle URL fournie avec les identifiants du club (SSRF).
+
+        size (128 par defaut, vignette du tableau) : voir MemberPhoto cote
+        frontend, qui redemande une taille plus grande au clic ("zoom").
+        Bornes (32-640) : evite qu'une taille absurde fasse redimensionner
+        inutilement une image demesuree.
         """
         parsed = urlparse(url)
         if (
@@ -118,7 +123,7 @@ class HelloAssoReceiver:
         ):
             raise HTTPException(status_code=400, detail="URL de photo invalide")
         try:
-            thumbnail = self.client.get_photo_thumbnail(url)
+            thumbnail = self.client.get_photo_thumbnail(url, size=size)
         except HelloAssoAuthError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         except httpx.HTTPError as exc:

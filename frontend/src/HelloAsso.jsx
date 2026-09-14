@@ -56,8 +56,15 @@ export function useShowPhotos() {
 // charger directement depuis docs.helloasso.com. Repli silencieux sur
 // une icone generique si absente ou en echec de chargement (ex: adherent
 // qui n'a pas encore fourni de photo).
+//
+// Cliquable -> agrandissement (voir PhotoLightbox) : la vignette du
+// tableau (128px) est volontairement petite, insuffisante pour juger
+// une photo (ex: PDF rasterise, voir HelloAsso.get_photo_thumbnail).
+// Redemande une taille plus grande (size=512) plutot que d'agrandir en
+// CSS la vignette 128px deja bien pixelisee.
 function MemberPhoto({ url }) {
   const [failed, setFailed] = useState(false)
+  const [zoomed, setZoomed] = useState(false)
   if (!url || failed) {
     return (
       <span className="member-photo-placeholder" aria-hidden="true">
@@ -66,13 +73,33 @@ function MemberPhoto({ url }) {
     )
   }
   return (
-    <img
-      className="member-photo"
-      src={`${API_URL}/helloasso/photo?url=${encodeURIComponent(url)}`}
-      alt=""
-      loading="lazy"
-      onError={() => setFailed(true)}
-    />
+    <>
+      <img
+        className="member-photo member-photo-clickable"
+        src={`${API_URL}/helloasso/photo?url=${encodeURIComponent(url)}`}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        onClick={() => setZoomed(true)}
+      />
+      {zoomed && <PhotoLightbox url={url} onClose={() => setZoomed(false)} />}
+    </>
+  )
+}
+
+// Plein ecran (overlay position:fixed, voir .photo-lightbox) : ferme au
+// clic n'importe ou (fond ou image) ou touche Echap, pas besoin d'un
+// bouton "fermer" dedie pour une simple visionneuse.
+function PhotoLightbox({ url, onClose }) {
+  useEffect(() => {
+    const onKeyDown = (e) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+  return (
+    <div className="photo-lightbox" onClick={onClose}>
+      <img src={`${API_URL}/helloasso/photo?url=${encodeURIComponent(url)}&size=512`} alt="" />
+    </div>
   )
 }
 
