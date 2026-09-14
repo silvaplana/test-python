@@ -1,5 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import clubLogo from './assets/club-logo.png'
+// Version detouree (fond transparent, voir public/icons/icon-192.png et
+// son commit "Icônes Android/PWA : ours détouré, fond transparent") --
+// contrairement a club-logo.png (utilise ailleurs, ex: CampaignTitle),
+// qui a un fond plein : se fond mal dans .login-screen. icon-192 (pas
+// -512) : affiche a 96px ici, 192 suffit largement (2x, ecrans retina
+// compris) pour 5x moins lourd.
+import clubLogo from './assets/club-logo-transparent.png'
 import { getPushState, subscribeToPush } from './push.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -90,6 +96,10 @@ function LoginForm({ onSuccess }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(null)
   const [pending, setPending] = useState(false)
+  // "Mot de passe oublié ?" : pas de vraie recuperation (mot de passe
+  // partage, pas de compte individuel/email associe) -- juste une
+  // indication de qui contacter, affichee au clic.
+  const [showForgotHint, setShowForgotHint] = useState(false)
 
   async function submit(e) {
     e.preventDefault()
@@ -123,6 +133,7 @@ function LoginForm({ onSuccess }) {
     <div className="login-screen">
       <form className="login-form" onSubmit={submit}>
         <img src={clubLogo} alt="Alliance Sambo Combat La Ciotat" className="login-logo" />
+        <p className="login-subtitle">Gestion de l'association Alliance Sambo Combat La Ciotat</p>
         <input
           type="password"
           placeholder="Mot de passe"
@@ -135,6 +146,10 @@ function LoginForm({ onSuccess }) {
           Valider
         </button>
         {error && <p className="error">{error}</p>}
+        <button type="button" className="login-forgot" onClick={() => setShowForgotHint(true)}>
+          Mot de passe oublié ?
+        </button>
+        {showForgotHint && <p className="login-forgot-hint">Contacter le président ou Sébastien</p>}
       </form>
     </div>
   )

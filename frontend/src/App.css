@@ -739,6 +739,13 @@ td button + .ffst-role-picker,
   height: 96px;
 }
 
+.login-subtitle {
+  margin: -0.5rem 0 0;
+  font-size: 0.9rem;
+  color: var(--text);
+  text-align: center;
+}
+
 .login-form input {
   width: 100%;
   box-sizing: border-box;
@@ -778,6 +785,35 @@ td button + .ffst-role-picker,
 
 .login-form .error {
   margin-top: 0;
+}
+
+/* "Mot de passe oublié ?" (voir Auth.jsx) : un lien discret, pas un
+   2e bouton d'action au meme niveau visuel que "Valider" -- annule le
+   style .login-form button generique (fond/bordure). Selecteur
+   ".login-form .login-forgot" (pas juste ".login-forgot") : doit etre
+   au moins aussi specifique que ".login-form button" pour le remplacer. */
+.login-form .login-forgot {
+  width: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 400;
+  text-decoration: underline;
+}
+
+.login-form .login-forgot:hover:not(:disabled) {
+  border: none;
+  background: none;
+  color: var(--text-h);
+}
+
+.login-forgot-hint {
+  margin: -0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: center;
 }
 
 .profile-hint {
