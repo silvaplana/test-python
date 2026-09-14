@@ -204,6 +204,19 @@ depuis le venv du backend :
 cd backend && source venv/bin/activate && python -m auth.generate_password_hash
 ```
 
+⚠️ Piège Docker Compose : `docker-compose.yml` charge `backend/.env` via
+`env_file`, et Compose interpole les `$` de ce fichier comme des
+références de variable (`$2b` → variable `2b`, absente → chaîne vide),
+ce qui corrompt silencieusement le hash bcrypt (pas d'erreur au
+démarrage, juste un mot de passe qui échoue toujours). **Doubler chaque
+`$` du hash collé dans `backend/.env` sur le VPS** (`$` → `$$`) — voir le
+commentaire dans `backend/.env.example`. Vérifier après coup :
+
+```bash
+docker exec test-python-backend-1 sh -c 'echo -n "$APP_PASSWORD_HASH" | wc -c'
+# doit renvoyer 60 (longueur d'un hash bcrypt $2b$... non échappé)
+```
+
 ### d) Lancer les conteneurs
 
 ```bash
