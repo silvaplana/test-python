@@ -21,8 +21,9 @@ import time
 from pathlib import Path
 
 import httpx
+import pymupdf
 from dotenv import load_dotenv
-from PIL import Image, ImageOps
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 
 class HelloAssoAuthError(RuntimeError):
@@ -205,6 +206,27 @@ class HelloAsso:
         print(f"HelloAsso.get_members: {len(members)} adherent(s) extrait(s) pour {form_slug}")
         return members
 
+    @staticmethod
+    def _open_as_image(content: bytes) -> Image.Image:
+        """Ouvre les octets recus comme une image PIL. Certains adherents
+        deposent en realite un PDF (ex: piece d'identite scannee) dans le
+        champ "photo d'identité" au lieu d'une vraie photo -- rasterise
+        alors sa 1ere page en image plutot que de renoncer (vecu : 2
+        adherents dans ce cas, PIL.UnidentifiedImageError sinon). zoom=2 :
+        resolution correcte pour une vignette (voir get_photo_thumbnail),
+        un PDF vectoriel n'a pas de resolution "native" comme une photo."""
+        try:
+            return Image.open(io.BytesIO(content))
+        except UnidentifiedImageError:
+            if not content.startswith(b"%PDF"):
+                raise
+            with pymupdf.open(stream=content, filetype="pdf") as pdf:
+                if pdf.page_count == 0:
+                    raise
+                pixmap = pdf[0].get_pixmap(matrix=pymupdf.Matrix(2, 2))
+            mode = "RGBA" if pixmap.alpha else "RGB"
+            return Image.frombytes(mode, (pixmap.width, pixmap.height), pixmap.samples)
+
     def get_photo_thumbnail(self, url: str, size: int = 128) -> bytes:
         """Recupere une photo hebergee par HelloAsso (ex: customFields
         ["photo d'identité"] d'un adherent, voir get_members) et la
@@ -234,7 +256,7 @@ class HelloAsso:
 
         response = httpx.get(url, headers=self._headers(), follow_redirects=True, timeout=15)
         response.raise_for_status()
-        image = Image.open(io.BytesIO(response.content))
+        image = self._open_as_image(response.content)
         # Respecte l'orientation EXIF (photos de telephone) : sans ca,
         # certaines vignettes ressortiraient pivotees de 90/180 degres.
         image = ImageOps.exif_transpose(image)

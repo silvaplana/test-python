@@ -20,6 +20,7 @@ dependencies = [
     "Pillow",
     "bcrypt",
     "itsdangerous",
+    "pymupdf",
 ]
 
 [project.optional-dependencies]
