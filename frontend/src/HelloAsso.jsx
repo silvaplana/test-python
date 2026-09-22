@@ -143,18 +143,24 @@ function useHelloAssoFetch(path) {
   return { data, error, refetch: fetchData }
 }
 
-// Identifiant normalise (nom + prenom, insensible a la casse et aux
-// espaces superflus) pour comparer un adherent HelloAsso (lastName +
-// firstName separes) a une ligne FFST ("Nom et Prénom" combine).
+// Identifiant normalise (nom + prenom, insensible a la casse, aux
+// espaces superflus ET aux accents -- normaliserTexte, definie plus
+// bas, hissee par le moteur JS) pour comparer un adherent HelloAsso
+// (lastName + firstName separes) a une ligne FFST ("Nom et Prénom"
+// combine). Insensible aux accents : bug vecu, un adherent enregistre
+// "Leo" sur HelloAsso (sans accent) mais "Léo" sur le portail FFST ne
+// matchait jamais (juste .toUpperCase() avant, qui ne retire pas les
+// accents), Statut FFST affiche "Inconnu" a tort malgre une licence
+// bien creee.
 function memberIdentifier(lastName, firstName) {
-  return `${lastName} ${firstName}`.replace(/\s+/g, ' ').trim().toUpperCase()
+  return normaliserTexte(`${lastName} ${firstName}`.replace(/\s+/g, ' ').trim())
 }
 
 // Ensemble des identifiants (voir memberIdentifier) presents dans une liste
 // FFST (licences ou demandes), pour un test d'appartenance en O(1).
 function ffstIdentifiers(ffstRows) {
   return new Set(
-    (ffstRows ?? []).map((row) => (row['Nom et Prénom'] || '').replace(/\s+/g, ' ').trim().toUpperCase())
+    (ffstRows ?? []).map((row) => normaliserTexte((row['Nom et Prénom'] || '').replace(/\s+/g, ' ').trim()))
   )
 }
 
