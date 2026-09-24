@@ -92,8 +92,18 @@ class BankAccounts:
     # comptable de cloture, puis solde provisoire, puis disponible.
     BALANCE_TYPES = ("CLBD", "ITBD", "XPCD", "CLAV", "ITAV")
 
-    def __init__(self, storage_dir: str | None = None, client: EnableBankingClient | None = None) -> None:
+    def __init__(
+        self,
+        storage_dir: str | None = None,
+        client: EnableBankingClient | None = None,
+        display: list[tuple[str, str]] | None = None,
+    ) -> None:
+        """display : comptes a afficher, dans l'ordre, sous forme de couples
+        (fin de l'IBAN, libelle) -- ex: [("6527", "Compte courant")]. Seuls
+        ces comptes sont lus (economise le quota d'acces de la banque).
+        Absent : tous les comptes ayant un IBAN (les cartes n'en ont pas)."""
         self.client = client
+        self.display = display or []
         self._cache: dict[str, tuple[float, object]] = {}
         self.session_path = Path(storage_dir or "data/bankaccounts") / "session.json"
         if client is not None:
@@ -201,6 +211,19 @@ class BankAccounts:
                 return float(by_type[balance_type]["balance_amount"]["amount"])
         return float(balances[0]["balance_amount"]["amount"]) if balances else None
 
+    def _visible_accounts(self, session: dict) -> list[tuple[dict, str | None]]:
+        """Comptes de la session a afficher, dans l'ordre, avec leur libelle
+        (voir display). Sans IBAN = carte : jamais affichee."""
+        accounts = [a for a in session["accounts"] if a["iban"]]
+        if not self.display:
+            return [(a, None) for a in accounts]
+        visible = []
+        for suffix, label in self.display:
+            match = next((a for a in accounts if a["iban"].endswith(suffix)), None)
+            if match:
+                visible.append((match, label))
+        return visible
+
     def get_accounts(self, refresh: bool = False) -> list[dict]:
         """Retourne les comptes (identifiant, nom, type, IBAN masque, solde)."""
         if self.client is None:
@@ -209,13 +232,14 @@ class BankAccounts:
         if session is None:
             raise BankNotConnectedError("Banque non connectée")
 
-        def fetch_account(account: dict) -> dict:
+        def fetch_account(item: tuple[dict, str | None]) -> dict:
+            account, label = item
             balance = self._pick_balance(self.client.get_balances(account["uid"]))
             # "XXX" = "aucune devise" (code ISO 4217) renvoye par certaines banques.
             currency = account["currency"] if account["currency"] not in ("", "XXX") else self.CURRENCY
             return {
                 "id": account["uid"],
-                "name": account["details"] or account["product"] or account["name"] or "Compte",
+                "name": label or account["details"] or account["product"] or account["name"] or "Compte",
                 "type": "unknown",
                 "iban": self._mask_iban(account["iban"]),
                 "balance": balance,
@@ -226,7 +250,7 @@ class BankAccounts:
         def fetch_all() -> list[dict]:
             # En parallele : un appel reseau par compte (~1 s chacun).
             with ThreadPoolExecutor(max_workers=5) as pool:
-                return list(pool.map(fetch_account, session["accounts"]))
+                return list(pool.map(fetch_account, self._visible_accounts(session)))
 
         return self._cached(f"accounts:{session['session_id']}", refresh, fetch_all)
 
@@ -239,7 +263,7 @@ class BankAccounts:
         session = self._active_session()
         if session is None:
             raise BankNotConnectedError("Banque non connectée")
-        if account_id not in {a["uid"] for a in session["accounts"]}:
+        if account_id not in {a["uid"] for a, _ in self._visible_accounts(session)}:
             raise BankAccountNotFoundError(account_id)
 
         def fetch() -> list[dict]:

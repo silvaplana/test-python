@@ -147,9 +147,18 @@ if os.environ.get("ENABLE_BANKING_APP_ID") and os.environ.get("ENABLE_BANKING_KE
         aspsp_country=os.environ.get("ENABLE_BANKING_ASPSP_COUNTRY", "FR"),
         psu_type=os.environ.get("ENABLE_BANKING_PSU_TYPE", "personal"),
     )
+# BANKACCOUNTS_DISPLAY : comptes a afficher, dans l'ordre, "fin_IBAN=Libelle"
+# separes par ";" (ex: "6527=Compte courant;9706=Compte commun") -- voir
+# BankAccounts. Vide : tous les comptes ayant un IBAN.
+bank_accounts_display = [
+    (suffix.strip(), label.strip())
+    for suffix, _, label in (item.partition("=") for item in os.environ.get("BANKACCOUNTS_DISPLAY", "").split(";"))
+    if suffix.strip() and label.strip()
+]
 bank_accounts_client = BankAccounts(
     storage_dir=os.environ.get("BANKACCOUNTS_STORAGE_DIR", "data/bankaccounts"),
     client=enable_banking_client,
+    display=bank_accounts_display,
 )
 bank_accounts_receiver = BankAccountsReceiver(client=bank_accounts_client, app=accounts_router)
 
