@@ -88,11 +88,13 @@ class BankAccounts:
     # sans cache, chaque affichage de l'onglet consommerait ce quota. Le bouton
     # "Rafraichir" force une relecture (refresh=True).
     CACHE_TTL_SECONDS = 10 * 60
-    # Profondeur d'historique demandee a la banque : 12 mois, avec repli sur 90
-    # jours si elle refuse (au-dela, beaucoup de banques exigent une
-    # authentification forte a chaque lecture, PSD2). Boursorama accepte des
-    # dizaines d'annees juste apres l'autorisation.
-    HISTORY_DAYS = (365, 90)
+    # Profondeur d'historique : 90 jours, le maximum que la banque accepte en
+    # lecture ordinaire ("You can not request transactions more than 90 days in
+    # the past", constate avec Boursorama). Un historique bien plus long (jusqu'a
+    # 2013) n'est accessible que dans les minutes qui suivent l'autorisation.
+    # Tuple : plusieurs profondeurs a essayer dans l'ordre (repli), une seule
+    # ici pour ne pas gaspiller de quota d'acces sur des essais voues a l'echec.
+    HISTORY_DAYS = (90,)
     # Types de solde Enable Banking (ISO 20022) par ordre de preference : solde
     # comptable de cloture, puis solde provisoire, puis disponible.
     BALANCE_TYPES = ("CLBD", "ITBD", "XPCD", "CLAV", "ITAV")
