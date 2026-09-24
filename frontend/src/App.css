@@ -1131,23 +1131,16 @@ td button + .ffst-role-picker,
   font-size: 0.8rem;
 }
 
-.account-more {
-  margin: 0.75rem 0 0;
-  text-align: center;
+/* Liste des operations d'un compte (voir BankAccounts.jsx) : fenetre de
+   10 lignes qui defile, en-tete fixe. Hauteur = en-tete + 10 lignes (~2,62rem
+   chacune : padding 2 x 0,65rem + ligne de 0,9rem x 145 % + bordure). */
+.operations-scroll {
+  max-height: calc(11 * 2.62rem);
+  overflow-y: auto;
 }
 
-.account-more button {
-  padding: 0.35rem 0.9rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
-  color: var(--text-h);
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.account-more button:hover {
-  border-color: var(--accent-border);
-  background: var(--accent-bg);
+.operations-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }

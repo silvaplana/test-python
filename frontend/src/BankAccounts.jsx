@@ -2,10 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-// Operations demandees au serveur (les plus recentes) et nombre affiche
-// d'emblee / a chaque clic sur "Afficher plus".
-const OPERATIONS_FETCHED = 500
-const OPERATIONS_PAGE = 20
+// Operations demandees au serveur (les plus recentes, maximum accepte) :
+// toutes s'affichent, dans une fenetre de 10 lignes qui defile (voir
+// .operations-scroll).
+const OPERATIONS_FETCHED = 1000
 
 function euros(amount) {
   return `${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
@@ -70,8 +70,6 @@ export function BankAccounts() {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
   const [connecting, setConnecting] = useState(false)
-  // Nombre d'operations affichees par compte (id -> nombre), OPERATIONS_PAGE par defaut.
-  const [shown, setShown] = useState({})
 
   // Envoie l'utilisateur s'autoriser chez sa banque (retour sur l'appli :
   // voir bankCallback). Sert a la 1ere connexion comme au renouvellement.
@@ -172,7 +170,7 @@ export function BankAccounts() {
             <span className="account-balance">{account.balance == null ? '—' : euros(account.balance)}</span>
           </div>
 
-          <div className="table-wrapper">
+          <div className="table-wrapper operations-scroll">
             <table>
               <thead>
                 <tr>
@@ -182,7 +180,7 @@ export function BankAccounts() {
                 </tr>
               </thead>
               <tbody>
-                {account.operations.slice(0, shown[account.id] ?? OPERATIONS_PAGE).map((op, i) => (
+                {account.operations.map((op, i) => (
                   <tr key={i}>
                     <td>{dateFr(op.date)}</td>
                     <td>{op.label}</td>
@@ -195,17 +193,6 @@ export function BankAccounts() {
               </tbody>
             </table>
           </div>
-          {account.operations.length > (shown[account.id] ?? OPERATIONS_PAGE) && (
-            <p className="account-more">
-              <button
-                onClick={() =>
-                  setShown((s) => ({ ...s, [account.id]: (s[account.id] ?? OPERATIONS_PAGE) + OPERATIONS_PAGE * 2 }))
-                }
-              >
-                Afficher plus ({account.operations.length - (shown[account.id] ?? OPERATIONS_PAGE)} autres)
-              </button>
-            </p>
-          )}
         </div>
       ))}
 
