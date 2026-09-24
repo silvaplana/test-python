@@ -4,6 +4,9 @@ const DAY_MS = 24 * 3600 * 1000
 const HEIGHT = 250
 const MARGIN = { top: 14, right: 14, bottom: 28, left: 66 }
 
+// Operations du jour listees dans l'infobulle (les suivantes sont resumees).
+const TOOLTIP_MAX_OPERATIONS = 5
+
 const GREEN = '#4ade80'
 const RED = '#f87171'
 
@@ -30,15 +33,17 @@ const dateLong = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'nume
 // solde de la veille d'une operation est le solde du jour moins cette
 // operation. Une valeur par jour (solde en fin de journee), du jour precedant
 // la 1ere operation connue jusqu'a aujourd'hui. Les operations sont celles
-// renvoyees par l'API ({date: 'AAAA-MM-JJ', amount}).
+// renvoyees par l'API ({date: 'AAAA-MM-JJ', label, amount}).
 export function balanceSeries(operations, currentBalance) {
   if (!operations?.length || currentBalance == null) return []
   const changes = new Map()
+  const operationsByDay = new Map()
   let total = 0
   for (const op of operations) {
     if (!op.date) continue
     const day = Date.parse(`${op.date}T00:00:00Z`)
     changes.set(day, (changes.get(day) ?? 0) + op.amount)
+    operationsByDay.set(day, [...(operationsByDay.get(day) ?? []), op])
     total += op.amount
   }
   if (changes.size === 0) return []
@@ -50,7 +55,8 @@ export function balanceSeries(operations, currentBalance) {
   let value = currentBalance - total
   for (let day = first - DAY_MS; day <= last; day += DAY_MS) {
     value += changes.get(day) ?? 0
-    series.push({ t: day, v: Math.round(value * 100) / 100 })
+    // ops : operations de ce jour (affichees dans l'infobulle au survol).
+    series.push({ t: day, v: Math.round(value * 100) / 100, ops: operationsByDay.get(day) ?? [] })
   }
   return series
 }
@@ -278,6 +284,34 @@ export function BalanceChart({ series }) {
             </g>
           )}
         </svg>
+
+        {hovered && hovered.ops.length > 0 && (
+          <div
+            className="balance-chart-tooltip"
+            style={{
+              top: MARGIN.top + 6,
+              left: points[hoverIndex].x,
+              transform: points[hoverIndex].x > width / 2 ? 'translateX(calc(-100% - 14px))' : 'translateX(14px)',
+            }}
+          >
+            {hovered.ops.slice(0, TOOLTIP_MAX_OPERATIONS).map((op, i) => (
+              <div key={i} className="balance-chart-tooltip-op">
+                <span className="balance-chart-tooltip-label">{op.label}</span>
+                <span className={op.amount < 0 ? 'op-debit' : 'op-credit'}>
+                  {op.amount > 0 ? '+' : ''}
+                  {eurosFull(op.amount)}
+                </span>
+              </div>
+            ))}
+            {hovered.ops.length > TOOLTIP_MAX_OPERATIONS && (
+              <div className="balance-chart-tooltip-more">
+                + {hovered.ops.length - TOOLTIP_MAX_OPERATIONS} autre
+                {hovered.ops.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''} opération
+                {hovered.ops.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
