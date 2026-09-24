@@ -1239,3 +1239,11 @@ td button + .ffst-role-picker,
 .account-toggle:hover {
   color: var(--accent);
 }
+
+/* Libelles bancaires parfois tres longs ("VIR SEPA CPAM 131 MARSEILLE ... Ref :
+   ...") : retour a la ligne dans la colonne Libelle pour que la colonne
+   Montant reste visible sans defilement horizontal. */
+.operations-scroll td:nth-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
