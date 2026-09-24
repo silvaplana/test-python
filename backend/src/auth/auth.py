@@ -25,7 +25,7 @@ from __future__ import annotations
 import os
 
 import bcrypt
-from fastapi import Cookie, HTTPException, Response, status
+from fastapi import Cookie, Depends, HTTPException, Response, status
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 
 SESSION_COOKIE_NAME = "session"
@@ -35,6 +35,12 @@ SESSION_MAX_AGE_SECONDS = 365 * 24 * 3600  # 1 an
 # partage, pas de comptes individuels) -- signe dans le cookie de
 # session en lieu et place d'un vrai identifiant.
 SHARED_USER_ID = "shared-user"
+
+# 2e niveau d'acces (mot de passe distinct, APP_ACCOUNTS_PASSWORD_HASH) : voit
+# en plus les donnees bancaires (module bankaccounts, onglet Finances/Comptes).
+# Meme mecanique de cookie que SHARED_USER_ID, seul l'identifiant signe change
+# -- require_accounts_auth (plus bas) le distingue.
+ACCOUNTS_USER_ID = "accounts-user"
 
 
 def _serializer() -> URLSafeTimedSerializer:
@@ -55,13 +61,13 @@ def normalize_password(password: str) -> str:
     return password.strip().lower()
 
 
-def verify_password(password: str) -> bool:
-    """Compare le mot de passe fourni (normalise, voir
-    normalize_password) au hash bcrypt de APP_PASSWORD_HASH. Echoue
-    "ferme" (retourne False, ne leve pas) si cette variable est absente
-    ou si son contenu n'est pas un hash bcrypt valide -- une mauvaise
-    configuration ne doit jamais se traduire par un acces libre."""
-    password_hash = os.environ.get("APP_PASSWORD_HASH", "")
+def _matches_hash(password: str, env_var: str) -> bool:
+    """Compare le mot de passe fourni (normalise, voir normalize_password)
+    au hash bcrypt de la variable d'environnement env_var. Echoue "ferme"
+    (retourne False, ne leve pas) si cette variable est absente ou si son
+    contenu n'est pas un hash bcrypt valide -- une mauvaise configuration ne
+    doit jamais se traduire par un acces libre."""
+    password_hash = os.environ.get(env_var, "")
     if not password_hash:
         return False
     try:
@@ -70,11 +76,30 @@ def verify_password(password: str) -> bool:
         return False
 
 
-def set_session_cookie(response: Response) -> None:
-    """Pose le cookie de session apres une authentification reussie."""
+def authenticate(password: str) -> str | None:
+    """Retourne l'identifiant utilisateur correspondant au mot de passe
+    fourni (ACCOUNTS_USER_ID pour le mot de passe "comptes", SHARED_USER_ID
+    pour le mot de passe general), ou None s'il ne correspond a aucun.
+    Le mot de passe "comptes" est teste en premier : il donne le niveau
+    d'acces le plus large."""
+    if _matches_hash(password, "APP_ACCOUNTS_PASSWORD_HASH"):
+        return ACCOUNTS_USER_ID
+    if _matches_hash(password, "APP_PASSWORD_HASH"):
+        return SHARED_USER_ID
+    return None
+
+
+def verify_password(password: str) -> bool:
+    """True si le mot de passe est valide a l'un des 2 niveaux d'acces."""
+    return authenticate(password) is not None
+
+
+def set_session_cookie(response: Response, user_id: str = SHARED_USER_ID) -> None:
+    """Pose le cookie de session apres une authentification reussie
+    (user_id : voir authenticate, determine le niveau d'acces)."""
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
-        value=_serializer().dumps(SHARED_USER_ID),
+        value=_serializer().dumps(user_id),
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
         secure=True,
@@ -104,6 +129,11 @@ def is_authenticated(session: str | None) -> bool:
     return _verifier_cookie(session) is not None
 
 
+def can_view_accounts(session: str | None) -> bool:
+    """True si le cookie de session est valide ET du niveau "comptes"."""
+    return _verifier_cookie(session) == ACCOUNTS_USER_ID
+
+
 def require_auth(session: str | None = Cookie(default=None, alias=SESSION_COOKIE_NAME)) -> str:
     """Dependance FastAPI a appliquer a toute route protegee (voir
     app/main.py : appliquee a toutes les routes de l'app sauf /auth/...,
@@ -115,4 +145,15 @@ def require_auth(session: str | None = Cookie(default=None, alias=SESSION_COOKIE
     user_id = _verifier_cookie(session)
     if user_id is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentification requise")
+    return user_id
+
+
+def require_accounts_auth(user_id: str = Depends(require_auth)) -> str:
+    """Dependance FastAPI des routes bancaires (module bankaccounts) : en plus
+    d'une session valide (require_auth, 401 sinon), exige le niveau d'acces
+    "comptes" (403 sinon). C'est cette verification cote serveur qui protege
+    reellement ces donnees -- masquer l'onglet cote frontend n'est que du
+    confort d'affichage."""
+    if user_id != ACCOUNTS_USER_ID:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès aux comptes non autorisé")
     return user_id

@@ -5,10 +5,13 @@ code.
 
 Usage :
     cd backend && source venv/bin/activate && python -m auth.generate_password_hash
+    # mot de passe du 2e niveau d'acces (onglet Finances/Comptes) :
+    python -m auth.generate_password_hash --accounts
 """
 
 from __future__ import annotations
 
+import argparse
 import getpass
 
 import bcrypt
@@ -17,6 +20,15 @@ from auth.auth import normalize_password
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Génère un hash bcrypt pour le fichier .env")
+    parser.add_argument(
+        "--accounts",
+        action="store_true",
+        help="hash du mot de passe donnant accès à Finances/Comptes (APP_ACCOUNTS_PASSWORD_HASH)",
+    )
+    args = parser.parse_args()
+    variable = "APP_ACCOUNTS_PASSWORD_HASH" if args.accounts else "APP_PASSWORD_HASH"
+
     password = getpass.getpass("Mot de passe : ")
     if not password:
         raise SystemExit("Mot de passe vide refusé.")
@@ -28,7 +40,7 @@ def main() -> None:
     # doit etre genere sur la meme forme que celle comparee au login,
     # sinon la connexion echoue toujours.
     password_hash = bcrypt.hashpw(normalize_password(password).encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-    print(f"APP_PASSWORD_HASH={password_hash}")
+    print(f"{variable}={password_hash}")
 
 
 if __name__ == "__main__":

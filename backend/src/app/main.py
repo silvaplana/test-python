@@ -13,7 +13,8 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from auth import AuthReceiver, require_auth
+from auth import AuthReceiver, require_accounts_auth, require_auth
+from bankaccounts import BankAccounts, BankAccountsReceiver
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
@@ -126,11 +127,21 @@ notifications_client = PushNotifications(
 )
 notifications_receiver = NotificationsReceiver(client=notifications_client, app=protected_router)
 
+# Comptes bancaires (/bankaccounts/...) : routeur a part, protege par
+# require_accounts_auth (mot de passe "comptes", 2e niveau d'acces) et non
+# par le simple require_auth du routeur commun -- une session "generale"
+# obtient 403 ici. Donnees inventees pour l'instant (voir
+# bankaccounts/bankaccounts.py), aucune config requise.
+accounts_router = APIRouter(dependencies=[Depends(require_accounts_auth)])
+bank_accounts_client = BankAccounts()
+bank_accounts_receiver = BankAccountsReceiver(client=bank_accounts_client, app=accounts_router)
+
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant
 # dans l'app, Depends(require_auth) applique a chacune d'elles d'un
 # coup.
 app.include_router(protected_router)
+app.include_router(accounts_router)
 
 # Intervalle de verification des nouveaux adherents HelloAsso (polling,
 # voir notifications/notifications.py:check_for_new_members) -- pas de

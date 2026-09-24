@@ -1,7 +1,15 @@
 from fastapi import Cookie, FastAPI, HTTPException, Response
 from pydantic import BaseModel
 
-from .auth import SESSION_COOKIE_NAME, clear_session_cookie, is_authenticated, set_session_cookie, verify_password
+from .auth import (
+    ACCOUNTS_USER_ID,
+    SESSION_COOKIE_NAME,
+    authenticate,
+    can_view_accounts,
+    clear_session_cookie,
+    is_authenticated,
+    set_session_cookie,
+)
 
 
 class LoginRequest(BaseModel):
@@ -34,10 +42,11 @@ class AuthReceiver:
 
         Message d'erreur generique en cas d'echec (pas de detail sur ce
         qui est faux -- il n'y a qu'un seul champ de toute facon)."""
-        if not verify_password(request.password):
+        user_id = authenticate(request.password)
+        if user_id is None:
             raise HTTPException(status_code=401, detail="Mot de passe incorrect")
-        set_session_cookie(response)
-        return {"status": "ok"}
+        set_session_cookie(response, user_id)
+        return {"status": "ok", "canViewAccounts": user_id == ACCOUNTS_USER_ID}
 
     def logout(self, response: Response) -> dict:
         """Endpoint REST POST /auth/logout. Supprime le cookie de
@@ -50,4 +59,4 @@ class AuthReceiver:
         cookie de session valide -- jamais d'erreur 401 ici (contrairement
         a require_auth) : le frontend l'appelle justement pour savoir s'il
         doit afficher le formulaire de mot de passe ou l'application."""
-        return {"authenticated": is_authenticated(session)}
+        return {"authenticated": is_authenticated(session), "canViewAccounts": can_view_accounts(session)}

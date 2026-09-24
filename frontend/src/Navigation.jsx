@@ -64,7 +64,11 @@ function Navigation({ header, sections, initialSection = 0, initialTool = 0 }) {
       <div className="app-content">
         {header}
 
-        {sections[activeSection].tools.length > 1 && (
+        {/* alwaysShowTabs : barre de sous-onglets meme avec un seul outil (ex:
+            Finances, qui n'a qu'"Bilan financier" sans le mot de passe
+            "comptes") -- l'ecran garde la meme structure quel que soit le
+            niveau d'acces. */}
+        {(sections[activeSection].tools.length > 1 || sections[activeSection].alwaysShowTabs) && (
           <div className="tabs-nav" role="tablist">
             {sections[activeSection].tools.map((tool, i) => (
               <button

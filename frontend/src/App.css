@@ -1049,3 +1049,47 @@ td button + .ffst-role-picker,
     font-size: clamp(1.3rem, calc(6.3vw - 23px), 2.9rem);
   }
 }
+
+/* Onglet Finances/Comptes (voir BankAccounts.jsx) : une carte par compte
+   (meme habillage que .profile-card), solde en grand a droite du nom, puis le
+   tableau des dernieres operations (meme charte que HelloAsso/Adherents). */
+.account-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.25rem;
+  text-align: left;
+}
+
+.account-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.account-card-header h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--text-h);
+}
+
+.account-iban {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.account-balance {
+  font-size: 1.6rem;
+  font-weight: 600;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.amount-cell {
+  text-align: right;
+  white-space: nowrap;
+}

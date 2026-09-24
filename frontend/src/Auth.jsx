@@ -31,8 +31,10 @@ function tryAutoSubscribe() {
     })
 }
 
-// Expose logout() aux composants enfants (voir Profile.jsx) sans avoir a
-// faire redescendre la prop depuis App.jsx.
+// Expose logout() et canViewAccounts (2e niveau d'acces, voir
+// backend/src/auth/ : mot de passe "comptes" -> onglet Finances/Comptes) aux
+// composants enfants (voir Profile.jsx, App.jsx) sans avoir a faire
+// redescendre des props.
 const AuthContext = createContext(null)
 
 export function useAuth() {
@@ -50,11 +52,15 @@ export function AuthGate({ children }) {
   // formulaire une fraction de seconde avant de basculer sur l'appli pour
   // quelqu'un deja connecte (cookie valide envoye automatiquement).
   const [authenticated, setAuthenticated] = useState(null)
+  // Simple confort d'affichage (masque l'onglet Comptes) : la vraie
+  // protection est cote backend (require_accounts_auth, 403 sinon).
+  const [canViewAccounts, setCanViewAccounts] = useState(false)
 
   function refreshStatus() {
     return fetch(`${API_URL}/auth/status`, { credentials: 'include' })
       .then((r) => r.json())
       .then((data) => {
+        setCanViewAccounts(Boolean(data.canViewAccounts))
         setAuthenticated(data.authenticated)
         if (data.authenticated) tryAutoSubscribe()
       })
@@ -68,6 +74,7 @@ export function AuthGate({ children }) {
   async function logout() {
     await fetch(`${API_URL}/auth/logout`, { method: 'POST', credentials: 'include' })
     setAuthenticated(false)
+    setCanViewAccounts(false)
   }
 
   if (authenticated === null) {
@@ -86,10 +93,17 @@ export function AuthGate({ children }) {
   }
 
   if (!authenticated) {
-    return <LoginForm onSuccess={() => setAuthenticated(true)} />
+    return (
+      <LoginForm
+        onSuccess={(data) => {
+          setCanViewAccounts(Boolean(data?.canViewAccounts))
+          setAuthenticated(true)
+        }}
+      />
+    )
   }
 
-  return <AuthContext.Provider value={{ logout }}>{children}</AuthContext.Provider>
+  return <AuthContext.Provider value={{ logout, canViewAccounts }}>{children}</AuthContext.Provider>
 }
 
 function LoginForm({ onSuccess }) {
@@ -114,7 +128,7 @@ function LoginForm({ onSuccess }) {
         body: JSON.stringify({ password }),
       })
       if (!response.ok) throw new Error()
-      onSuccess()
+      onSuccess(await response.json().catch(() => null))
       // Ici, dans la continuite synchrone du clic sur "Valider" : c'est
       // le geste utilisateur necessaire pour que le navigateur affiche
       // vraiment le prompt de permission (voir tryAutoSubscribe).
