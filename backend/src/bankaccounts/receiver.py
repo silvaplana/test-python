@@ -79,7 +79,7 @@ class BankAccountsReceiver:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     def getTransactions(
-        self, account_id: str, limit: int = Query(default=5, ge=1, le=100), refresh: bool = False
+        self, account_id: str, limit: int = Query(default=5, ge=1, le=1000), refresh: bool = False
     ) -> list[dict]:
         """Endpoint REST GET /bankaccounts/accounts/{account_id}/transactions
         ?limit=N. Retourne les N dernieres operations du compte (5 par

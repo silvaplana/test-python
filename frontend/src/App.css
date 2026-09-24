@@ -1130,3 +1130,24 @@ td button + .ffst-role-picker,
   padding: 0.2rem 0.6rem;
   font-size: 0.8rem;
 }
+
+.account-more {
+  margin: 0.75rem 0 0;
+  text-align: center;
+}
+
+.account-more button {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.account-more button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}

@@ -25,7 +25,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from .enablebanking import EnableBankingClient
+from .enablebanking import EnableBankingClient, EnableBankingError
 
 
 class BankAccountNotFoundError(LookupError):
@@ -88,6 +88,11 @@ class BankAccounts:
     # sans cache, chaque affichage de l'onglet consommerait ce quota. Le bouton
     # "Rafraichir" force une relecture (refresh=True).
     CACHE_TTL_SECONDS = 10 * 60
+    # Profondeur d'historique demandee a la banque : 12 mois, avec repli sur 90
+    # jours si elle refuse (au-dela, beaucoup de banques exigent une
+    # authentification forte a chaque lecture, PSD2). Boursorama accepte des
+    # dizaines d'annees juste apres l'autorisation.
+    HISTORY_DAYS = (365, 90)
     # Types de solde Enable Banking (ISO 20022) par ordre de preference : solde
     # comptable de cloture, puis solde provisoire, puis disponible.
     BALANCE_TYPES = ("CLBD", "ITBD", "XPCD", "CLAV", "ITAV")
@@ -267,17 +272,22 @@ class BankAccounts:
             raise BankAccountNotFoundError(account_id)
 
         def fetch() -> list[dict]:
-            # 90 jours en arriere, sur quelques pages au plus : suffisant pour
-            # trouver les dernieres operations meme sur un compte peu actif.
-            date_from = (date.today() - timedelta(days=90)).isoformat()
             raw: list[dict] = []
-            continuation_key = None
-            for _ in range(5):
-                page = self.client.get_transactions(account_id, date_from, continuation_key)
-                raw.extend(page.get("transactions", []))
-                continuation_key = page.get("continuation_key")
-                if not continuation_key:
+            for days in self.HISTORY_DAYS:
+                date_from = (date.today() - timedelta(days=days)).isoformat()
+                raw = []
+                continuation_key = None
+                try:
+                    for _ in range(10):
+                        page = self.client.get_transactions(account_id, date_from, continuation_key)
+                        raw.extend(page.get("transactions", []))
+                        continuation_key = page.get("continuation_key")
+                        if not continuation_key:
+                            break
                     break
+                except EnableBankingError:
+                    if days == self.HISTORY_DAYS[-1]:
+                        raise
             operations = [self._to_operation(t) for t in raw]
             operations.sort(key=lambda op: op["date"], reverse=True)
             return operations
