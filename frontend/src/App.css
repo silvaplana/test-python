@@ -1144,3 +1144,98 @@ td button + .ffst-role-picker,
   top: 0;
   z-index: 1;
 }
+
+/* Graphique d'evolution du solde (voir BalanceChart.jsx), facon graphique
+   boursier. Les boutons de duree reutilisent .filter-chip (barre de filtres
+   d'age d'Adherents). */
+.balance-chart {
+  margin-bottom: 1rem;
+  text-align: left;
+}
+
+.balance-chart-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.balance-chart-figures {
+  display: flex;
+  flex-direction: column;
+  min-height: 2.9rem;
+}
+
+.balance-chart-value {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-chart-sub {
+  font-size: 0.8rem;
+  color: var(--text);
+}
+
+.balance-chart-ranges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.balance-chart-plot {
+  width: 100%;
+  cursor: crosshair;
+  user-select: none;
+}
+
+.balance-chart-plot svg {
+  display: block;
+  overflow: visible;
+}
+
+.balance-chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+.balance-chart-axis {
+  fill: var(--text);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.balance-chart-cursor {
+  stroke: var(--text);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+
+.balance-chart-empty {
+  margin: 0 0 1rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+/* Bouton replier/deplier le tableau des operations d'un compte. */
+.account-toggle {
+  display: block;
+  margin: 0 0 0.6rem;
+  padding: 0.3rem 0;
+  border: none;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-toggle:hover {
+  color: var(--accent);
+}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { BalanceChart, balanceSeries } from './BalanceChart.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -6,6 +7,15 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // toutes s'affichent, dans une fenetre de 10 lignes qui defile (voir
 // .operations-scroll).
 const OPERATIONS_FETCHED = 1000
+
+const HIDDEN_OPERATIONS_KEY = 'bankaccounts-hidden-operations'
+function readHiddenOperations() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(HIDDEN_OPERATIONS_KEY) ?? '[]'))
+  } catch {
+    return new Set()
+  }
+}
 
 function euros(amount) {
   return `${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
@@ -70,6 +80,22 @@ export function BankAccounts() {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
   const [connecting, setConnecting] = useState(false)
+  // Tableaux d'operations replies (par nom de compte), memorises sur cet appareil :
+  // laisse la place aux graphiques.
+  const [hiddenOperations, setHiddenOperations] = useState(readHiddenOperations)
+
+  function toggleOperations(name) {
+    setHiddenOperations((current) => {
+      const next = new Set(current)
+      if (!next.delete(name)) next.add(name)
+      try {
+        localStorage.setItem(HIDDEN_OPERATIONS_KEY, JSON.stringify([...next]))
+      } catch {
+        // Stockage indisponible : le choix ne sera juste pas retenu.
+      }
+      return next
+    })
+  }
 
   // Envoie l'utilisateur s'autoriser chez sa banque (retour sur l'appli :
   // voir bankCallback). Sert a la 1ere connexion comme au renouvellement.
@@ -105,12 +131,12 @@ export function BankAccounts() {
       // liste des comptes) : en parallele, pour ne pas additionner les
       // latences.
       const withOperations = await Promise.all(
-        list.map(async (account) => ({
-          ...account,
-          operations: await getJson(
+        list.map(async (account) => {
+          const operations = await getJson(
             `/bankaccounts/accounts/${encodeURIComponent(account.id)}/transactions?limit=${OPERATIONS_FETCHED}&${refreshParam}`
-          ),
-        }))
+          )
+          return { ...account, operations, series: balanceSeries(operations, account.balance) }
+        })
       )
       setAccounts(withOperations)
     } catch (err) {
@@ -170,7 +196,18 @@ export function BankAccounts() {
             <span className="account-balance">{account.balance == null ? '—' : euros(account.balance)}</span>
           </div>
 
-          <div className="table-wrapper operations-scroll">
+          <BalanceChart series={account.series} />
+
+          <button
+            className="account-toggle"
+            aria-expanded={!hiddenOperations.has(account.name)}
+            onClick={() => toggleOperations(account.name)}
+          >
+            <span aria-hidden="true">{hiddenOperations.has(account.name) ? '▸' : '▾'}</span> Opérations (
+            {account.operations.length})
+          </button>
+
+          <div className="table-wrapper operations-scroll" hidden={hiddenOperations.has(account.name)}>
             <table>
               <thead>
                 <tr>
