@@ -81,7 +81,10 @@ export function BankAccounts() {
     }
   }
 
-  const load = useCallback(async () => {
+  // refresh : ignore le cache serveur (bouton "Rafraichir" ; le chargement
+  // initial le reutilise, pour menager le quota d'acces de la banque).
+  const load = useCallback(async (refresh = false) => {
+    const refreshParam = refresh ? 'refresh=true' : ''
     try {
       try {
         await processBankCallback()
@@ -94,7 +97,7 @@ export function BankAccounts() {
         setAccounts([])
         return
       }
-      const list = await getJson('/bankaccounts/accounts')
+      const list = await getJson(`/bankaccounts/accounts?${refreshParam}`)
       // Un appel par compte (les operations ne sont pas incluses dans la
       // liste des comptes) : en parallele, pour ne pas additionner les
       // latences.
@@ -102,7 +105,7 @@ export function BankAccounts() {
         list.map(async (account) => ({
           ...account,
           operations: await getJson(
-            `/bankaccounts/accounts/${encodeURIComponent(account.id)}/transactions?limit=${OPERATIONS_COUNT}`
+            `/bankaccounts/accounts/${encodeURIComponent(account.id)}/transactions?limit=${OPERATIONS_COUNT}&${refreshParam}`
           ),
         }))
       )
@@ -122,7 +125,7 @@ export function BankAccounts() {
     <section>
       <div className="section-header">
         <h2>Comptes</h2>
-        <button onClick={load}>Rafraîchir</button>
+        <button onClick={() => load(true)}>Rafraîchir</button>
       </div>
 
       {error && <p className="error">{error}</p>}

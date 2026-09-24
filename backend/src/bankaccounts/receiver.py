@@ -67,23 +67,25 @@ class BankAccountsReceiver:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
         return self.client.get_status()
 
-    def getAccounts(self) -> list[dict]:
+    def getAccounts(self, refresh: bool = False) -> list[dict]:
         """Endpoint REST GET /bankaccounts/accounts. Retourne les comptes
         de l'association avec leur solde (409 si la banque n'est pas
-        connectee)."""
+        connectee). refresh=true ignore le cache (bouton "Rafraichir")."""
         try:
-            return self.client.get_accounts()
+            return self.client.get_accounts(refresh)
         except BankNotConnectedError as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except EnableBankingError as exc:
             raise HTTPException(status_code=502, detail=str(exc)) from exc
 
-    def getTransactions(self, account_id: str, limit: int = Query(default=5, ge=1, le=100)) -> list[dict]:
+    def getTransactions(
+        self, account_id: str, limit: int = Query(default=5, ge=1, le=100), refresh: bool = False
+    ) -> list[dict]:
         """Endpoint REST GET /bankaccounts/accounts/{account_id}/transactions
         ?limit=N. Retourne les N dernieres operations du compte (5 par
         defaut), la plus recente en premier."""
         try:
-            return self.client.get_transactions(account_id, limit)
+            return self.client.get_transactions(account_id, limit, refresh)
         except BankAccountNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Compte inconnu") from exc
         except BankNotConnectedError as exc:

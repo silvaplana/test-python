@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import secrets
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
@@ -82,12 +83,18 @@ class BankAccounts:
 
     CURRENCY = "EUR"
     STATE_TTL_SECONDS = 30 * 60
+    # Cache des reponses de la banque (soldes/operations) : les banques
+    # limitent le nombre d'acces automatiques par jour (PSD2, typiquement 4) --
+    # sans cache, chaque affichage de l'onglet consommerait ce quota. Le bouton
+    # "Rafraichir" force une relecture (refresh=True).
+    CACHE_TTL_SECONDS = 10 * 60
     # Types de solde Enable Banking (ISO 20022) par ordre de preference : solde
     # comptable de cloture, puis solde provisoire, puis disponible.
     BALANCE_TYPES = ("CLBD", "ITBD", "XPCD", "CLAV", "ITAV")
 
     def __init__(self, storage_dir: str | None = None, client: EnableBankingClient | None = None) -> None:
         self.client = client
+        self._cache: dict[str, tuple[float, object]] = {}
         self.session_path = Path(storage_dir or "data/bankaccounts") / "session.json"
         if client is not None:
             self.session_path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,6 +180,16 @@ class BankAccounts:
 
     # ----- donnees -----
 
+    def _cached(self, key: str, refresh: bool, fetch):
+        """Retourne la valeur en cache si recente (sauf refresh=True), sinon
+        la recalcule via fetch() et la memorise."""
+        entry = self._cache.get(key)
+        if entry and not refresh and time.time() - entry[0] < self.CACHE_TTL_SECONDS:
+            return entry[1]
+        value = fetch()
+        self._cache[key] = (time.time(), value)
+        return value
+
     @staticmethod
     def _mask_iban(iban: str) -> str:
         return f"•••• {iban[-4:]}" if len(iban) >= 4 else "••••"
@@ -184,30 +201,36 @@ class BankAccounts:
                 return float(by_type[balance_type]["balance_amount"]["amount"])
         return float(balances[0]["balance_amount"]["amount"]) if balances else None
 
-    def get_accounts(self) -> list[dict]:
+    def get_accounts(self, refresh: bool = False) -> list[dict]:
         """Retourne les comptes (identifiant, nom, type, IBAN masque, solde)."""
         if self.client is None:
             return self._fake_accounts()
         session = self._active_session()
         if session is None:
             raise BankNotConnectedError("Banque non connectée")
-        accounts = []
-        for account in session["accounts"]:
-            balance = self._pick_balance(self.client.get_balances(account["uid"]))
-            accounts.append(
-                {
-                    "id": account["uid"],
-                    "name": account["details"] or account["product"] or account["name"] or "Compte",
-                    "type": "unknown",
-                    "iban": self._mask_iban(account["iban"]),
-                    "balance": balance,
-                    "currency": account["currency"],
-                    "simulated": False,
-                }
-            )
-        return accounts
 
-    def get_transactions(self, account_id: str, limit: int = 5) -> list[dict]:
+        def fetch_account(account: dict) -> dict:
+            balance = self._pick_balance(self.client.get_balances(account["uid"]))
+            # "XXX" = "aucune devise" (code ISO 4217) renvoye par certaines banques.
+            currency = account["currency"] if account["currency"] not in ("", "XXX") else self.CURRENCY
+            return {
+                "id": account["uid"],
+                "name": account["details"] or account["product"] or account["name"] or "Compte",
+                "type": "unknown",
+                "iban": self._mask_iban(account["iban"]),
+                "balance": balance,
+                "currency": currency,
+                "simulated": False,
+            }
+
+        def fetch_all() -> list[dict]:
+            # En parallele : un appel reseau par compte (~1 s chacun).
+            with ThreadPoolExecutor(max_workers=5) as pool:
+                return list(pool.map(fetch_account, session["accounts"]))
+
+        return self._cached(f"accounts:{session['session_id']}", refresh, fetch_all)
+
+    def get_transactions(self, account_id: str, limit: int = 5, refresh: bool = False) -> list[dict]:
         """Retourne les `limit` dernieres operations du compte, la plus
         recente en premier. Leve BankAccountNotFoundError si le compte n'existe
         pas."""
@@ -218,20 +241,26 @@ class BankAccounts:
             raise BankNotConnectedError("Banque non connectée")
         if account_id not in {a["uid"] for a in session["accounts"]}:
             raise BankAccountNotFoundError(account_id)
-        # 90 jours en arriere, sur quelques pages au plus : suffisant pour
-        # trouver les dernieres operations meme sur un compte peu actif.
-        date_from = (date.today() - timedelta(days=90)).isoformat()
-        raw: list[dict] = []
-        continuation_key = None
-        for _ in range(5):
-            page = self.client.get_transactions(account_id, date_from, continuation_key)
-            raw.extend(page.get("transactions", []))
-            continuation_key = page.get("continuation_key")
-            if not continuation_key:
-                break
-        operations = [self._to_operation(t) for t in raw]
-        operations.sort(key=lambda op: op["date"], reverse=True)
-        return operations[:limit]
+
+        def fetch() -> list[dict]:
+            # 90 jours en arriere, sur quelques pages au plus : suffisant pour
+            # trouver les dernieres operations meme sur un compte peu actif.
+            date_from = (date.today() - timedelta(days=90)).isoformat()
+            raw: list[dict] = []
+            continuation_key = None
+            for _ in range(5):
+                page = self.client.get_transactions(account_id, date_from, continuation_key)
+                raw.extend(page.get("transactions", []))
+                continuation_key = page.get("continuation_key")
+                if not continuation_key:
+                    break
+            operations = [self._to_operation(t) for t in raw]
+            operations.sort(key=lambda op: op["date"], reverse=True)
+            return operations
+
+        # Toutes les operations recuperees sont mises en cache (pas seulement
+        # `limit`) : limit ne change que le decoupage final.
+        return self._cached(f"transactions:{account_id}", refresh, fetch)[:limit]
 
     def _to_operation(self, transaction: dict) -> dict:
         amount = float(transaction["transaction_amount"]["amount"])
