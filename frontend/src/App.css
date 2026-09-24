@@ -1093,3 +1093,40 @@ td button + .ffst-role-picker,
   text-align: right;
   white-space: nowrap;
 }
+
+.account-card > p {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.account-card > button,
+.account-connection button {
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.account-card > button:hover:not(:disabled),
+.account-connection button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.account-connection {
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: center;
+}
+
+.account-connection button {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+}

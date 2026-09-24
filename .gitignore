@@ -9,6 +9,10 @@ env/
 # Donnees sensibles uploadees (releves bancaires, voir financialbalance)
 backend/data/
 
+# Cle privee Enable Banking (.pem, voir bankaccounts) -- ne JAMAIS commiter
+backend/secrets/
+*.pem
+
 # Bytecode / cache Python
 __pycache__/
 *.py[cod]

@@ -36,6 +36,10 @@ services:
     # hôte appartenant à root, illisible pour le conteneur.
     volumes:
       - bank_archives:/app/data
+      # Cle privee Enable Banking (voir bankaccounts, ENABLE_BANKING_KEY_PATH
+      # dans backend/.env) : dossier hors Git cree a la main sur le VPS,
+      # monte en lecture seule -- jamais copie dans l'image.
+      - ./backend/secrets:/app/secrets:ro
     # "expose" (contrairement à "ports") ne rend PAS le port accessible
     # depuis l'extérieur de la machine : seul le conteneur "frontend"
     # peut y accéder, via le réseau interne que docker-compose crée

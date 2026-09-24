@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from auth import AuthReceiver, require_accounts_auth, require_auth
-from bankaccounts import BankAccounts, BankAccountsReceiver
+from bankaccounts import BankAccounts, BankAccountsReceiver, EnableBankingClient
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
@@ -131,9 +131,26 @@ notifications_receiver = NotificationsReceiver(client=notifications_client, app=
 # require_accounts_auth (mot de passe "comptes", 2e niveau d'acces) et non
 # par le simple require_auth du routeur commun -- une session "generale"
 # obtient 403 ici. Donnees inventees pour l'instant (voir
-# bankaccounts/bankaccounts.py), aucune config requise.
+# bankaccounts/bankaccounts.py). Mode LIVE (Enable Banking) seulement si
+# ENABLE_BANKING_APP_ID et ENABLE_BANKING_KEY_PATH sont definis, sinon mode
+# DEMO (donnees inventees) -- pratique en dev local, sans cle. storage_dir :
+# repertoire persistant (volume Docker), la session bancaire (comptes
+# autorises + expiration) y est memorisee.
 accounts_router = APIRouter(dependencies=[Depends(require_accounts_auth)])
-bank_accounts_client = BankAccounts()
+enable_banking_client = None
+if os.environ.get("ENABLE_BANKING_APP_ID") and os.environ.get("ENABLE_BANKING_KEY_PATH"):
+    enable_banking_client = EnableBankingClient(
+        app_id=os.environ["ENABLE_BANKING_APP_ID"],
+        private_key_path=os.environ["ENABLE_BANKING_KEY_PATH"],
+        redirect_url=os.environ.get("ENABLE_BANKING_REDIRECT_URL", "https://silvaplana.cloud/sambo-admin/"),
+        aspsp_name=os.environ.get("ENABLE_BANKING_ASPSP_NAME", "Boursorama Banque"),
+        aspsp_country=os.environ.get("ENABLE_BANKING_ASPSP_COUNTRY", "FR"),
+        psu_type=os.environ.get("ENABLE_BANKING_PSU_TYPE", "personal"),
+    )
+bank_accounts_client = BankAccounts(
+    storage_dir=os.environ.get("BANKACCOUNTS_STORAGE_DIR", "data/bankaccounts"),
+    client=enable_banking_client,
+)
 bank_accounts_receiver = BankAccountsReceiver(client=bank_accounts_client, app=accounts_router)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router

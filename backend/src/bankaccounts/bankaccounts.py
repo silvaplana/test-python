@@ -1,26 +1,44 @@
 """Comptes bancaires de l'association (compte courant + Livret bleu) :
 solde et dernieres operations, affiches dans l'onglet Finances/Comptes.
 
-ETAPE ACTUELLE : donnees INVENTEES (aucune connexion bancaire). Le but est
-de valider d'abord toute la chaine (mot de passe "comptes", routes REST,
-affichage) avant de brancher la vraie source de donnees (Enable Banking,
-agregateur PSD2). L'interface publique (get_accounts, get_transactions) est
-celle qu'un client Enable Banking devra reprendre a l'identique : seul le
-corps de ces 2 methodes changera, pas le receiver ni le frontend.
+Deux modes :
+- LIVE : un client Enable Banking est fourni (voir enablebanking.py et les
+  variables ENABLE_BANKING_* de app/main.py). L'utilisateur autorise l'acces
+  chez sa banque (start_connection / complete_connection) ; la session
+  obtenue (comptes autorises + date d'expiration) est memorisee sur disque.
+  Elle expire (180 jours max) : il faut alors se reconnecter.
+- DEMO : aucun client -> donnees INVENTEES (utile en developpement local, sans
+  cle Enable Banking).
 
 Format retourne (independant de la source) :
-    compte      {"id", "name", "type", "iban", "balance", "currency", "simulated"}
+    compte      {"id", "name", "type", "iban" (masque), "balance", "currency", "simulated"}
     operation   {"date" (AAAA-MM-JJ), "label", "amount", "currency"}
                 amount < 0 : debit, amount > 0 : credit.
 """
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+import json
+import secrets
+import time
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+from .enablebanking import EnableBankingClient
 
 
 class BankAccountNotFoundError(LookupError):
     """Levee quand l'identifiant de compte demande n'existe pas."""
+
+
+class BankNotConnectedError(RuntimeError):
+    """Levee quand aucune session bancaire valide n'existe (jamais connectee
+    ou expiree) : il faut passer par start_connection()."""
+
+
+class InvalidConnectionStateError(ValueError):
+    """Levee quand le retour de la banque ne correspond a aucune demande de
+    connexion en cours (state inconnu/expire) : refuse un faux retour."""
 
 
 # (jours avant aujourd'hui, libelle, montant) -- du plus recent au plus
@@ -60,13 +78,176 @@ _FAKE_ACCOUNTS: dict[str, dict] = {
 
 
 class BankAccounts:
-    """Acces aux comptes bancaires du club. Voir le docstring du module :
-    pour l'instant, donnees inventees."""
+    """Acces aux comptes bancaires du club (voir le docstring du module)."""
 
     CURRENCY = "EUR"
+    STATE_TTL_SECONDS = 30 * 60
+    # Types de solde Enable Banking (ISO 20022) par ordre de preference : solde
+    # comptable de cloture, puis solde provisoire, puis disponible.
+    BALANCE_TYPES = ("CLBD", "ITBD", "XPCD", "CLAV", "ITAV")
+
+    def __init__(self, storage_dir: str | None = None, client: EnableBankingClient | None = None) -> None:
+        self.client = client
+        self.session_path = Path(storage_dir or "data/bankaccounts") / "session.json"
+        if client is not None:
+            self.session_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # ----- session persistante (mode live) -----
+
+    def _read_store(self) -> dict:
+        try:
+            return json.loads(self.session_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def _write_store(self, store: dict) -> None:
+        self.session_path.write_text(json.dumps(store, ensure_ascii=False), encoding="utf-8")
+
+    def _active_session(self) -> dict | None:
+        session = self._read_store().get("session")
+        if not session:
+            return None
+        valid_until = datetime.fromisoformat(session["valid_until"].replace("Z", "+00:00"))
+        return session if valid_until > datetime.now(timezone.utc) else None
+
+    # ----- statut et connexion -----
+
+    def get_status(self) -> dict:
+        """Mode (demo/live), et en live : connexion bancaire active ou non
+        (+ date d'expiration et banque)."""
+        if self.client is None:
+            return {"mode": "demo", "connected": True, "validUntil": None, "bank": None}
+        session = self._active_session()
+        return {
+            "mode": "live",
+            "connected": session is not None,
+            "validUntil": session["valid_until"] if session else None,
+            "bank": self.client.aspsp_name,
+        }
+
+    def start_connection(self) -> str:
+        """Retourne l'URL de la banque ou envoyer l'utilisateur pour autoriser
+        l'acces (un `state` aleatoire est memorise pour verifier le retour)."""
+        if self.client is None:
+            raise BankNotConnectedError("Enable Banking n'est pas configuré")
+        store = self._read_store()
+        now = time.time()
+        pending = {s: t for s, t in store.get("pending", {}).items() if now - t < self.STATE_TTL_SECONDS}
+        state = secrets.token_urlsafe(24)
+        pending[state] = now
+        url = self.client.start_authorization(state)
+        store["pending"] = pending
+        self._write_store(store)
+        return url
+
+    def complete_connection(self, code: str, state: str) -> None:
+        """Termine la connexion apres le retour de la banque : verifie le
+        `state`, echange le code contre une session et la memorise (elle
+        remplace la precedente)."""
+        if self.client is None:
+            raise BankNotConnectedError("Enable Banking n'est pas configuré")
+        store = self._read_store()
+        pending = store.get("pending", {})
+        created = pending.pop(state, None)
+        if created is None or time.time() - created > self.STATE_TTL_SECONDS:
+            raise InvalidConnectionStateError("Retour de la banque inattendu ou expiré")
+        data = self.client.create_session(code)
+        store["pending"] = pending
+        store["session"] = {
+            "session_id": data["session_id"],
+            "valid_until": data["access"]["valid_until"],
+            "accounts": [
+                {
+                    "uid": a["uid"],
+                    "iban": (a.get("account_id") or {}).get("iban") or "",
+                    "name": a.get("name") or a.get("product") or "",
+                    "product": a.get("product") or "",
+                    "details": a.get("details") or "",
+                    "currency": a.get("currency") or self.CURRENCY,
+                }
+                for a in data.get("accounts", [])
+                if a.get("uid")
+            ],
+        }
+        self._write_store(store)
+
+    # ----- donnees -----
+
+    @staticmethod
+    def _mask_iban(iban: str) -> str:
+        return f"•••• {iban[-4:]}" if len(iban) >= 4 else "••••"
+
+    def _pick_balance(self, balances: list[dict]) -> float | None:
+        by_type = {b.get("balance_type"): b for b in balances}
+        for balance_type in self.BALANCE_TYPES:
+            if balance_type in by_type:
+                return float(by_type[balance_type]["balance_amount"]["amount"])
+        return float(balances[0]["balance_amount"]["amount"]) if balances else None
 
     def get_accounts(self) -> list[dict]:
         """Retourne les comptes (identifiant, nom, type, IBAN masque, solde)."""
+        if self.client is None:
+            return self._fake_accounts()
+        session = self._active_session()
+        if session is None:
+            raise BankNotConnectedError("Banque non connectée")
+        accounts = []
+        for account in session["accounts"]:
+            balance = self._pick_balance(self.client.get_balances(account["uid"]))
+            accounts.append(
+                {
+                    "id": account["uid"],
+                    "name": account["details"] or account["product"] or account["name"] or "Compte",
+                    "type": "unknown",
+                    "iban": self._mask_iban(account["iban"]),
+                    "balance": balance,
+                    "currency": account["currency"],
+                    "simulated": False,
+                }
+            )
+        return accounts
+
+    def get_transactions(self, account_id: str, limit: int = 5) -> list[dict]:
+        """Retourne les `limit` dernieres operations du compte, la plus
+        recente en premier. Leve BankAccountNotFoundError si le compte n'existe
+        pas."""
+        if self.client is None:
+            return self._fake_transactions(account_id, limit)
+        session = self._active_session()
+        if session is None:
+            raise BankNotConnectedError("Banque non connectée")
+        if account_id not in {a["uid"] for a in session["accounts"]}:
+            raise BankAccountNotFoundError(account_id)
+        # 90 jours en arriere, sur quelques pages au plus : suffisant pour
+        # trouver les dernieres operations meme sur un compte peu actif.
+        date_from = (date.today() - timedelta(days=90)).isoformat()
+        raw: list[dict] = []
+        continuation_key = None
+        for _ in range(5):
+            page = self.client.get_transactions(account_id, date_from, continuation_key)
+            raw.extend(page.get("transactions", []))
+            continuation_key = page.get("continuation_key")
+            if not continuation_key:
+                break
+        operations = [self._to_operation(t) for t in raw]
+        operations.sort(key=lambda op: op["date"], reverse=True)
+        return operations[:limit]
+
+    def _to_operation(self, transaction: dict) -> dict:
+        amount = float(transaction["transaction_amount"]["amount"])
+        debit = transaction.get("credit_debit_indicator") == "DBIT"
+        counterparty = transaction.get("creditor" if debit else "debtor") or {}
+        label = " ".join(transaction.get("remittance_information") or []).strip() or counterparty.get("name") or "—"
+        return {
+            "date": transaction.get("booking_date") or transaction.get("value_date") or transaction.get("transaction_date") or "",
+            "label": label,
+            "amount": -abs(amount) if debit else abs(amount),
+            "currency": transaction["transaction_amount"].get("currency", self.CURRENCY),
+        }
+
+    # ----- mode demo -----
+
+    def _fake_accounts(self) -> list[dict]:
         return [
             {
                 "id": account_id,
@@ -80,10 +261,7 @@ class BankAccounts:
             for account_id, account in _FAKE_ACCOUNTS.items()
         ]
 
-    def get_transactions(self, account_id: str, limit: int = 5) -> list[dict]:
-        """Retourne les `limit` dernieres operations du compte, la plus
-        recente en premier. Leve BankAccountNotFoundError si le compte n'existe
-        pas."""
+    def _fake_transactions(self, account_id: str, limit: int) -> list[dict]:
         account = _FAKE_ACCOUNTS.get(account_id)
         if account is None:
             raise BankAccountNotFoundError(account_id)

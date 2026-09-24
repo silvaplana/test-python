@@ -1,6 +1,6 @@
 import './App.css'
 import { AuthGate, useAuth } from './Auth.jsx'
-import { BankAccounts } from './BankAccounts.jsx'
+import { BankAccounts, hasBankCallback } from './BankAccounts.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
@@ -13,6 +13,10 @@ function AppContent() {
   const { canViewAccounts } = useAuth()
   return (
     <Navigation
+      // Retour de la banque (voir BankAccounts.jsx) : ouvre directement
+      // Finances/Comptes (section 3, outil 2), sinon l'accueil habituel.
+      initialSection={hasBankCallback && canViewAccounts ? 2 : 0}
+      initialTool={hasBankCallback && canViewAccounts ? 1 : 0}
       header={<CampaignTitle />}
       sections={[
         {

@@ -21,6 +21,7 @@ dependencies = [
     "bcrypt",
     "itsdangerous",
     "pymupdf",
+    "pyjwt[crypto]",
 ]
 
 [project.optional-dependencies]
