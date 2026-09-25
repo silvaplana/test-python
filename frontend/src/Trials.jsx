@@ -323,8 +323,21 @@ function StudentDialog({ student, onClose, onSaved, onDeleted }) {
         {student && (
           <p className="profile-hint">
             {student.source === 'web' ? 'Inscrit en ligne' : 'Ajouté à la main'} le {timestampFr(student.createdAt)}
-            {student.qrGenerated ? ' · QR code envoyé' : ' · pas de QR code'}
-            {student.hasMedicalCertificate ? ' · certificat médical fourni' : ''}
+            {student.qrGenerated ? ' · QR code généré' : ' · pas de QR code'}
+          </p>
+        )}
+        {(student?.hasSignature || student?.hasMedicalCertificate) && (
+          <p className="trial-documents">
+            {student.hasSignature && (
+              <a href={`${API_URL}/trials/students/${student.id}/signature`} target="_blank" rel="noreferrer">
+                Voir la signature
+              </a>
+            )}
+            {student.hasMedicalCertificate && (
+              <a href={`${API_URL}/trials/students/${student.id}/certificate`} target="_blank" rel="noreferrer">
+                Voir le certificat médical
+              </a>
+            )}
           </p>
         )}
 

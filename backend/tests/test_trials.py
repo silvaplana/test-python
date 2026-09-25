@@ -1,15 +1,18 @@
 """Tests des eleves en cours d'essai (trials) : regles des cours/QR code et
 routes REST. Lancer depuis backend/ : PYTHONPATH=src venv/bin/python -m pytest tests"""
 
-from datetime import date, timedelta
+import base64
+import io
+from datetime import timedelta
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from PIL import Image
 
 from database import Database
-from trials import Trials, TrialsReceiver
-from trials.trials import TrialCoursesFullError, TrialStudentNotFoundError, today
+from trials import Trials, TrialsPublicReceiver, TrialsReceiver
+from trials.trials import RegistrationError, TrialCoursesFullError, TrialStudentNotFoundError, today
 
 
 @pytest.fixture
@@ -141,3 +144,154 @@ def test_rest_routes(trials):
     assert client.delete(f"/trials/students/{student_id}").status_code == 200
     assert client.delete(f"/trials/students/{student_id}").status_code == 404
     assert client.post("/trials/students", json={"firstName": "Léa", "lastName": "Martin", "gender": "X"}).status_code == 422
+
+
+# ----- inscription en ligne (page publique) -----
+
+
+def png_bytes(size=(40, 20), fmt="PNG"):
+    buffer = io.BytesIO()
+    Image.new("RGB", size, "white").save(buffer, format=fmt)
+    return buffer.getvalue()
+
+
+def adult_form(**overrides):
+    form = {
+        "first_name": "Hugo",
+        "last_name": "Blanc",
+        "birth_date": "1990-01-15",
+        "gender": "M",
+        "email": "hugo@example.com",
+        "phone": "",
+        "parent_name": "",
+        "medical_attestation": True,
+        "parental_consent": False,
+        "waiver_accepted": True,
+        "terms_version": "2026-09-26",
+    }
+    form.update(overrides)
+    return form
+
+
+class FakeMailer:
+    enabled = True
+
+    def __init__(self):
+        self.sent = []
+
+    def send(self, to_email, to_name, subject, html, attachments=None):
+        self.sent.append((to_email, subject, html, attachments))
+        return True
+
+
+def test_register_creates_student_with_qr(trials):
+    result = trials.register(adult_form(), png_bytes(), None, "1.2.3.4")
+    assert result["status"] == "created"
+    student = result["student"]
+    assert student["source"] == "web" and student["qrGenerated"] and student["hasSignature"]
+    assert student["parentName"] is None
+    assert trials.qr_png(result["token"]).startswith(b"\x89PNG")
+    # le QR code contient l'URL de l'appli : le scan accepte l'URL complete
+    assert trials.check_in(f"https://silvaplana.cloud/sambo-admin/?essai={result['token']}")["status"] == "added"
+
+
+def test_register_twice_returns_existing_same_token(trials):
+    first = trials.register(adult_form(), png_bytes(), None, None)
+    again = trials.register(adult_form(first_name="HUGO", email="Hugo@Example.com"), png_bytes(), None, None)
+    assert again["status"] == "existing" and again["token"] == first["token"]
+    sibling = trials.register(adult_form(first_name="Léo"), png_bytes(), None, None)
+    assert sibling["status"] == "created" and sibling["token"] != first["token"]
+
+
+def test_register_completes_manual_student(trials):
+    manual = trials.add_student("Hugo", "Blanc", email="hugo@example.com")
+    result = trials.register(adult_form(), png_bytes(), None, None)
+    assert result["status"] == "created" and result["student"]["id"] == manual["id"]
+    assert result["student"]["qrGenerated"] and len(trials.list_students()) == 1
+
+
+@pytest.mark.parametrize(
+    "overrides, message",
+    [
+        ({"birth_date": ""}, "date de naissance"),
+        ({"email": "pas-un-mail"}, "e-mail"),
+        ({"medical_attestation": False}, "attestation"),
+        ({"waiver_accepted": False}, "décharge"),
+        ({"birth_date": "2015-03-01"}, "parent"),
+        ({"birth_date": "2015-03-01", "parent_name": "Paul Blanc"}, "autorisation parentale"),
+    ],
+)
+def test_register_validation(trials, overrides, message):
+    with pytest.raises(RegistrationError, match=message):
+        trials.register(adult_form(**overrides), png_bytes(), None, None)
+
+
+def test_register_minor_and_signature_required(trials):
+    with pytest.raises(RegistrationError, match="Signature"):
+        trials.register(adult_form(), b"pas une image", None, None)
+    minor = adult_form(birth_date="2015-03-01", parent_name="Paul Blanc", parental_consent=True)
+    assert trials.register(minor, png_bytes(), None, None)["student"]["parentName"] == "Paul Blanc"
+
+
+def test_certificate_photo_converted_and_deleted_with_student(trials):
+    result = trials.register(adult_form(), png_bytes(), ("certif.png", png_bytes((3000, 1000))), None)
+    path, media_type = trials.get_certificate(result["student"]["id"])
+    assert media_type == "image/jpeg" and path.exists()
+    assert Image.open(path).size == (2000, 667)
+    trials.delete_student(result["student"]["id"])
+    assert not path.exists()
+
+
+def test_certificate_pdf_kept_and_garbage_refused(trials):
+    result = trials.register(adult_form(), png_bytes(), ("certif.pdf", b"%PDF-1.4 test"), None)
+    path, media_type = trials.get_certificate(result["student"]["id"])
+    assert media_type == "application/pdf" and path.read_bytes() == b"%PDF-1.4 test"
+    with pytest.raises(RegistrationError, match="illisible"):
+        trials.register(adult_form(first_name="Léo"), png_bytes(), ("x.doc", b"n'importe quoi"), None)
+
+
+def test_confirmation_email(trials):
+    trials.mailer = FakeMailer()
+    result = trials.register(adult_form(), png_bytes(), None, None)
+    assert trials.send_confirmation(result["student"], result["token"]) is True
+    to_email, subject, html, attachments = trials.mailer.sent[0]
+    assert to_email == "hugo@example.com" and "cours d'essai" in subject
+    assert f"{result['token']}.png" in html and "Hugo Blanc" in html
+    assert attachments[0][1].startswith(b"\x89PNG")
+
+
+def test_public_routes(trials):
+    trials.mailer = FakeMailer()
+    app = FastAPI()
+    TrialsPublicReceiver(client=trials, app=app)
+    client = TestClient(app)
+    assert client.get("/public/trials/info").json()["termsVersion"]
+    signature = "data:image/png;base64," + base64.b64encode(png_bytes()).decode()
+    data = {
+        "firstName": "Léa", "lastName": "Martin", "birthDate": "2000-05-03", "gender": "F",
+        "email": "lea@example.com", "medicalAttestation": "true", "waiverAccepted": "true",
+        "signature": signature,
+    }
+    created = client.post("/public/trials/register", data=data, files={"certificate": ("c.pdf", b"%PDF-1.4", "application/pdf")})
+    assert created.status_code == 200, created.text
+    body = created.json()
+    assert body["status"] == "created" and body["emailSent"] and base64.b64decode(body["qrPng"]).startswith(b"\x89PNG")
+    again = client.post("/public/trials/register", data=data).json()
+    assert again == {"status": "existing", "emailSent": True}
+    assert len(trials.mailer.sent) == 2
+    incomplete = client.post("/public/trials/register", data={**data, "waiverAccepted": "false"})
+    assert incomplete.status_code == 422 and "décharge" in incomplete.json()["detail"]
+    bot = client.post("/public/trials/register", data={**data, "firstName": "Bot", "website": "spam"})
+    assert bot.status_code == 200 and len(trials.list_students()) == 1
+    token = trials.register(adult_form(), png_bytes(), None, None)["token"]
+    assert client.get(f"/public/trials/qr/{token}.png").headers["content-type"] == "image/png"
+    assert client.get("/public/trials/qr/inconnu.png").status_code == 404
+
+
+def test_public_register_rate_limited(trials):
+    app = FastAPI()
+    receiver = TrialsPublicReceiver(client=trials, app=app)
+    receiver.limiter.limit = 2
+    client = TestClient(app)
+    codes = [client.post("/public/trials/register", data={"firstName": "x"}).status_code for _ in range(3)]
+    assert codes == [422, 422, 429]

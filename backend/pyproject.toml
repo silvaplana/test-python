@@ -25,6 +25,10 @@ dependencies = [
     # Fuseau Europe/Paris (date du jour des cours d'essai, voir trials) :
     # l'image python:slim n'a pas forcement la base des fuseaux du systeme.
     "tzdata",
+    # QR code des cours d'essai (image PNG), voir trials.
+    "segno",
+    # Photos HEIC (iPhone) du certificat medical, converties en JPEG (trials).
+    "pillow-heif",
 ]
 
 [project.optional-dependencies]

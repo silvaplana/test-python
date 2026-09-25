@@ -1443,6 +1443,18 @@ td button + .ffst-role-picker,
   font-size: 16px;
 }
 
+.trial-documents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.trial-documents a {
+  color: var(--accent);
+}
+
 .trial-course-input {
   display: flex;
   gap: 0.35rem;

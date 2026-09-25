@@ -11,4 +11,16 @@ export default defineConfig(({ command }) => ({
   // En dev local (`npm run dev`), on reste à la racine pour plus de simplicité.
   base: command === 'build' ? '/sambo-admin/' : '/',
   plugins: [react()],
+  // 2 pages : l'appli d'administration (index.html) et la page publique
+  // d'inscription au cours d'essai (essai.html, voir src/essai/), servie par
+  // le gateway a l'adresse /mma-sambo-bedoule-ciotat-essai. Ses fichiers
+  // JS/CSS restent sous /sambo-admin/assets/ (meme "base").
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        essai: 'essai.html',
+      },
+    },
+  },
 }))

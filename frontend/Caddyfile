@@ -5,6 +5,17 @@
 # /sambo-admin/* vers ce conteneur en retirant le préfixe avant de le
 # transmettre ici. Ce Caddyfile voit donc les requêtes comme si l'app
 # était servie à la racine.
+# Le gateway (autre conteneur Caddy, sur le reseau Docker) est un proxy de
+# confiance : sans ca, ce Caddy remplacerait l'en-tete X-Forwarded-For (IP
+# reelle du visiteur, posee par le gateway) par l'IP du gateway -- le
+# backend ne pourrait plus limiter les inscriptions par visiteur (voir
+# trials/public_receiver.py).
+{
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
 :80 {
 	root * /srv
 	encode gzip zstd

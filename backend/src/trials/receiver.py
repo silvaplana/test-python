@@ -1,7 +1,8 @@
 import datetime
 from typing import Literal, Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .trials import TrialCoursesFullError, Trials, TrialStudentNotFoundError
@@ -89,6 +90,8 @@ class TrialsReceiver:
         self.app.post("/trials/students/{student_id}/courses")(self.addCourse)
         self.app.put("/trials/students/{student_id}/courses/{number}")(self.setCourse)
         self.app.post("/trials/checkin")(self.checkIn)
+        self.app.get("/trials/students/{student_id}/certificate")(self.getCertificate)
+        self.app.get("/trials/students/{student_id}/signature")(self.getSignature)
 
     def getStudents(self) -> list[dict]:
         """Endpoint REST GET /trials/students. Tous les eleves en cours
@@ -147,3 +150,21 @@ class TrialsReceiver:
         """Endpoint REST POST /trials/checkin. Scan du QR code d'un eleve en
         debut de cours (voir Trials.check_in pour les reponses possibles)."""
         return self.client.check_in(request.token)
+
+    def getCertificate(self, student_id: int) -> FileResponse:
+        """Endpoint REST GET /trials/students/{id}/certificate. Certificat
+        medical envoye a l'inscription (PDF ou JPEG), 404 s'il n'y en a pas."""
+        try:
+            path, media_type = self.client.get_certificate(student_id)
+        except TrialStudentNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Pas de certificat médical") from exc
+        return FileResponse(path, media_type=media_type, headers={"Cache-Control": "no-store"})
+
+    def getSignature(self, student_id: int) -> Response:
+        """Endpoint REST GET /trials/students/{id}/signature. Signature (PNG)
+        donnee a l'inscription, 404 s'il n'y en a pas."""
+        try:
+            png = self.client.get_signature(student_id)
+        except TrialStudentNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Pas de signature") from exc
+        return Response(content=png, media_type="image/png", headers={"Cache-Control": "no-store"})

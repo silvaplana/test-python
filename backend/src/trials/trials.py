@@ -13,16 +13,31 @@ cours d'essai. Regles (decidees avec le bureau du club) :
   (inscription ou cours), certificat medical compris (voir purge_expired).
 
 Stockage : table trial_students de la base SQLite (voir database/database.py).
+Certificats medicaux envoyes (donnees de sante) : fichiers dans
+certificates_dir (volume Docker), jamais dans Git.
 """
 
 from __future__ import annotations
 
+import io
+import re
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import pillow_heif
+import segno
+from PIL import Image, ImageOps
+
 from database import Database
+from mailer import Mailer
+
+from . import content
+from .emails import confirmation_email
+
+# Photos d'iPhone (HEIC) : lisibles par Pillow une fois ce module enregistre.
+pillow_heif.register_heif_opener()
 
 PARIS = ZoneInfo("Europe/Paris")
 COURSE_MODES = ("qr", "manual")
@@ -37,6 +52,18 @@ class TrialStudentNotFoundError(LookupError):
 
 class TrialCoursesFullError(ValueError):
     """Levee quand on ajoute un cours a un eleve qui a deja ses 2 cours."""
+
+
+class RegistrationError(ValueError):
+    """Levee quand une inscription en ligne est incomplete ou invalide (le
+    message est affiche tel quel sur la page publique)."""
+
+
+EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+ADULT_AGE = 18
+MAX_SIGNATURE_BYTES = 500_000
+MAX_CERTIFICATE_BYTES = 15_000_000
+PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
 def today() -> date:
@@ -61,9 +88,23 @@ class Trials:
     RETENTION_DAYS = 365
     MAX_COURSES = 2
 
-    def __init__(self, db: Database, certificates_dir: str) -> None:
+    def __init__(
+        self,
+        db: Database,
+        certificates_dir: str,
+        checkin_url: str = "https://silvaplana.cloud/sambo-admin/?essai=",
+        qr_image_url: str = "https://silvaplana.cloud/sambo-admin/api/public/trials/qr/",
+        mailer: Mailer | None = None,
+    ) -> None:
+        """checkin_url : debut de l'URL contenue dans le QR code, suivie du
+        jeton -- scanne avec l'appareil photo du telephone, il ouvre
+        directement l'onglet Essai de l'appli. qr_image_url : adresse publique
+        de l'image du QR code (suivie de "<jeton>.png"), affichee dans le mail."""
         self.db = db
         self.certificates_dir = Path(certificates_dir)
+        self.checkin_url = checkin_url
+        self.qr_image_url = qr_image_url
+        self.mailer = mailer
 
     # ----- lecture -----
 
@@ -84,6 +125,7 @@ class Trials:
             "parentalConsent": bool(row["parental_consent"]),
             "waiverAccepted": bool(row["waiver_accepted"]),
             "signedAt": row["signed_at"],
+            "hasSignature": row["signature_png"] is not None,
             "qrGenerated": row["qr_token"] is not None,
             "qrCreatedAt": row["qr_created_at"],
             "courses": [
@@ -251,7 +293,7 @@ class Trials:
         - "full"      : QR code jamais utilise mais 2 cours deja renseignes a
                         la main (+ "date" du dernier).
         "student" (sauf si unknown) : l'eleve a jour."""
-        token = (token or "").strip()
+        token = self._extract_token(token)
         with self.db.connect() as connection:
             row = connection.execute("SELECT * FROM trial_students WHERE qr_token = ?", (token,)).fetchone()
             if not token or row is None:
@@ -269,9 +311,191 @@ class Trials:
 
     @staticmethod
     def new_qr_token() -> str:
-        """Jeton aleatoire, seul contenu du QR code (aucune donnee
+        """Jeton aleatoire, seule donnee du QR code (aucune donnee
         personnelle) : impossible a deviner."""
         return secrets.token_urlsafe(16)
+
+    def _extract_token(self, scanned: str | None) -> str:
+        """Contenu scanne -> jeton : le QR code contient l'URL complete
+        (checkin_url + jeton), mais le jeton seul (saisi a la main) marche
+        aussi."""
+        scanned = (scanned or "").strip()
+        match = re.search(r"[?&]essai=([A-Za-z0-9_-]+)", scanned)
+        return match.group(1) if match else scanned
+
+    def qr_png(self, token: str) -> bytes:
+        """Image PNG du QR code d'un eleve. TrialStudentNotFoundError si le
+        jeton n'existe pas (pas de generateur de QR code ouvert a tous)."""
+        with self.db.connect() as connection:
+            if connection.execute("SELECT 1 FROM trial_students WHERE qr_token = ?", (token,)).fetchone() is None:
+                raise TrialStudentNotFoundError(token)
+        buffer = io.BytesIO()
+        segno.make(self.checkin_url + token, error="m").save(buffer, kind="png", scale=10, border=4)
+        return buffer.getvalue()
+
+    # ----- inscription en ligne (page publique) -----
+
+    def register(self, form: dict, signature_png: bytes, certificate: tuple[str, bytes] | None, ip: str | None) -> dict:
+        """Inscription depuis la page publique. form : first_name, last_name,
+        birth_date, gender, email, phone, parent_name, medical_attestation,
+        parental_consent, waiver_accepted, terms_version.
+
+        Eleve deja inscrit (meme e-mail, nom et prenom) : rien n'est modifie
+        et on lui renvoie son QR code par mail -- jamais affiche a l'ecran,
+        sinon n'importe qui connaissant son nom et son e-mail le recupererait.
+        Eleve ajoute a la main sans QR code : son inscription est completee.
+
+        Retourne {"status": "created" | "existing", "student", "token"}.
+        Leve RegistrationError si le formulaire est incomplet."""
+        fields = self._validate_registration(form, signature_png)
+        now = _now_iso()
+        with self.db.connect() as connection:
+            existing = self._find_existing(connection, fields)
+            if existing is not None and existing["qr_token"]:
+                return {"status": "existing", "student": self._to_dict(existing), "token": existing["qr_token"]}
+            token = self.new_qr_token()
+            fields.update(
+                {
+                    "signature_png": signature_png,
+                    "signed_at": now,
+                    "signed_ip": ip,
+                    "qr_token": token,
+                    "qr_created_at": now,
+                    "updated_at": now,
+                }
+            )
+            if existing is not None:
+                assignments = ", ".join(f"{key} = ?" for key in fields)
+                connection.execute(
+                    f"UPDATE trial_students SET {assignments} WHERE id = ?", (*fields.values(), existing["id"])
+                )
+                student_id = existing["id"]
+            else:
+                fields.update({"source": "web", "created_at": now})
+                columns = ", ".join(fields)
+                placeholders = ", ".join("?" for _ in fields)
+                cursor = connection.execute(
+                    f"INSERT INTO trial_students ({columns}) VALUES ({placeholders})", tuple(fields.values())
+                )
+                student_id = cursor.lastrowid
+            if certificate is not None:
+                self._store_certificate(connection, student_id, *certificate)
+            return {"status": "created", "student": self._to_dict(self._get_row(connection, student_id)), "token": token}
+
+    def _validate_registration(self, form: dict, signature_png: bytes) -> dict:
+        try:
+            date.fromisoformat(form.get("birth_date") or "")
+        except ValueError as exc:
+            raise RegistrationError("Merci d'indiquer une date de naissance valide") from exc
+        try:
+            fields = self._clean({key: form.get(key) for key in EDITABLE_FIELDS if key != "comment"})
+        except ValueError as exc:
+            raise RegistrationError(str(exc)) from exc
+        for key, label in (("birth_date", "la date de naissance"), ("gender", "le genre"), ("email", "l'e-mail")):
+            if not fields.get(key):
+                raise RegistrationError(f"Merci d'indiquer {label}")
+        if not EMAIL_PATTERN.match(fields["email"]):
+            raise RegistrationError("Adresse e-mail invalide")
+        age = _age(fields["birth_date"], today())
+        if age < 3 or age > 100:
+            raise RegistrationError("Date de naissance invalide")
+        minor = age < ADULT_AGE
+        if minor and not fields.get("parent_name"):
+            raise RegistrationError("Pour un mineur, merci d'indiquer le nom du parent ou représentant légal")
+        if not minor:
+            fields["parent_name"] = None
+        checks = {
+            "medical_attestation": "Merci de cocher l'attestation médicale",
+            "waiver_accepted": "Merci d'accepter la décharge de responsabilité",
+        }
+        if minor:
+            checks["parental_consent"] = "Merci de cocher l'autorisation parentale"
+        for key, message in checks.items():
+            if not form.get(key):
+                raise RegistrationError(message)
+        if not signature_png.startswith(PNG_MAGIC) or len(signature_png) > MAX_SIGNATURE_BYTES:
+            raise RegistrationError("Signature manquante ou invalide")
+        fields.update(
+            {
+                "medical_attestation": 1,
+                "waiver_accepted": 1,
+                "parental_consent": 1 if minor else 0,
+                "terms_version": form.get("terms_version") or content.TERMS_VERSION,
+            }
+        )
+        return fields
+
+    @staticmethod
+    def _find_existing(connection, fields: dict):
+        """Meme eleve = meme e-mail + meme nom et prenom (sans tenir compte
+        des majuscules) : 2 enfants inscrits avec l'e-mail d'un parent restent
+        2 eleves."""
+        rows = connection.execute(
+            "SELECT * FROM trial_students WHERE lower(email) = ?", (fields["email"].lower(),)
+        ).fetchall()
+        key = (fields["first_name"].casefold(), fields["last_name"].casefold())
+        return next((row for row in rows if (row["first_name"].casefold(), row["last_name"].casefold()) == key), None)
+
+    # ----- certificat medical et signature -----
+
+    def _store_certificate(self, connection, student_id: int, filename: str, data: bytes) -> None:
+        """Enregistre le certificat medical envoye : PDF tel quel, photo
+        convertie en JPEG (les photos HEIC d'iPhone ne s'affichent pas dans
+        tous les navigateurs) et reduite a 2000 px."""
+        if len(data) > MAX_CERTIFICATE_BYTES:
+            raise RegistrationError("Certificat trop volumineux (15 Mo maximum)")
+        if data.startswith(b"%PDF"):
+            extension, stored = "pdf", data
+        else:
+            try:
+                image = ImageOps.exif_transpose(Image.open(io.BytesIO(data)))
+                image.thumbnail((2000, 2000))
+                buffer = io.BytesIO()
+                image.convert("RGB").save(buffer, format="JPEG", quality=85)
+            except Exception as exc:
+                raise RegistrationError("Certificat illisible : envoyez une photo ou un PDF") from exc
+            extension, stored = "jpg", buffer.getvalue()
+        self.certificates_dir.mkdir(parents=True, exist_ok=True)
+        name = f"{student_id}-{secrets.token_hex(8)}.{extension}"
+        (self.certificates_dir / name).write_bytes(stored)
+        previous = connection.execute(
+            "SELECT medical_certificate_file FROM trial_students WHERE id = ?", (student_id,)
+        ).fetchone()[0]
+        connection.execute("UPDATE trial_students SET medical_certificate_file = ? WHERE id = ?", (name, student_id))
+        self._delete_certificate(previous)
+
+    def get_certificate(self, student_id: int) -> tuple[Path, str]:
+        """Fichier du certificat medical et son type MIME."""
+        with self.db.connect() as connection:
+            row = self._get_row(connection, student_id)
+        if not row["medical_certificate_file"]:
+            raise TrialStudentNotFoundError(student_id)
+        path = self.certificates_dir / row["medical_certificate_file"]
+        return path, "application/pdf" if path.suffix == ".pdf" else "image/jpeg"
+
+    def get_signature(self, student_id: int) -> bytes:
+        with self.db.connect() as connection:
+            row = self._get_row(connection, student_id)
+        if row["signature_png"] is None:
+            raise TrialStudentNotFoundError(student_id)
+        return row["signature_png"]
+
+    # ----- mail de confirmation -----
+
+    def send_confirmation(self, student: dict, token: str) -> bool:
+        """Envoie (ou renvoie) a l'eleve le mail avec son QR code et les
+        modalites du cours d'essai. False si le mailer n'est pas configure ;
+        MailError si l'envoi echoue."""
+        if self.mailer is None or not student.get("email"):
+            return False
+        subject, html = confirmation_email(student, f"{self.qr_image_url}{token}.png")
+        return self.mailer.send(
+            student["email"],
+            f"{student['firstName']} {student['lastName']}",
+            subject,
+            html,
+            attachments=[("qr-code-cours-essai.png", self.qr_png(token))],
+        )
 
     # ----- conservation des donnees -----
 

@@ -19,9 +19,10 @@ from database import Database
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
+from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
 from notifications import NotificationsReceiver, PushNotifications
-from trials import Trials, TrialsReceiver
+from trials import Trials, TrialsPublicReceiver, TrialsReceiver
 
 load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
 
@@ -104,14 +105,31 @@ ffst_receiver = FfstReceiver(client=ffst_client, app=protected_router)
 database = Database(os.environ.get("DATABASE_PATH", "data/sambo.db"))
 database.migrate()
 
+# Envoi de mails (Brevo, voir mailer/mailer.py) : inactif tant que
+# BREVO_API_KEY n'est pas definie (les mails sont alors juste journalises).
+mailer = Mailer(
+    api_key=os.environ.get("BREVO_API_KEY", ""),
+    sender=os.environ.get("MAIL_SENDER", "essai@silvaplana.cloud"),
+    sender_name=os.environ.get("MAIL_SENDER_NAME", "Alliance Sambo Combat La Ciotat"),
+    reply_to=os.environ.get("MAIL_REPLY_TO") or None,
+)
+
 # Monte les routes des eleves en cours d'essai (/trials/...) sur la meme app
 # (onglet "Essai"). Les certificats medicaux envoyes (donnees de sante)
-# restent dans le volume Docker, jamais dans Git.
+# restent dans le volume Docker, jamais dans Git. PUBLIC_BASE_URL : adresse
+# publique du site, pour les liens du QR code et du mail de confirmation.
+public_base_url = os.environ.get("PUBLIC_BASE_URL", "https://silvaplana.cloud").rstrip("/")
 trials_client = Trials(
     db=database,
     certificates_dir=os.environ.get("TRIALS_CERTIFICATES_DIR", "data/trial_certificates"),
+    checkin_url=f"{public_base_url}/sambo-admin/?essai=",
+    qr_image_url=f"{public_base_url}/sambo-admin/api/public/trials/qr/",
+    mailer=mailer,
 )
 trials_receiver = TrialsReceiver(client=trials_client, app=protected_router)
+# Page publique d'inscription au cours d'essai : routes /public/trials/...
+# montees directement sur l'app, SANS mot de passe (comme /auth/login).
+trials_public_receiver = TrialsPublicReceiver(client=trials_client, app=app)
 
 # Monte les routes du bilan financier (/financialbalance/archives) sur la
 # meme app. storage_dir doit pointer vers un repertoire persistant (volume
