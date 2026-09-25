@@ -35,7 +35,7 @@ class EnableBankingClient:
         app_id: str,
         private_key_path: str,
         redirect_url: str,
-        aspsp_name: str = "Boursorama Banque",
+        aspsp_name: str = "Crédit Mutuel",
         aspsp_country: str = "FR",
         psu_type: str = "personal",
         valid_days: int = 179,

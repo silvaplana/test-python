@@ -143,7 +143,7 @@ if os.environ.get("ENABLE_BANKING_APP_ID") and os.environ.get("ENABLE_BANKING_KE
         app_id=os.environ["ENABLE_BANKING_APP_ID"],
         private_key_path=os.environ["ENABLE_BANKING_KEY_PATH"],
         redirect_url=os.environ.get("ENABLE_BANKING_REDIRECT_URL", "https://silvaplana.cloud/sambo-admin/"),
-        aspsp_name=os.environ.get("ENABLE_BANKING_ASPSP_NAME", "Boursorama Banque"),
+        aspsp_name=os.environ.get("ENABLE_BANKING_ASPSP_NAME", "Crédit Mutuel"),
         aspsp_country=os.environ.get("ENABLE_BANKING_ASPSP_COUNTRY", "FR"),
         psu_type=os.environ.get("ENABLE_BANKING_PSU_TYPE", "personal"),
     )
