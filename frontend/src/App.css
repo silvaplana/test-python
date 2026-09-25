@@ -1361,6 +1361,7 @@ td button + .ffst-role-picker,
 }
 
 .trial-add-course,
+.trial-delete-row,
 .trial-dialog-actions button,
 .trial-course-input button {
   padding: 0.35rem 0.7rem;
@@ -1381,7 +1382,24 @@ td button + .ffst-role-picker,
   background: var(--accent-bg);
 }
 
+.trial-delete-row {
+  margin-left: 0.35rem;
+  color: #f87171;
+  vertical-align: middle;
+  line-height: 0;
+}
+
+.trial-delete-row svg {
+  display: inline-block;
+}
+
+.trial-delete-row:hover:not(:disabled) {
+  border-color: rgba(248, 113, 113, 0.6);
+  background: rgba(248, 113, 113, 0.12);
+}
+
 .trial-add-course:disabled,
+.trial-delete-row:disabled,
 .trial-dialog-actions button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
@@ -1493,7 +1511,12 @@ td button + .ffst-role-picker,
     padding-inline: 0.45rem;
   }
 
-  .trial-add-course {
+  .trial-add-course,
+  .trial-delete-row {
     padding: 0.3rem 0.5rem;
+  }
+
+  .trial-delete-row {
+    margin-left: 0.25rem;
   }
 }

@@ -53,6 +53,16 @@ function formToBody(form) {
   )
 }
 
+// Icone poubelle dessinee (pas un emoji : pas affiche pareil, voire pas du
+// tout, selon les telephones).
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6" />
+    </svg>
+  )
+}
+
 function CourseCell({ course }) {
   if (!course.date) return <span className="trial-course-empty">—</span>
   return (
@@ -96,6 +106,20 @@ export function TrialsTable() {
     setError(null)
     try {
       replaceStudent(await sendJson(`/trials/students/${student.id}/courses`, 'POST', {}))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPendingId(null)
+    }
+  }
+
+  async function deleteStudent(student) {
+    if (!window.confirm(`Supprimer définitivement ${student.firstName} ${student.lastName} ?`)) return
+    setPendingId(student.id)
+    setError(null)
+    try {
+      await callApi(`/trials/students/${student.id}`, { method: 'DELETE' })
+      setStudents((prev) => prev.filter((s) => s.id !== student.id))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -161,6 +185,15 @@ export function TrialsTable() {
                           onClick={() => addCourse(s)}
                         >
                           + Cours
+                        </button>
+                        <button
+                          className="trial-delete-row"
+                          disabled={pendingId === s.id}
+                          title="Supprimer l'élève"
+                          aria-label={`Supprimer ${s.firstName} ${s.lastName}`}
+                          onClick={() => deleteStudent(s)}
+                        >
+                          <TrashIcon />
                         </button>
                       </td>
                     </tr>
