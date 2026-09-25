@@ -1298,3 +1298,190 @@ td button + .ffst-role-picker,
 .op-debit {
   color: #f87171;
 }
+
+/* Onglet Essai (voir Trials.jsx) : eleves en cours d'essai. Meme charte que
+   les autres tableaux ; le nom de l'eleve ouvre sa fiche (.trial-dialog). */
+.trial-header-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.trial-name {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline dotted var(--accent-border);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Nom sur plusieurs lignes si besoin (noms composes) plutot qu'un tableau
+   plus large que l'ecran du telephone. */
+.trial-name-cell {
+  white-space: normal;
+  min-width: 6rem;
+}
+
+.trial-course {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.1rem 0.3rem;
+}
+
+.trial-course-empty {
+  color: var(--border);
+}
+
+.trial-mode {
+  display: inline-block;
+  padding: 0 0.35rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  vertical-align: middle;
+}
+
+.trial-mode-qr {
+  color: #4ade80;
+  border: 1px solid rgba(74, 222, 128, 0.5);
+}
+
+.trial-mode-manual {
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.trial-comment {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trial-add-course,
+.trial-dialog-actions button,
+.trial-course-input button {
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.trial-add-course:hover:not(:disabled),
+.trial-dialog-actions button:hover:not(:disabled),
+.trial-course-input button:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.trial-add-course:disabled,
+.trial-dialog-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.trial-dialog {
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: calc(100svh - 2rem);
+  box-sizing: border-box;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+  color: var(--text);
+  text-align: left;
+  box-shadow: var(--shadow);
+}
+
+.trial-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.trial-dialog h3 {
+  margin: 0 0 0.75rem;
+  color: var(--text-h);
+}
+
+.trial-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+  margin: 0.75rem 0;
+}
+
+.trial-form-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+.trial-form-wide {
+  grid-column: 1 / -1;
+}
+
+/* 16px minimum : en dessous, Safari sur iPhone zoome sur le champ au toucher. */
+.trial-form-grid input,
+.trial-form-grid select,
+.trial-form-grid textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 16px;
+}
+
+.trial-course-input {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.trial-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.trial-dialog-actions .trial-save {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.trial-dialog-actions .trial-delete {
+  margin-right: auto;
+  color: #f87171;
+}
+
+@media (max-width: 640px) {
+  .trial-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Mode (QR/manuel) sous la date plutot qu'a cote. */
+  .trial-course {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .trials-table th,
+  .trials-table td {
+    padding-inline: 0.45rem;
+  }
+
+  .trial-add-course {
+    padding: 0.3rem 0.5rem;
+  }
+}

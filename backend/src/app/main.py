@@ -15,11 +15,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth import AuthReceiver, require_accounts_auth, require_auth
 from bankaccounts import BankAccounts, BankAccountsReceiver, EnableBankingClient
+from database import Database
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from members_history import MembersHistory, MembersHistoryReceiver
 from notifications import NotificationsReceiver, PushNotifications
+from trials import Trials, TrialsReceiver
 
 load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
 
@@ -95,6 +97,21 @@ ffst_client = Ffst(
     password=os.environ.get("FFST_PASSWORD", ""),
 )
 ffst_receiver = FfstReceiver(client=ffst_client, app=protected_router)
+
+# Base de donnees SQLite de l'appli (voir database/database.py) : fichier
+# dans le volume Docker (/app/data), meme necessite de persistance que
+# financialbalance_client plus bas. Schema mis a jour au demarrage.
+database = Database(os.environ.get("DATABASE_PATH", "data/sambo.db"))
+database.migrate()
+
+# Monte les routes des eleves en cours d'essai (/trials/...) sur la meme app
+# (onglet "Essai"). Les certificats medicaux envoyes (donnees de sante)
+# restent dans le volume Docker, jamais dans Git.
+trials_client = Trials(
+    db=database,
+    certificates_dir=os.environ.get("TRIALS_CERTIFICATES_DIR", "data/trial_certificates"),
+)
+trials_receiver = TrialsReceiver(client=trials_client, app=protected_router)
 
 # Monte les routes du bilan financier (/financialbalance/archives) sur la
 # meme app. storage_dir doit pointer vers un repertoire persistant (volume
@@ -212,9 +229,23 @@ async def _poll_new_members() -> None:
         await asyncio.sleep(NOTIFICATIONS_POLL_INTERVAL_SECONDS)
 
 
+async def _purge_expired_trials() -> None:
+    """Boucle de fond : une fois par jour, supprime les eleves a l'essai
+    sans activite depuis un an (voir Trials.purge_expired)."""
+    while True:
+        try:
+            removed = await asyncio.to_thread(trials_client.purge_expired)
+            if removed:
+                print(f"_purge_expired_trials: {removed} eleve(s) a l'essai supprime(s)")
+        except Exception as exc:
+            print(f"_purge_expired_trials: erreur ({exc})")
+        await asyncio.sleep(24 * 60 * 60)
+
+
 @app.on_event("startup")
 async def _start_polling() -> None:
     asyncio.create_task(_poll_new_members())
+    asyncio.create_task(_purge_expired_trials())
 
 
 def main() -> None:

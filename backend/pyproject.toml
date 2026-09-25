@@ -22,6 +22,9 @@ dependencies = [
     "itsdangerous",
     "pymupdf",
     "pyjwt[crypto]",
+    # Fuseau Europe/Paris (date du jour des cours d'essai, voir trials) :
+    # l'image python:slim n'a pas forcement la base des fuseaux du systeme.
+    "tzdata",
 ]
 
 [project.optional-dependencies]

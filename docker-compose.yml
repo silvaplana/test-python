@@ -27,7 +27,8 @@ services:
     env_file:
       - ./backend/.env
     # Stockage persistant des archives de relevés bancaires envoyées via
-    # /financialbalance/archives : sans ce volume, tout serait perdu à
+    # /financialbalance/archives, de la base SQLite (data/sambo.db, élèves à
+    # l'essai) et de tout le reste de /app/data : sans ce volume, tout serait perdu à
     # chaque "docker compose up --build" (l'image est reconstruite à
     # neuf). Volume nommé (pas un bind mount type "./backend/data:...") :
     # Docker initialise son contenu/ses droits depuis /app/data de l'image

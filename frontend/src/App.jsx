@@ -5,6 +5,7 @@ import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, Unpa
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import { Profile } from './Profile.jsx'
+import { TrialsTable } from './Trials.jsx'
 import Navigation from './Navigation.jsx'
 
 // Contenu de l'appli, monte seulement une fois authentifie (dans AuthGate) :
@@ -14,8 +15,8 @@ function AppContent() {
   return (
     <Navigation
       // Retour de la banque (voir BankAccounts.jsx) : ouvre directement
-      // Finances/Comptes (section 3, outil 2), sinon l'accueil habituel.
-      initialSection={hasBankCallback && canViewAccounts ? 2 : 0}
+      // Finances/Comptes (section 4, outil 2), sinon l'accueil habituel.
+      initialSection={hasBankCallback && canViewAccounts ? 3 : 0}
       initialTool={hasBankCallback && canViewAccounts ? 1 : 0}
       header={<CampaignTitle />}
       sections={[
@@ -42,6 +43,11 @@ function AppContent() {
             { label: 'Demandes validées', shortLabel: 'Validées', content: () => <DemandesTable /> },
             { label: 'Licenciés', content: () => <LicencesTable /> },
           ],
+        },
+        {
+          key: 'essai',
+          label: 'Essai',
+          tools: [{ label: "Élèves à l'essai", content: () => <TrialsTable /> }],
         },
         {
           key: 'finances',
