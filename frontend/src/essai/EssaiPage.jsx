@@ -375,9 +375,6 @@ function Result({ result }) {
         pour un seul cours.
       </p>
       <img src={qrSrc} alt="QR code du cours d'essai" className="essai-qr" />
-      <a href={qrSrc} download="qr-code-cours-essai.png" className="essai-submit">
-        Enregistrer le QR code
-      </a>
       <p className="essai-hint">
         {result.emailSent
           ? `Un e-mail récapitulatif avec ce QR code a été envoyé à ${result.email}.`
