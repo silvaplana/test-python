@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from PIL import Image
 
 from database import Database
+from mailer import Mailer
 from trials import Trials, TrialsPublicReceiver, TrialsReceiver
 from trials.trials import RegistrationError, TrialCoursesFullError, TrialStudentNotFoundError, today
 
@@ -179,8 +180,8 @@ class FakeMailer:
     def __init__(self):
         self.sent = []
 
-    def send(self, to_email, to_name, subject, html, attachments=None):
-        self.sent.append((to_email, subject, html, attachments))
+    def send(self, to_email, to_name, subject, html, text, inline_images=None):
+        self.sent.append((to_email, subject, html, inline_images))
         return True
 
 
@@ -254,10 +255,49 @@ def test_confirmation_email(trials):
     trials.mailer = FakeMailer()
     result = trials.register(adult_form(), png_bytes(), None, None)
     assert trials.send_confirmation(result["student"], result["token"]) is True
-    to_email, subject, html, attachments = trials.mailer.sent[0]
+    to_email, subject, html, inline_images = trials.mailer.sent[0]
     assert to_email == "hugo@example.com" and "cours d'essai" in subject
-    assert f"{result['token']}.png" in html and "Hugo Blanc" in html
-    assert attachments[0][1].startswith(b"\x89PNG")
+    assert 'src="cid:qrcode"' in html and "Hugo Blanc" in html
+    assert inline_images["qrcode"].startswith(b"\x89PNG")
+
+
+def test_mailer_builds_smtp_message(monkeypatch):
+    """Le mail reellement envoye (faux serveur SMTP) : STARTTLS + login,
+    expediteur, reponse, version texte et QR code integre (cid)."""
+    sent = {}
+
+    class FakeSmtp:
+        def __init__(self, host, port, timeout):
+            sent["server"] = (host, port)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def starttls(self, context):
+            sent["tls"] = True
+
+        def login(self, user, password):
+            sent["login"] = (user, password)
+
+        def send_message(self, message):
+            sent["message"] = message
+
+    monkeypatch.setattr("mailer.mailer.smtplib.SMTP", FakeSmtp)
+    mailer = Mailer("smtp.gmail.com", 587, "club@gmail.com", "app-password", "", "Club", "club@outlook.fr")
+    assert mailer.send("lea@example.com", "Léa Martin", "Sujet", '<img src="cid:qrcode">', "texte", {"qrcode": png_bytes()})
+    message = sent["message"]
+    assert sent["server"] == ("smtp.gmail.com", 587) and sent["tls"] and sent["login"][0] == "club@gmail.com"
+    assert message["From"] == "Club <club@gmail.com>" and message["Reply-To"] == "club@outlook.fr"
+    image = next(part for part in message.walk() if part.get_content_type() == "image/png")
+    assert image["Content-ID"] == "<qrcode>"
+    assert message.get_body(("plain",)).get_content().strip() == "texte"
+
+
+def test_mailer_disabled_without_credentials():
+    assert Mailer("smtp.gmail.com", 587, "", "", "", "Club").send("a@b.fr", "A", "S", "h", "t") is False
 
 
 def test_public_routes(trials):
@@ -283,9 +323,6 @@ def test_public_routes(trials):
     assert incomplete.status_code == 422 and "décharge" in incomplete.json()["detail"]
     bot = client.post("/public/trials/register", data={**data, "firstName": "Bot", "website": "spam"})
     assert bot.status_code == 200 and len(trials.list_students()) == 1
-    token = trials.register(adult_form(), png_bytes(), None, None)["token"]
-    assert client.get(f"/public/trials/qr/{token}.png").headers["content-type"] == "image/png"
-    assert client.get("/public/trials/qr/inconnu.png").status_code == 404
 
 
 def test_public_register_rate_limited(trials):

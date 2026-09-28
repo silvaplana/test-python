@@ -34,7 +34,7 @@ from database import Database
 from mailer import Mailer
 
 from . import content
-from .emails import confirmation_email
+from .emails import QR_CID, confirmation_email
 
 # Photos d'iPhone (HEIC) : lisibles par Pillow une fois ce module enregistre.
 pillow_heif.register_heif_opener()
@@ -93,17 +93,14 @@ class Trials:
         db: Database,
         certificates_dir: str,
         checkin_url: str = "https://silvaplana.cloud/sambo-admin/?essai=",
-        qr_image_url: str = "https://silvaplana.cloud/sambo-admin/api/public/trials/qr/",
         mailer: Mailer | None = None,
     ) -> None:
         """checkin_url : debut de l'URL contenue dans le QR code, suivie du
         jeton -- scanne avec l'appareil photo du telephone, il ouvre
-        directement l'onglet Essai de l'appli. qr_image_url : adresse publique
-        de l'image du QR code (suivie de "<jeton>.png"), affichee dans le mail."""
+        directement l'onglet Essai de l'appli."""
         self.db = db
         self.certificates_dir = Path(certificates_dir)
         self.checkin_url = checkin_url
-        self.qr_image_url = qr_image_url
         self.mailer = mailer
 
     # ----- lecture -----
@@ -324,11 +321,7 @@ class Trials:
         return match.group(1) if match else scanned
 
     def qr_png(self, token: str) -> bytes:
-        """Image PNG du QR code d'un eleve. TrialStudentNotFoundError si le
-        jeton n'existe pas (pas de generateur de QR code ouvert a tous)."""
-        with self.db.connect() as connection:
-            if connection.execute("SELECT 1 FROM trial_students WHERE qr_token = ?", (token,)).fetchone() is None:
-                raise TrialStudentNotFoundError(token)
+        """Image PNG du QR code d'un eleve."""
         buffer = io.BytesIO()
         segno.make(self.checkin_url + token, error="m").save(buffer, kind="png", scale=10, border=4)
         return buffer.getvalue()
@@ -488,13 +481,14 @@ class Trials:
         MailError si l'envoi echoue."""
         if self.mailer is None or not student.get("email"):
             return False
-        subject, html = confirmation_email(student, f"{self.qr_image_url}{token}.png")
+        subject, html, text = confirmation_email(student)
         return self.mailer.send(
             student["email"],
             f"{student['firstName']} {student['lastName']}",
             subject,
             html,
-            attachments=[("qr-code-cours-essai.png", self.qr_png(token))],
+            text,
+            inline_images={QR_CID: self.qr_png(token)},
         )
 
     # ----- conservation des donnees -----

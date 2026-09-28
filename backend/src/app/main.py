@@ -105,11 +105,15 @@ ffst_receiver = FfstReceiver(client=ffst_client, app=protected_router)
 database = Database(os.environ.get("DATABASE_PATH", "data/sambo.db"))
 database.migrate()
 
-# Envoi de mails (Brevo, voir mailer/mailer.py) : inactif tant que
-# BREVO_API_KEY n'est pas definie (les mails sont alors juste journalises).
+# Envoi de mails par SMTP (voir mailer/mailer.py, ex: compte Gmail avec un
+# mot de passe d'application) : inactif tant que SMTP_USER/SMTP_PASSWORD ne
+# sont pas definis (les mails sont alors juste journalises).
 mailer = Mailer(
-    api_key=os.environ.get("BREVO_API_KEY", ""),
-    sender=os.environ.get("MAIL_SENDER", "essai@silvaplana.cloud"),
+    host=os.environ.get("SMTP_HOST", "smtp.gmail.com"),
+    port=int(os.environ.get("SMTP_PORT", "587")),
+    user=os.environ.get("SMTP_USER", ""),
+    password=os.environ.get("SMTP_PASSWORD", ""),
+    sender=os.environ.get("MAIL_SENDER", ""),
     sender_name=os.environ.get("MAIL_SENDER_NAME", "Alliance Sambo Combat La Ciotat"),
     reply_to=os.environ.get("MAIL_REPLY_TO") or None,
 )
@@ -117,13 +121,12 @@ mailer = Mailer(
 # Monte les routes des eleves en cours d'essai (/trials/...) sur la meme app
 # (onglet "Essai"). Les certificats medicaux envoyes (donnees de sante)
 # restent dans le volume Docker, jamais dans Git. PUBLIC_BASE_URL : adresse
-# publique du site, pour les liens du QR code et du mail de confirmation.
+# publique du site, contenue dans le QR code (ouvre l'onglet Essai).
 public_base_url = os.environ.get("PUBLIC_BASE_URL", "https://silvaplana.cloud").rstrip("/")
 trials_client = Trials(
     db=database,
     certificates_dir=os.environ.get("TRIALS_CERTIFICATES_DIR", "data/trial_certificates"),
     checkin_url=f"{public_base_url}/sambo-admin/?essai=",
-    qr_image_url=f"{public_base_url}/sambo-admin/api/public/trials/qr/",
     mailer=mailer,
 )
 trials_receiver = TrialsReceiver(client=trials_client, app=protected_router)

@@ -3,12 +3,12 @@ import binascii
 import time
 from collections import defaultdict, deque
 
-from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Request, UploadFile
 
 from mailer import MailError
 
 from . import content
-from .trials import RegistrationError, Trials, TrialStudentNotFoundError
+from .trials import RegistrationError, Trials
 
 
 class RateLimiter:
@@ -52,8 +52,7 @@ def _decode_signature(data_url: str) -> bytes:
 class TrialsPublicReceiver:
     """Routes PUBLIQUES (sans mot de passe) de la page d'inscription au cours
     d'essai. Montees directement sur l'app (pas sur le routeur protege, voir
-    app/main.py) : a garder minimales -- lire les textes, s'inscrire, afficher
-    l'image d'un QR code dont on connait le jeton."""
+    app/main.py) : a garder minimales -- lire les textes, s'inscrire."""
 
     def __init__(self, client: Trials, app: FastAPI | APIRouter) -> None:
         self.client = client
@@ -64,7 +63,6 @@ class TrialsPublicReceiver:
     def _register_routes(self) -> None:
         self.app.get("/public/trials/info")(self.getInfo)
         self.app.post("/public/trials/register")(self.register)
-        self.app.get("/public/trials/qr/{token}.png")(self.getQrPng)
 
     def getInfo(self) -> dict:
         """Endpoint REST GET /public/trials/info. Textes de la page
@@ -134,12 +132,3 @@ class TrialsPublicReceiver:
             "qrPng": base64.b64encode(self.client.qr_png(result["token"])).decode("ascii"),
             "emailSent": email_sent,
         }
-
-    def getQrPng(self, token: str) -> Response:
-        """Endpoint REST GET /public/trials/qr/{jeton}.png. Image du QR code,
-        affichee dans le mail de confirmation (404 si jeton inconnu)."""
-        try:
-            png = self.client.qr_png(token)
-        except TrialStudentNotFoundError as exc:
-            raise HTTPException(status_code=404, detail="QR code inconnu") from exc
-        return Response(content=png, media_type="image/png", headers={"Cache-Control": "private, max-age=86400"})
