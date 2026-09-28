@@ -11,11 +11,13 @@ TERMS_VERSION = "2026-09-26"
 
 CLUB_NAME = "Alliance Sambo Combat La Ciotat"
 
-TITLE = "Cours d'essai MMA / Sambo"
+TITLE = "Cours d'essai gratuit"
+
+SUBTITLE = "Sport de combat MMA Sambo – La Ciotat, La Bédoule"
 
 INTRO = (
-    "Envie de découvrir le MMA ou le sambo ? Venez faire un cours d'essai gratuit à La Bédoule "
-    "ou à La Ciotat. Inscrivez-vous ci-dessous : vous recevrez un QR code à présenter au début du cours."
+    "Venez découvrir le sambo et le MMA ! Inscrivez-vous ci-dessous : vous recevrez par e-mail "
+    "un QR code à présenter à l'entraîneur au début de votre cours d'essai."
 )
 
 RULES = [
@@ -27,24 +29,32 @@ RULES = [
     "Les mineurs doivent être inscrits par un parent ou représentant légal.",
 ]
 
-# EXEMPLES A REMPLACER par les vrais lieux et creneaux.
-SESSIONS = [
+# Horaires d'entrainement (repris du site du club,
+# https://mma-sambo-bedoule-ciotat.e-monsite.com/). "place" : cle de PLACES.
+SCHEDULE = [
+    {"day": "Lundi", "time": "19h – 21h", "course": "Sambo MMA", "place": "La Bédoule"},
+    {"day": "Jeudi", "time": "19h15 – 21h15", "course": "Sambo MMA", "place": "La Ciotat"},
+    {"day": "Samedi", "time": "9h – 10h", "course": "Cross training", "place": "La Ciotat"},
+    {"day": "Samedi", "time": "10h15 – 12h15", "course": "Sambo MMA", "place": "La Ciotat"},
+]
+
+# Salles (points GPS des cartes Google Maps du site du club).
+PLACES = [
     {
-        "place": "La Bédoule (à compléter)",
-        "address": "Adresse du gymnase à compléter",
-        "slots": [
-            {"day": "Mardi", "time": "18h30 – 20h00", "audience": "Adultes (à compléter)"},
-            {"day": "Jeudi", "time": "18h30 – 20h00", "audience": "Adultes (à compléter)"},
-        ],
+        "name": "La Bédoule",
+        "address": "Salle Marius Aimonetto, allée Hippolyte Gondrexon, 13830 Roquefort-la-Bédoule",
+        "map": "https://www.google.com/maps/search/?api=1&query=43.248059%2C5.585899",
     },
     {
-        "place": "La Ciotat (à compléter)",
-        "address": "Adresse du dojo à compléter",
-        "slots": [
-            {"day": "Mercredi", "time": "17h00 – 18h00", "audience": "Enfants (à compléter)"},
-            {"day": "Samedi", "time": "10h00 – 12h00", "audience": "Ados et adultes (à compléter)"},
-        ],
+        "name": "La Ciotat",
+        "address": "13600 La Ciotat (adresse précise à compléter)",
+        "map": "https://www.google.com/maps/search/?api=1&query=43.175804%2C5.600121",
     },
+]
+
+CONTACTS = [
+    {"name": "Roland", "phone": "06 86 13 84 54"},
+    {"name": "Karima", "phone": "07 66 09 63 68"},
 ]
 
 MEDICAL_ATTESTATION = (
@@ -83,9 +93,12 @@ def public_info() -> dict:
         "termsVersion": TERMS_VERSION,
         "club": CLUB_NAME,
         "title": TITLE,
+        "subtitle": SUBTITLE,
         "intro": INTRO,
         "rules": RULES,
-        "sessions": SESSIONS,
+        "schedule": SCHEDULE,
+        "places": PLACES,
+        "contacts": CONTACTS,
         "medicalAttestation": MEDICAL_ATTESTATION,
         "medicalCertificateHint": MEDICAL_CERTIFICATE_HINT,
         "parentalConsent": PARENTAL_CONSENT,

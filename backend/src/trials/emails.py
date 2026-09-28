@@ -23,15 +23,18 @@ def confirmation_email(student: dict) -> tuple[str, str, str]:
     reference l'image du QR code par src="cid:qrcode" (voir QR_CID)."""
     name = escape(f"{student['firstName']} {student['lastName']}")
     rules = "".join(f"<li style='margin-bottom:4px'>{escape(rule)}</li>" for rule in content.RULES)
-    sessions = "".join(
-        f"<p style='margin:12px 0 4px'><strong>{escape(session['place'])}</strong><br>"
-        f"<span style='color:#666'>{escape(session['address'])}</span></p>"
-        + "".join(
-            f"<div>• {escape(slot['day'])} {escape(slot['time'])} — {escape(slot['audience'])}</div>"
-            for slot in session["slots"]
-        )
-        for session in content.SESSIONS
+    schedule = "".join(
+        f"<tr><td style='padding:6px 8px;border:1px solid #ccc'><strong>{escape(slot['day'])}</strong> "
+        f"{escape(slot['time'])}</td><td style='padding:6px 8px;border:1px solid #ccc'>{escape(slot['course'])}</td>"
+        f"<td style='padding:6px 8px;border:1px solid #ccc'>{escape(slot['place'])}</td></tr>"
+        for slot in content.SCHEDULE
     )
+    places = "".join(
+        f"<p style='margin:10px 0 0'><strong>{escape(place['name'])}</strong> : {escape(place['address'])} "
+        f"(<a href='{escape(place['map'])}' style='color:#bc964f'>voir sur la carte</a>)</p>"
+        for place in content.PLACES
+    )
+    contacts = " – ".join(f"{escape(c['name'])} : {escape(c['phone'])}" for c in content.CONTACTS)
     html = f"""\
 <!doctype html>
 <html lang="fr">
@@ -54,8 +57,11 @@ def confirmation_email(student: dict) -> tuple[str, str, str]:
   <h2 style="font-size:17px;margin:0 0 8px">Modalités</h2>
   <ul style="margin:0 0 20px;padding-left:20px">{rules}</ul>
 
-  <h2 style="font-size:17px;margin:0 0 8px">Horaires et lieux</h2>
-  {sessions}
+  <h2 style="font-size:17px;margin:0 0 8px">Horaires d'entraînement</h2>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;font-size:14px;width:100%">{schedule}</table>
+  {places}
+
+  <p style="margin:20px 0 0">Une question ? {contacts}</p>
 
   <p style="margin:24px 0 0;font-size:12px;color:#888">{escape(content.PRIVACY)}</p>
 </td></tr>
@@ -75,15 +81,12 @@ def confirmation_email(student: dict) -> tuple[str, str, str]:
             "MODALITÉS",
             *(f"- {rule}" for rule in content.RULES),
             "",
-            "HORAIRES ET LIEUX",
-            *(
-                line
-                for session in content.SESSIONS
-                for line in (
-                    f"{session['place']} ({session['address']})",
-                    *(f"- {slot['day']} {slot['time']} : {slot['audience']}" for slot in session["slots"]),
-                )
-            ),
+            "HORAIRES D'ENTRAÎNEMENT",
+            *(f"- {slot['day']} {slot['time']} : {slot['course']} ({slot['place']})" for slot in content.SCHEDULE),
+            "",
+            *(f"{place['name']} : {place['address']}" for place in content.PLACES),
+            "",
+            "Une question ? " + " – ".join(f"{c['name']} : {c['phone']}" for c in content.CONTACTS),
             "",
             content.PRIVACY,
         ]

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import SignaturePad from 'signature_pad'
+import banner from '../assets/essai-banner.jpg'
 import clubLogo from '../assets/club-logo-transparent.png'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -56,23 +57,35 @@ export default function EssaiPage() {
       .catch(() => setLoadError('Impossible de charger la page, réessayez dans un instant.'))
   }, [])
 
+  // Meme charte que le site du club (https://mma-sambo-bedoule-ciotat.e-monsite.com/) :
+  // fond blanc, titres Cinzel Decorative, bandeaux vert pale, boutons noirs.
   return (
-    <main className="essai">
-      <header className="essai-header">
+    <>
+      <header className="essai-topbar">
         <img src={clubLogo} alt="" className="essai-logo" />
-        <div>
-          <h1>{info?.title ?? "Cours d'essai MMA / Sambo"}</h1>
-          <p className="essai-club">{info?.club ?? 'Alliance Sambo Combat La Ciotat'}</p>
-        </div>
+        <span>{info?.club ?? 'Alliance Sambo Combat La Ciotat'}</span>
       </header>
 
-      {loadError && <p className="essai-error">{loadError}</p>}
+      <img src={banner} alt="" className="essai-banner" />
+
+      <section className="essai-band essai-title">
+        <h1>{info?.title ?? "Cours d'essai gratuit"}</h1>
+        {info && <p>{info.subtitle}</p>}
+      </section>
+
+      {loadError && (
+        <section className="essai-band">
+          <p className="essai-error">{loadError}</p>
+        </section>
+      )}
 
       {info && !result && (
         <>
-          <p className="essai-intro">{info.intro}</p>
+          <section className="essai-band">
+            <p className="essai-intro">{info.intro}</p>
+          </section>
 
-          <section className="essai-card">
+          <section className="essai-band essai-band-green">
             <h2>Modalités</h2>
             <ul className="essai-rules">
               {info.rules.map((rule) => (
@@ -81,32 +94,62 @@ export default function EssaiPage() {
             </ul>
           </section>
 
-          <section className="essai-card">
-            <h2>Horaires et lieux</h2>
-            {info.sessions.map((session) => (
-              <div key={session.place} className="essai-place">
-                <h3>{session.place}</h3>
-                <p className="essai-address">{session.address}</p>
-                <ul className="essai-slots">
-                  {session.slots.map((slot) => (
-                    <li key={`${slot.day}-${slot.time}`}>
-                      <strong>{slot.day}</strong> {slot.time}
-                      <span>{slot.audience}</span>
-                    </li>
-                  ))}
-                </ul>
+          <section className="essai-band">
+            <h2>Horaires d'entraînement</h2>
+            <table className="essai-schedule">
+              <tbody>
+                {info.schedule.map((slot) => (
+                  <tr key={`${slot.day}-${slot.time}`}>
+                    <td>
+                      <strong>{slot.day}</strong>
+                      <br />
+                      {slot.time}
+                    </td>
+                    <td>{slot.course}</td>
+                    <td>{slot.place}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {info.places.map((place) => (
+              <div key={place.name} className="essai-place">
+                <h3>{place.name}</h3>
+                <p>{place.address}</p>
+                <a href={place.map} target="_blank" rel="noreferrer" className="essai-button essai-button-small">
+                  Voir sur la carte
+                </a>
               </div>
             ))}
           </section>
 
-          <RegistrationForm info={info} onDone={setResult} />
+          <section className="essai-band essai-band-form">
+            <h2>Inscription</h2>
+            <RegistrationForm info={info} onDone={setResult} />
+          </section>
         </>
       )}
 
-      {result && <Result result={result} />}
+      {result && (
+        <section className="essai-band">
+          <Result result={result} />
+        </section>
+      )}
 
-      {info && <p className="essai-privacy">{info.privacy}</p>}
-    </main>
+      {info && (
+        <section className="essai-band essai-band-green">
+          <h2>Contact téléphone</h2>
+          <div className="essai-contacts">
+            {info.contacts.map((contact) => (
+              <a key={contact.phone} href={`tel:${contact.phone.replaceAll(' ', '')}`} className="essai-button">
+                {contact.name} : {contact.phone}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <footer className="essai-footer">{info && <p>{info.privacy}</p>}</footer>
+    </>
   )
 }
 
@@ -156,8 +199,7 @@ function RegistrationForm({ info, onDone }) {
   }
 
   return (
-    <form className="essai-card essai-form" onSubmit={submit}>
-      <h2>Inscription</h2>
+    <form className="essai-form" onSubmit={submit}>
 
       <fieldset>
         <legend>L'élève</legend>
@@ -350,7 +392,7 @@ function SignatureField({ padRef }) {
 function Result({ result }) {
   if (result.status === 'existing') {
     return (
-      <section className="essai-card essai-result">
+      <div className="essai-result">
         <h2>Vous êtes déjà inscrit(e)</h2>
         {result.emailSent ? (
           <p>
@@ -360,13 +402,13 @@ function Result({ result }) {
         ) : (
           <p>Votre QR code a déjà été généré lors de votre première inscription. Contactez le club si vous l'avez perdu.</p>
         )}
-      </section>
+      </div>
     )
   }
   const qrSrc = `data:image/png;base64,${result.qrPng}`
   return (
-    <section className="essai-card essai-result">
-      <h2>Inscription confirmée ✅</h2>
+    <div className="essai-result">
+      <h2>Inscription confirmée</h2>
       <p>
         <strong>
           {result.firstName} {result.lastName}
@@ -380,6 +422,6 @@ function Result({ result }) {
           ? `Un e-mail récapitulatif avec ce QR code a été envoyé à ${result.email}.`
           : 'Faites une capture d’écran de ce QR code pour le garder.'}
       </p>
-    </section>
+    </div>
   )
 }

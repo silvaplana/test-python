@@ -1,19 +1,22 @@
 /* Page publique d'inscription au cours d'essai (voir EssaiPage.jsx).
-   Independante du style de l'appli d'administration : theme sombre avec le
-   jaune du logo du club. Pensee d'abord pour le telephone. */
+   Meme charte que le site du club (https://mma-sambo-bedoule-ciotat.e-monsite.com/) :
+   fond blanc, texte noir en Lato, titres Cinzel Decorative, bandeaux vert
+   pale, dore du menu, boutons noirs a angles droits. Pensee d'abord pour le
+   telephone. */
 :root {
-  --bg: #111217;
-  --card: #1b1c23;
-  --border: #2e303a;
-  --text: #c9ccd4;
-  --text-h: #f5f6f8;
-  --muted: #8b8f9a;
-  --accent: #facc15;
-  --accent-text: #1a1400;
-  --error: #f87171;
+  --bg: #fff;
+  --green: #e9f2e1;
+  --gold: #bc964f;
+  --text: #000;
+  --muted: #555;
+  --border: #bbb;
+  --error: #c0392b;
 
-  color-scheme: dark;
-  font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+  --title-font: 'Cinzel Decorative', Georgia, serif;
+  --text-font: Lato, system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  color-scheme: light;
+  font: 16px/1.55 var(--text-font);
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -24,61 +27,81 @@ body {
   margin: 0;
 }
 
-.essai {
-  max-width: 40rem;
-  margin: 0 auto;
-  padding: 1rem 1rem 3rem;
-  box-sizing: border-box;
-}
+/* ----- en-tete et bandeau ----- */
 
-.essai-header {
+.essai-topbar {
   display: flex;
   align-items: center;
-  gap: 0.9rem;
-  margin: 0.5rem 0 1.25rem;
+  gap: 0.7rem;
+  padding: 0.6rem max(1rem, calc((100% - 44rem) / 2));
+  font-family: Lora, Georgia, serif;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
 .essai-logo {
-  width: 4rem;
-  height: 4rem;
-  flex-shrink: 0;
+  width: 2.8rem;
+  height: 2.8rem;
+  padding: 0.2rem;
+  box-sizing: border-box;
+  background: #000;
 }
 
-.essai h1 {
+/* Banniere du site du club, entiere (l'ours au centre ne doit pas etre
+   masque), puis le titre en dessous. */
+.essai-banner {
+  display: block;
+  width: 100%;
+  max-width: 64rem;
+  margin: 0 auto;
+}
+
+.essai-title {
+  padding-bottom: 0;
+}
+
+.essai-title h1 {
   margin: 0;
-  font-size: 1.55rem;
+  font-family: var(--title-font);
+  font-weight: 700;
+  font-size: 2rem;
   line-height: 1.15;
-  color: var(--text-h);
 }
 
-.essai-club {
-  margin: 0.2rem 0 0;
-  color: var(--accent);
-  font-size: 0.9rem;
+.essai-title p {
+  margin: 0.35rem 0 0;
+  color: var(--gold);
+  font-family: Lora, Georgia, serif;
+  font-weight: 700;
+}
+
+/* ----- bandeaux (sections pleine largeur, contenu centre) ----- */
+
+.essai-band {
+  padding: 2rem max(1rem, calc((100% - 44rem) / 2));
+}
+
+.essai-band-green {
+  background: var(--green);
+}
+
+.essai-band h2 {
+  margin: 0 0 1rem;
+  font-family: var(--title-font);
+  font-weight: 400;
+  font-size: 1.65rem;
+  line-height: 1.2;
+}
+
+.essai-band h3 {
+  margin: 0;
+  font-family: Lora, Georgia, serif;
+  font-size: 1.05rem;
 }
 
 .essai-intro {
-  margin: 0 0 1.25rem;
-}
-
-.essai-card {
-  margin-bottom: 1rem;
-  padding: 1.1rem 1.1rem 1.25rem;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--card);
-}
-
-.essai h2 {
-  margin: 0 0 0.75rem;
-  font-size: 1.2rem;
-  color: var(--text-h);
-}
-
-.essai h3 {
   margin: 0;
-  font-size: 1rem;
-  color: var(--text-h);
+  font-size: 1.05rem;
 }
 
 .essai-rules {
@@ -87,62 +110,94 @@ body {
 }
 
 .essai-rules li + li {
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
 }
 
-.essai-place + .essai-place {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border);
+.essai-rules li::marker {
+  color: var(--gold);
 }
 
-.essai-address {
-  margin: 0.1rem 0 0.5rem;
+/* Tableau a bordures fines, comme sur le site du club. */
+.essai-schedule {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.essai-schedule td {
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #333;
+  vertical-align: top;
+}
+
+.essai-place {
+  margin-top: 1.25rem;
+}
+
+.essai-place p {
+  margin: 0.15rem 0 0.6rem;
   color: var(--muted);
+}
+
+/* Boutons noirs a angles droits (comme "Instagram" / "Telecharger" du site). */
+.essai-button {
+  display: inline-block;
+  padding: 15px 30px;
+  border: none;
+  border-radius: 0;
+  background: #000;
+  color: #fff;
+  font: inherit;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+}
+
+.essai-button:hover {
+  background: #333;
+}
+
+.essai-button-small {
+  padding: 0.55rem 1rem;
   font-size: 0.9rem;
 }
 
-.essai-slots {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.essai-slots li {
+.essai-contacts {
   display: flex;
   flex-wrap: wrap;
-  gap: 0 0.4rem;
-  padding: 0.25rem 0;
+  gap: 0.75rem;
 }
 
-.essai-slots strong {
-  color: var(--text-h);
-  min-width: 5.5rem;
+.essai-footer {
+  padding: 1.5rem max(1rem, calc((100% - 44rem) / 2));
+  background: #000;
+  color: #ddd;
+  font-size: 0.8rem;
 }
 
-.essai-slots span {
-  color: var(--muted);
-  flex-basis: 100%;
-  padding-left: 5.9rem;
-  font-size: 0.9rem;
+.essai-footer p {
+  margin: 0;
 }
 
 /* ----- formulaire ----- */
 
 .essai-form fieldset {
-  margin: 0 0 1.25rem;
+  margin: 0 0 1.75rem;
   padding: 0;
   border: none;
   display: flex;
   flex-direction: column;
-  gap: 0.8rem;
+  gap: 0.85rem;
 }
 
 .essai-form legend {
-  margin-bottom: 0.6rem;
-  padding: 0;
-  font-weight: 600;
-  color: var(--accent);
+  width: 100%;
+  margin-bottom: 0.75rem;
+  padding: 0 0 0.3rem;
+  border-bottom: 2px solid var(--gold);
+  font-family: Lora, Georgia, serif;
+  font-weight: 700;
+  font-size: 1.05rem;
 }
 
 .essai-form label,
@@ -150,13 +205,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  font-size: 0.9rem;
-  color: var(--text-h);
+  font-weight: 700;
+  font-size: 0.92rem;
 }
 
 .essai-form small {
   color: var(--muted);
-  font-size: 0.8rem;
+  font-weight: 400;
+  font-size: 0.82rem;
 }
 
 /* 16px minimum : en dessous, Safari sur iPhone zoome sur le champ au toucher. */
@@ -170,18 +226,20 @@ body {
   min-height: 2.9rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
-  color: var(--text-h);
+  border-radius: 0;
+  background: #fff;
+  color: var(--text);
   font: inherit;
+  font-weight: 400;
   font-size: 16px;
   -webkit-appearance: none;
   appearance: none;
 }
 
 .essai-form input:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline: 2px solid var(--gold);
+  outline-offset: 0;
+  border-color: var(--gold);
 }
 
 .essai-choice {
@@ -195,9 +253,8 @@ body {
   justify-content: center;
   align-items: center;
   min-height: 2.9rem;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg);
+  border: 1px solid #000;
+  font-weight: 400;
   cursor: pointer;
 }
 
@@ -208,32 +265,32 @@ body {
 }
 
 .essai-choice .essai-choice-active {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
+  background: #000;
+  color: #fff;
+  font-weight: 700;
 }
 
 .essai-form .essai-check {
   flex-direction: row;
   align-items: flex-start;
   gap: 0.7rem;
-  font-size: 0.88rem;
-  color: var(--text);
+  font-weight: 400;
+  font-size: 0.9rem;
   cursor: pointer;
 }
 
 .essai-check input {
-  width: 1.4rem;
-  height: 1.4rem;
-  margin: 0.05rem 0 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  margin: 0.1rem 0 0;
   flex-shrink: 0;
-  accent-color: var(--accent);
+  accent-color: #000;
 }
 
 .essai-hint {
   margin: 0;
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.88rem;
 }
 
 .essai-form .essai-file {
@@ -242,8 +299,8 @@ body {
   justify-content: center;
   min-height: 2.9rem;
   padding: 0 0.75rem;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
+  border: 1px dashed #000;
+  font-weight: 400;
   cursor: pointer;
   text-align: center;
   overflow-wrap: anywhere;
@@ -263,7 +320,7 @@ body {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   text-decoration: underline;
   cursor: pointer;
 }
@@ -271,8 +328,7 @@ body {
 .essai-signature {
   position: relative;
   height: 11rem;
-  border-radius: 10px;
-  overflow: hidden;
+  border: 1px solid #000;
   background: #fff;
 }
 
@@ -290,7 +346,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #9ca3af;
+  color: #999;
   pointer-events: none;
 }
 
@@ -305,25 +361,27 @@ body {
 .essai-error {
   margin: 0 0 1rem;
   color: var(--error);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .essai-submit {
   display: block;
   box-sizing: border-box;
   width: 100%;
-  min-height: 3.2rem;
-  padding: 0.8rem 1rem;
+  min-height: 3.3rem;
+  padding: 15px 30px;
   border: none;
-  border-radius: 12px;
-  background: var(--accent);
-  color: var(--accent-text);
+  border-radius: 0;
+  background: #000;
+  color: #fff;
   font: inherit;
-  font-size: 1.05rem;
+  font-size: 1.1rem;
   font-weight: 700;
-  text-align: center;
-  text-decoration: none;
   cursor: pointer;
+}
+
+.essai-submit:hover:not(:disabled) {
+  background: #333;
 }
 
 .essai-submit:disabled {
@@ -345,17 +403,10 @@ body {
   display: block;
   width: min(18rem, 100%);
   margin: 0 auto 1rem;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid #000;
   image-rendering: pixelated;
 }
 
-.essai-result .essai-hint {
-  margin-top: 1rem;
-}
-
-.essai-privacy {
-  margin: 1.5rem 0 0;
-  color: var(--muted);
-  font-size: 0.8rem;
+.essai-title + .essai-band {
+  padding-top: 1rem;
 }
