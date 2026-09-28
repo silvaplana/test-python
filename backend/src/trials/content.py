@@ -47,7 +47,7 @@ PLACES = [
     },
     {
         "name": "La Ciotat",
-        "address": "13600 La Ciotat (adresse précise à compléter)",
+        "address": "Complexe Étienne Masse, avenue de la Pétanque, 13600 La Ciotat",
         "map": "https://www.google.com/maps/search/?api=1&query=43.175804%2C5.600121",
     },
 ]
