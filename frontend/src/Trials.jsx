@@ -86,6 +86,66 @@ function TrashIcon() {
   )
 }
 
+// Commentaire modifiable directement dans le tableau : enregistre seulement
+// apres validation (bouton ✓ ou touche Entree) ; ✕ ou Echap annule.
+function CommentCell({ student, onSaved }) {
+  const [draft, setDraft] = useState(student.comment)
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(null)
+  const changed = draft !== student.comment
+
+  // Commentaire modifie ailleurs (fiche de l'eleve, rafraichissement).
+  useEffect(() => {
+    setDraft(student.comment)
+  }, [student.comment])
+
+  async function save() {
+    setPending(true)
+    setError(null)
+    try {
+      onSaved(await sendJson(`/trials/students/${student.id}`, 'PATCH', { comment: draft }))
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setPending(false)
+    }
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Enter' && changed) {
+      e.preventDefault()
+      save()
+    } else if (e.key === 'Escape') {
+      setDraft(student.comment)
+    }
+  }
+
+  return (
+    <div className="trial-comment-edit">
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Ajouter…"
+        aria-label={`Commentaire sur ${student.firstName} ${student.lastName}`}
+        className={changed ? 'trial-comment-changed' : undefined}
+        disabled={pending}
+      />
+      {changed && (
+        <>
+          <button type="button" className="trial-comment-save" onClick={save} disabled={pending} title="Enregistrer">
+            ✓
+          </button>
+          <button type="button" onClick={() => setDraft(student.comment)} disabled={pending} title="Annuler">
+            ✕
+          </button>
+        </>
+      )}
+      {error && <span className="trial-comment-error">{error}</span>}
+    </div>
+  )
+}
+
 function CourseCell({ course }) {
   if (!course.date) return <span className="trial-course-empty">—</span>
   return (
@@ -179,12 +239,6 @@ export function TrialsTable() {
         </div>
       </div>
 
-      {/* Gros bouton : c'est l'action faite en debut de cours, souvent
-          d'une main, telephone dans l'autre. */}
-      <button className="trial-scan-button" onClick={() => setScan({})}>
-        📷 Scanner un QR code
-      </button>
-
       {error && <p className="error">{error}</p>}
 
       {students &&
@@ -200,7 +254,7 @@ export function TrialsTable() {
                   <th className="col-secondary">QR code</th>
                   <th>1er cours</th>
                   <th>2e cours</th>
-                  <th className="col-secondary">Commentaire</th>
+                  <th>Commentaire</th>
                   <th></th>
                 </tr>
               </thead>
@@ -224,7 +278,9 @@ export function TrialsTable() {
                       <td>
                         <CourseCell course={s.courses[1]} />
                       </td>
-                      <td className="col-secondary trial-comment">{s.comment}</td>
+                      <td className="trial-comment">
+                        <CommentCell student={s} onSaved={replaceStudent} />
+                      </td>
                       <td>
                         <button
                           className="trial-add-course"
@@ -251,6 +307,12 @@ export function TrialsTable() {
             </table>
           </div>
         ))}
+
+      {/* Sous le tableau : scan du QR code presente par l'eleve en debut de
+          cours. Gros bouton, souvent utilise d'une main. */}
+      <button className="trial-scan-button" onClick={() => setScan({})}>
+        QR code
+      </button>
 
       {scan && <ScanDialog result={scan.result} onResult={showCheckin} onRestart={() => setScan({})} onClose={() => setScan(null)} />}
 
