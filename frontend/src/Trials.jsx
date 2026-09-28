@@ -35,6 +35,10 @@ function shortDateFr(isoDate) {
   return dateFr(isoDate).replace(/\/\d\d(\d\d)$/, '/$1')
 }
 
+function shortTimestampFr(isoTimestamp) {
+  return timestampFr(isoTimestamp).replace(/\/\d\d(\d\d)$/, '/$1')
+}
+
 // QR code scanne avec l'appareil photo "normal" du telephone : il contient
 // l'adresse de l'appli suivie de ?essai=<jeton> (voir backend
 // Trials.checkin_url), ce qui ouvre l'appli. Lu UNE fois au chargement (avant
@@ -251,6 +255,7 @@ export function TrialsTable() {
                   <th className="col-secondary">QR code</th>
                   <th>1er cours</th>
                   <th>2e cours</th>
+                  <th>Inscription</th>
                   <th>Commentaire</th>
                   <th></th>
                 </tr>
@@ -274,6 +279,11 @@ export function TrialsTable() {
                       </td>
                       <td>
                         <CourseCell course={s.courses[1]} />
+                      </td>
+                      {/* Date d'inscription au cours d'essai (en ligne ou ajout
+                          a la main). */}
+                      <td title={s.source === 'web' ? 'Inscrit en ligne' : 'Ajouté à la main'}>
+                        {shortTimestampFr(s.createdAt)}
                       </td>
                       <td className="trial-comment">
                         <CommentCell student={s} onSaved={replaceStudent} />
@@ -526,8 +536,12 @@ function ScanDialog({ result, onResult, onRestart, onClose }) {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
 
+  // Focus sur la fenetre elle-meme (tabIndex -1) : sinon le navigateur le
+  // donne au premier champ (la saisie manuelle du code), ce qui ouvre le
+  // clavier du telephone par-dessus la camera.
   useEffect(() => {
     dialogRef.current.showModal()
+    dialogRef.current.focus()
   }, [])
 
   const verify = useCallback(
@@ -575,7 +589,7 @@ function ScanDialog({ result, onResult, onRestart, onClose }) {
   const student = result?.student
 
   return (
-    <dialog ref={dialogRef} className="trial-dialog trial-scan-dialog" onClose={onClose}>
+    <dialog ref={dialogRef} className="trial-dialog trial-scan-dialog" tabIndex={-1} onClose={onClose}>
       {result ? (
         <div className={`trial-scan-result trial-scan-${result.status}`}>
           <p className="trial-scan-icon">{result.status === 'added' ? '✅' : result.status === 'unknown' ? '❌' : '⚠️'}</p>

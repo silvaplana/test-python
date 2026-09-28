@@ -1338,6 +1338,10 @@ td button + .ffst-role-picker,
   border-color: var(--accent);
 }
 
+.trial-scan-dialog:focus {
+  outline: none;
+}
+
 .trial-scan-video {
   position: relative;
   overflow: hidden;
