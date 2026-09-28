@@ -11,7 +11,7 @@ TERMS_VERSION = "2026-09-26"
 
 CLUB_NAME = "Alliance Sambo Combat La Ciotat"
 
-TITLE = "Cours d'essai gratuit"
+TITLE = "S'inscrire à un cours d'essai gratuit"
 
 SUBTITLE = "Sport de combat MMA Sambo – La Ciotat, La Bédoule"
 

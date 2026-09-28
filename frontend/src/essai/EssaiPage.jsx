@@ -69,7 +69,7 @@ export default function EssaiPage() {
       <img src={banner} alt="" className="essai-banner" />
 
       <section className="essai-band essai-title">
-        <h1>{info?.title ?? "Cours d'essai gratuit"}</h1>
+        <h1>{info?.title ?? "S'inscrire à un cours d'essai gratuit"}</h1>
         {info && <p>{info.subtitle}</p>}
       </section>
 

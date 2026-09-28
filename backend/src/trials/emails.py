@@ -43,7 +43,7 @@ def confirmation_email(student: dict) -> tuple[str, str, str]:
 <tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:10px">
 <tr><td style="padding:24px">
-  <h1 style="font-size:22px;margin:0 0 4px">{escape(content.TITLE)}</h1>
+  <h1 style="font-size:22px;margin:0 0 4px">Votre cours d'essai gratuit</h1>
   <p style="margin:0 0 20px;color:#666">{escape(content.CLUB_NAME)}</p>
   <p style="margin:0 0 16px">Bonjour,</p>
   <p style="margin:0 0 16px">L'inscription de <strong>{name}</strong> au cours d'essai est confirmée.
