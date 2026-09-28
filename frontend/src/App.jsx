@@ -5,7 +5,7 @@ import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, Unpa
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import { Profile } from './Profile.jsx'
-import { TrialsTable } from './Trials.jsx'
+import { TrialsTable, hasTrialCheckin } from './Trials.jsx'
 import Navigation from './Navigation.jsx'
 
 // Contenu de l'appli, monte seulement une fois authentifie (dans AuthGate) :
@@ -15,8 +15,10 @@ function AppContent() {
   return (
     <Navigation
       // Retour de la banque (voir BankAccounts.jsx) : ouvre directement
-      // Finances/Comptes (section 4, outil 2), sinon l'accueil habituel.
-      initialSection={hasBankCallback && canViewAccounts ? 3 : 0}
+      // Finances/Comptes (section 4, outil 2) ; QR code d'un eleve scanne
+      // avec l'appareil photo (voir Trials.jsx) : l'onglet Essai (section 3) ;
+      // sinon l'accueil habituel.
+      initialSection={hasBankCallback && canViewAccounts ? 3 : hasTrialCheckin ? 2 : 0}
       initialTool={hasBankCallback && canViewAccounts ? 1 : 0}
       header={<CampaignTitle />}
       sections={[

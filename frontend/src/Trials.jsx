@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import QrScanner from 'qr-scanner'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -32,6 +33,28 @@ function timestampFr(isoTimestamp) {
 // tenir sur un ecran de telephone.
 function shortDateFr(isoDate) {
   return dateFr(isoDate).replace(/\/\d\d(\d\d)$/, '/$1')
+}
+
+// QR code scanne avec l'appareil photo "normal" du telephone : il contient
+// l'adresse de l'appli suivie de ?essai=<jeton> (voir backend
+// Trials.checkin_url), ce qui ouvre l'appli. Lu UNE fois au chargement (avant
+// meme la connexion a l'appli) puis retire de la barre d'adresse, pour ne pas
+// etre rejoue en rechargeant la page ; traite par TrialsTable une fois monte.
+const checkinFromUrl = (() => {
+  const token = new URLSearchParams(window.location.search).get('essai')
+  if (!token) return null
+  window.history.replaceState({}, '', window.location.pathname)
+  return token
+})()
+
+// App.jsx l'utilise pour ouvrir directement l'onglet Essai.
+export const hasTrialCheckin = checkinFromUrl !== null
+
+// Une seule fois meme si le composant est monte deux fois (React StrictMode).
+let urlCheckinPromise = null
+
+function checkIn(scanned) {
+  return sendJson('/trials/checkin', 'POST', { token: scanned })
 }
 
 const EMPTY_FORM = {
@@ -83,6 +106,9 @@ export function TrialsTable() {
   const [pendingId, setPendingId] = useState(null)
   // null : pas de fenetre ; {} : ajout ; {student} : modification.
   const [editing, setEditing] = useState(null)
+  // Fenetre du scanner (ouverte si non null) : {result} une fois un QR code
+  // verifie, {} pendant le scan.
+  const [scan, setScan] = useState(null)
 
   const refetch = useCallback(async () => {
     try {
@@ -100,6 +126,22 @@ export function TrialsTable() {
   function replaceStudent(updated) {
     setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
   }
+
+  // Resultat d'un scan : met a jour la ligne de l'eleve et l'affiche.
+  const showCheckin = useCallback((result) => {
+    if (result.student) {
+      setStudents((prev) => prev && prev.map((s) => (s.id === result.student.id ? result.student : s)))
+    }
+    if (result.status === 'added') navigator.vibrate?.(200)
+    setScan({ result })
+  }, [])
+
+  // Ouverture de l'appli par le QR code (appareil photo du telephone).
+  useEffect(() => {
+    if (!checkinFromUrl) return
+    urlCheckinPromise ??= checkIn(checkinFromUrl)
+    urlCheckinPromise.then(showCheckin, (err) => setError(err.message))
+  }, [showCheckin])
 
   async function addCourse(student) {
     setPendingId(student.id)
@@ -136,6 +178,12 @@ export function TrialsTable() {
           <button onClick={refetch}>Rafraîchir</button>
         </div>
       </div>
+
+      {/* Gros bouton : c'est l'action faite en debut de cours, souvent
+          d'une main, telephone dans l'autre. */}
+      <button className="trial-scan-button" onClick={() => setScan({})}>
+        📷 Scanner un QR code
+      </button>
 
       {error && <p className="error">{error}</p>}
 
@@ -203,6 +251,8 @@ export function TrialsTable() {
             </table>
           </div>
         ))}
+
+      {scan && <ScanDialog result={scan.result} onResult={showCheckin} onRestart={() => setScan({})} onClose={() => setScan(null)} />}
 
       {editing && (
         <StudentDialog
@@ -390,6 +440,126 @@ function StudentDialog({ student, onClose, onSaved, onDeleted }) {
           </button>
         </div>
       </form>
+    </dialog>
+  )
+}
+
+const CHECKIN_MESSAGES = {
+  added: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré aujourd'hui`,
+  used: (r) => `Cours d'essai déjà effectué le ${dateFr(r.date)}`,
+  full: (r) => `Les 2 cours d'essai sont déjà renseignés (dernier le ${dateFr(r.date)})`,
+  unknown: () => 'QR code non identifié',
+}
+
+// Scanner de QR code (camera arriere, bibliotheque qr-scanner : fonctionne
+// sur Android comme sur iPhone, ou Safari ne sait pas lire les QR codes
+// seul), avec saisie manuelle du code en secours. Affiche ensuite le
+// resultat de la verification (voir backend Trials.check_in).
+function ScanDialog({ result, onResult, onRestart, onClose }) {
+  const dialogRef = useRef(null)
+  const videoRef = useRef(null)
+  const [cameraError, setCameraError] = useState(null)
+  const [manualCode, setManualCode] = useState('')
+  const [pending, setPending] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    dialogRef.current.showModal()
+  }, [])
+
+  const verify = useCallback(
+    async (scanned) => {
+      setPending(true)
+      setError(null)
+      try {
+        onResult(await checkIn(scanned))
+      } catch (err) {
+        setError(err.message)
+      } finally {
+        setPending(false)
+      }
+    },
+    [onResult]
+  )
+
+  // Camera allumee seulement pendant le scan (pas sur l'ecran de resultat).
+  useEffect(() => {
+    if (result) return
+    let done = false
+    const scanner = new QrScanner(
+      videoRef.current,
+      (decoded) => {
+        if (done) return
+        done = true
+        scanner.stop()
+        verify(decoded.data)
+      },
+      { preferredCamera: 'environment', highlightScanRegion: true, returnDetailedScanResult: true }
+    )
+    scanner.start().catch(() =>
+      setCameraError(
+        "Caméra indisponible : autorise l'accès à la caméra pour ce site dans les réglages du navigateur, ou saisis le code à la main."
+      )
+    )
+    return () => scanner.destroy()
+  }, [result, verify])
+
+  function submitManual(e) {
+    e.preventDefault()
+    if (manualCode.trim()) verify(manualCode.trim())
+  }
+
+  const student = result?.student
+
+  return (
+    <dialog ref={dialogRef} className="trial-dialog trial-scan-dialog" onClose={onClose}>
+      {result ? (
+        <div className={`trial-scan-result trial-scan-${result.status}`}>
+          <p className="trial-scan-icon">{result.status === 'added' ? '✅' : result.status === 'unknown' ? '❌' : '⚠️'}</p>
+          {student && (
+            <h3>
+              {student.firstName} {student.lastName}
+              {student.age !== null && <span> · {student.age} ans</span>}
+            </h3>
+          )}
+          <p>{CHECKIN_MESSAGES[result.status](result)}</p>
+        </div>
+      ) : (
+        <>
+          <h3>Scanner le QR code de l'élève</h3>
+          <div className="trial-scan-video">
+            <video ref={videoRef} muted playsInline />
+          </div>
+          {cameraError && <p className="warning">{cameraError}</p>}
+          <form className="trial-scan-manual" onSubmit={submitManual}>
+            <input
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="ou code saisi à la main"
+              autoComplete="off"
+              autoCapitalize="off"
+              spellCheck="false"
+            />
+            <button type="submit" disabled={pending || !manualCode.trim()}>
+              Vérifier
+            </button>
+          </form>
+        </>
+      )}
+
+      {pending && <p className="profile-hint">Vérification…</p>}
+      {error && <p className="error">{error}</p>}
+
+      <div className="trial-dialog-actions">
+        {result && (
+          <button type="button" className="trial-save" onClick={onRestart}>
+            Scanner un autre
+          </button>
+        )}
+        <button type="button" onClick={() => dialogRef.current.close()}>
+          Fermer
+        </button>
+      </div>
     </dialog>
   )
 }
