@@ -233,10 +233,7 @@ export function TrialsTable() {
     <section>
       <div className="section-header">
         <h2>Élèves à l'essai ({students?.length ?? '…'})</h2>
-        <div className="trial-header-actions">
-          <button onClick={() => setEditing({})}>+ Élève</button>
-          <button onClick={refetch}>Rafraîchir</button>
-        </div>
+        <button onClick={refetch}>Rafraîchir</button>
       </div>
 
       {error && <p className="error">{error}</p>}
@@ -312,6 +309,10 @@ export function TrialsTable() {
           cours. Gros bouton, souvent utilise d'une main. */}
       <button className="trial-scan-button" onClick={() => setScan({})}>
         QR code
+      </button>
+      {/* Exceptionnel : normalement l'eleve s'inscrit lui-meme en ligne. */}
+      <button className="trial-add-student-button" onClick={() => setEditing({})}>
+        Ajouter un élève
       </button>
 
       {scan && <ScanDialog result={scan.result} onResult={showCheckin} onRestart={() => setScan({})} onClose={() => setScan(null)} />}
