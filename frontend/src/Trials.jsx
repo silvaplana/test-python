@@ -614,7 +614,7 @@ const CHECKIN_MESSAGES = {
 
 // Scanner de QR code en continu (camera arriere, bibliotheque qr-scanner :
 // fonctionne sur Android comme sur iPhone, ou Safari ne sait pas lire les QR
-// codes seul), avec saisie manuelle du code en secours. Chaque QR code lu
+// codes seul). Chaque QR code lu
 // est verifie (voir backend Trials.check_in), le resultat s'ajoute en haut de
 // la liste et la camera continue : plusieurs eleves a la suite sans rien
 // toucher. Un meme QR code n'est traite qu'une fois tant que la fenetre est
@@ -626,12 +626,11 @@ function ScanDialog({ initialResult, onResult, onClose }) {
   const nextKey = useRef(1)
   const [results, setResults] = useState(() => (initialResult ? [{ ...initialResult, key: 0 }] : []))
   const [cameraError, setCameraError] = useState(null)
-  const [manualCode, setManualCode] = useState('')
   const [pending, setPending] = useState(0)
 
-  // Focus sur la fenetre elle-meme (tabIndex -1) : sinon le navigateur le
-  // donne au premier champ (la saisie manuelle du code), ce qui ouvre le
-  // clavier du telephone par-dessus la camera.
+  // Focus sur la fenetre elle-meme (tabIndex -1) plutot que sur la croix de
+  // fermeture (premier element focalisable) : pas de contour de focus
+  // affiche sur la croix a l'ouverture.
   useEffect(() => {
     dialogRef.current.showModal()
     dialogRef.current.focus()
@@ -669,18 +668,11 @@ function ScanDialog({ initialResult, onResult, onClose }) {
     )
     scanner.start().catch(() =>
       setCameraError(
-        "Caméra indisponible : autorise l'accès à la caméra pour ce site dans les réglages du navigateur, ou saisis le code à la main."
+        "Caméra indisponible : autorise l'accès à la caméra pour ce site dans les réglages du navigateur."
       )
     )
     return () => scanner.destroy()
   }, [verify])
-
-  function submitManual(e) {
-    e.preventDefault()
-    if (!manualCode.trim()) return
-    verify(manualCode.trim())
-    setManualCode('')
-  }
 
   return (
     <dialog ref={dialogRef} className="trial-dialog trial-scan-dialog" tabIndex={-1} onClose={onClose}>
@@ -700,19 +692,6 @@ function ScanDialog({ initialResult, onResult, onClose }) {
         <video ref={videoRef} muted playsInline />
       </div>
       {cameraError && <p className="warning">{cameraError}</p>}
-      <form className="trial-scan-manual" onSubmit={submitManual}>
-        <input
-          value={manualCode}
-          onChange={(e) => setManualCode(e.target.value)}
-          placeholder="ou code saisi à la main"
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck="false"
-        />
-        <button type="submit" disabled={!manualCode.trim()}>
-          Vérifier
-        </button>
-      </form>
 
       {pending > 0 && <p className="profile-hint">Vérification…</p>}
       {results.length > 0 && (

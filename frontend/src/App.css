@@ -1400,41 +1400,6 @@ td button + .ffst-role-picker,
   object-fit: cover;
 }
 
-.trial-scan-manual {
-  display: flex;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
-}
-
-/* 16px minimum : en dessous, Safari sur iPhone zoome sur le champ. */
-.trial-scan-manual input {
-  flex: 1;
-  min-width: 0;
-  padding: 0.5rem 0.6rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
-  color: var(--text-h);
-  font: inherit;
-  font-size: 16px;
-}
-
-.trial-scan-manual button {
-  padding: 0.35rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
-  color: var(--text-h);
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.trial-scan-manual button:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
 /* Resultats du scanner, le plus recent en haut (le scan continue). */
 .trial-scan-results {
   display: flex;
