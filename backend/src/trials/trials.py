@@ -34,7 +34,7 @@ from database import Database
 from mailer import Mailer
 
 from . import content
-from .emails import confirmation_email, qr_cid
+from .emails import SIGNATURE_CID, confirmation_email, qr_cid
 
 # Photos d'iPhone (HEIC) : lisibles par Pillow une fois ce module enregistre.
 pillow_heif.register_heif_opener()
@@ -558,7 +558,10 @@ class Trials:
             subject,
             html,
             text,
-            inline_images={qr_cid(i): self.qr_png(r["token"]) for i, r in enumerate(registrations)},
+            inline_images={
+                **{qr_cid(i): self.qr_png(r["token"]) for i, r in enumerate(registrations)},
+                **({SIGNATURE_CID: self.get_signature(students[0]["id"])} if students[0]["hasSignature"] else {}),
+            },
             attachments=self._certificate_attachments(students),
         )
 

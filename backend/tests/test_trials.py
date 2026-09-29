@@ -311,9 +311,11 @@ def test_confirmation_email_one_qr_per_person(trials):
     assert to_email == "hugo@example.com" and "cours d'essai" in subject
     assert "Hugo Blanc et Léo Blanc" in html
     assert 'src="cid:qrcode-0"' in html and 'src="cid:qrcode-1"' in html
-    assert all(png.startswith(b"\x89PNG") for png in inline_images.values()) and len(inline_images) == 2
+    assert all(png.startswith(b"\x89PNG") for png in inline_images.values()) and len(inline_images) == 3
     # recapitulatif des donnees saisies + certificats en pieces jointes
-    assert "Informations renseignées" in html and "8 ans (mineur)" in html and "Anne Blanc" in html
+    assert "Informations renseignées par Hugo Blanc" in html and "8 ans (mineur)" in html and "Anne Blanc" in html
+    assert 'src="cid:signature"' in html and "Signée le" in html
+    assert inline_images["signature"] == png_bytes()
     assert "Autorisation parentale : donnée" in trials.mailer.text
     assert [(name, mime) for name, _, mime in trials.mailer.attachments] == [
         ("certificat-Hugo-Blanc.pdf", "application/pdf"),
