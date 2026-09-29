@@ -63,8 +63,9 @@ MIGRATIONS: list[str] = [
     """,
     # 3 : signatures d'une demande d'inscription (family_id) : celle de la
     # 1re personne inscrite et celle de chaque representant legal exterieur
-    # (parent d'un mineur qui n'est pas la 1re personne). role : "first" ou
-    # "parent".
+    # (parent d'un mineur qui n'est pas la 1re personne). role : "first",
+    # "parent" ou "adult" (majeur de la famille signant lui-meme quand la 1re
+    # personne est mineure).
     """
     CREATE TABLE trial_signatures (
         id INTEGER PRIMARY KEY,

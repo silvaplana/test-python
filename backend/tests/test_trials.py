@@ -288,11 +288,28 @@ def test_register_external_parents_sign_once_each(trials):
 
 
 def test_register_first_person_minor_needs_external_parent(trials):
-    people = [person("Léa", "Martin", 15, parent_is_first=False, parent_first_name="Anne", parent_last_name="Martin")]
-    [result] = register(trials, people, parent_signatures=[("Anne Martin", PARENT_SIGNATURE)])
+    parent = {"parent_is_first": False, "parent_first_name": "Anne", "parent_last_name": "Martin"}
+    people = [person("Léa", "Martin", 15, **parent)]
+    # mineure : elle ne signe pas (sa signature n'est pas demandee)
+    [result] = register(trials, people, signature=b"", parent_signatures=[("Anne Martin", PARENT_SIGNATURE)])
     assert result["student"]["parentName"] == "Anne Martin"
     signatures = trials.get_family_signatures(result["familyId"])
-    assert [s["name"] for s in signatures] == ["Léa Martin", "Anne Martin"]
+    assert [s["name"] for s in signatures] == ["Anne Martin"]
+    assert trials.get_signature(result["student"]["id"]) == PARENT_SIGNATURE
+    # un majeur de la famille signe alors lui-meme
+    adult = person("Marc", "Martin")
+    with pytest.raises(RegistrationError, match="Merci de faire signer Marc Martin"):
+        register(trials, [person("Tom", "Martin", 12, **parent), adult], signature=b"", parent_signatures=[("Anne Martin", PARENT_SIGNATURE)])
+    results = register(
+        trials,
+        [person("Tom", "Martin", 12, **parent), adult],
+        signature=b"",
+        parent_signatures=[("Anne Martin", PARENT_SIGNATURE), ("Marc Martin", SIGNATURE)],
+    )
+    assert [(s["name"], s["role"]) for s in trials.get_family_signatures(results[0]["familyId"])] == [
+        ("Anne Martin", "parent"),
+        ("Marc Martin", "adult"),
+    ]
     # 1re personne mineure : elle ne peut pas etre le parent d'un autre mineur
     with pytest.raises(RegistrationError, match="ne peut pas être une personne mineure"):
         register(trials, [people[0], person("Tom", "Martin", 10)], parent_signatures=[("Anne Martin", PARENT_SIGNATURE)])

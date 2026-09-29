@@ -375,14 +375,17 @@ class Trials:
         personne : prenom, nom, mineur (+ age), certificat medical
         (obligatoire), decharge ; pour un mineur, son parent ou representant
         legal (par defaut la 1re personne inscrite, sinon quelqu'un d'autre,
-        nomme). Signatures : la 1re personne, et chaque representant legal
-        exterieur -- sa signature vaut autorisation parentale.
+        nomme). Signatures : la 1re personne si elle est majeure, et chaque
+        representant legal exterieur -- sa signature vaut autorisation
+        parentale.
 
         form : email, terms_version. people : [{first_name, last_name, minor,
         age, waiver_accepted, certificate, parent_is_first,
         parent_first_name, parent_last_name}], certificate = (nom du fichier,
-        contenu). signature_png : signature de la 1re personne.
-        parent_signatures : [(nom du parent, PNG)].
+        contenu). signature_png : signature de la 1re personne (si elle est
+        majeure, un mineur ne signe pas). parent_signatures : [(nom, PNG)],
+        les autres signatures -- representants legaux exterieurs, et un
+        majeur de la famille quand la 1re personne est mineure.
 
         Personne deja inscrite (meme e-mail, nom et prenom) : rien n'est
         modifie et son QR code lui est renvoye par mail -- jamais affiche a
@@ -540,23 +543,33 @@ class Trials:
         if len(set(names)) != len(names):
             raise RegistrationError("La même personne apparaît deux fois dans la demande")
 
-        # Signatures : la 1re personne, puis chaque representant legal
-        # exterieur (une seule fois meme s'il est le parent de 2 enfants).
-        if not self._valid_png(signature_png):
-            raise RegistrationError(f"Merci de faire signer {first_name}")
+        # Signatures : la 1re personne si elle est majeure (un mineur ne signe
+        # pas), puis chaque representant legal exterieur (une seule fois meme
+        # s'il est le parent de 2 enfants). Un majeur est engage par la
+        # signature de la 1re personne ; si celle-ci est mineure, il signe
+        # lui-meme.
         received = {name.strip().casefold(): png for name, png in parent_signatures}
-        signatures = [(first_name, "first", signature_png)]
-        by_signer = {first_name.casefold(): signature_png}
+        signatures, by_signer = [], {}
+        if not first_minor:
+            if not self._valid_png(signature_png):
+                raise RegistrationError(f"Merci de faire signer {first_name}")
+            signatures.append((first_name, "first", signature_png))
+            by_signer[first_name.casefold()] = signature_png
         for p in cleaned_people:
-            if p.pop("parent_external"):
-                key = p["parent_name"].casefold()
-                if key not in by_signer:
-                    png = received.get(key)
-                    if not self._valid_png(png):
-                        raise RegistrationError(f"Merci de faire signer {p['parent_name']}")
-                    signatures.append((p["parent_name"], "parent", png))
-                    by_signer[key] = png
-            p["signature_png"] = by_signer[(p["parent_name"] or first_name).casefold()]
+            p.pop("parent_external")
+            if p["parent_name"]:
+                signer, role = p["parent_name"], "parent"
+            elif not first_minor:
+                signer, role = first_name, "first"
+            else:
+                signer, role = f"{p['first_name']} {p['last_name']}", "adult"
+            if signer.casefold() not in by_signer:
+                png = received.get(signer.casefold())
+                if not self._valid_png(png):
+                    raise RegistrationError(f"Merci de faire signer {signer}")
+                signatures.append((signer, role, png))
+                by_signer[signer.casefold()] = png
+            p["signature_png"] = by_signer[signer.casefold()]
         return email, cleaned_people, signatures
 
     @staticmethod

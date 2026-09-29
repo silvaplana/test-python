@@ -178,16 +178,25 @@ function RegistrationForm({ info, onDone }) {
   const parentIsFirst = (p, i) => i > 0 && p.parentIsFirst
   const parentName = (p, i) =>
     parentIsFirst(p, i) ? fullName(people[0]) : `${p.parentFirstName} ${p.parentLastName}`.trim()
-  // Enfants dont la 1re personne est le parent, et representants legaux
-  // exterieurs (un seul par nom, meme pour 2 enfants).
+  // Qui signe : la 1re personne si elle est majeure (un mineur ne signe
+  // pas), puis les autres signataires, un seul par nom (voir backend
+  // Trials._validate_registration) : chaque representant legal exterieur
+  // (avec ses enfants, pour le texte d'autorisation parentale), et un majeur
+  // de la famille quand la 1re personne est mineure (il signe pour lui).
+  const firstSigns = !people[0].minor
   const childrenOfFirst = people.filter((p, i) => p.minor && parentIsFirst(p, i))
   const externalParents = []
   people.forEach((p, i) => {
-    if (!p.minor || parentIsFirst(p, i)) return
-    const name = parentName(p, i)
+    let name
+    if (p.minor && !parentIsFirst(p, i)) name = parentName(p, i)
+    else if (!p.minor && !firstSigns) name = fullName(p)
+    else return
     const existing = externalParents.find((parent) => parent.name.toLowerCase() === name.toLowerCase())
-    if (existing) existing.children.push(p)
-    else externalParents.push({ name, children: [p] })
+    if (existing) {
+      if (p.minor) existing.children.push(p)
+    } else {
+      externalParents.push({ name, children: p.minor ? [p] : [] })
+    }
   })
 
   function updatePerson(index, key) {
@@ -208,7 +217,7 @@ function RegistrationForm({ info, onDone }) {
     if (missing !== -1) {
       return setError(`Merci de joindre le certificat médical de ${fullName(people[missing]) || 'chaque personne'}`)
     }
-    if (pads.current.first?.isEmpty()) return setError(`Merci de faire signer ${firstName}`)
+    if (firstSigns && pads.current.first?.isEmpty()) return setError(`Merci de faire signer ${firstName}`)
     const unsigned = externalParents.find((parent, k) => pads.current[`parent-${k}`]?.isEmpty())
     if (unsigned) return setError(`Merci de faire signer ${unsigned.name || 'le parent ou représentant légal'}`)
     const body = new FormData()
@@ -224,7 +233,7 @@ function RegistrationForm({ info, onDone }) {
       body.append(`waiverAccepted${i}`, p.waiverAccepted)
       body.append(`certificate${i}`, p.certificate)
     })
-    body.append('signature', pads.current.first.toDataUrl())
+    body.append('signature', firstSigns ? pads.current.first.toDataUrl() : '')
     externalParents.forEach((parent, k) => {
       body.append(`parentSignatureName${k}`, parent.name)
       body.append(`parentSignature${k}`, pads.current[`parent-${k}`].toDataUrl())
@@ -388,16 +397,18 @@ function RegistrationForm({ info, onDone }) {
       )}
 
       <fieldset>
-        <legend>{externalParents.length > 0 ? 'Signatures' : 'Signature'}</legend>
-        <div className="essai-signature-block">
-          <span className="essai-subgroup-title">Signature de {firstName}</span>
-          {childrenOfFirst.length > 0 && (
-            <p className="essai-hint">
-              {fill(info.parentalConsent, joinNames(childrenOfFirst.map(fullName)), info.club, fullName(people[0]))}
-            </p>
-          )}
-          <SignatureField pads={pads} name="first" />
-        </div>
+        <legend>{(firstSigns ? 1 : 0) + externalParents.length > 1 ? 'Signatures' : 'Signature'}</legend>
+        {firstSigns && (
+          <div className="essai-signature-block">
+            <span className="essai-subgroup-title">Signature de {firstName}</span>
+            {childrenOfFirst.length > 0 && (
+              <p className="essai-hint">
+                {fill(info.parentalConsent, joinNames(childrenOfFirst.map(fullName)), info.club, fullName(people[0]))}
+              </p>
+            )}
+            <SignatureField pads={pads} name="first" />
+          </div>
+        )}
         {externalParents.map((parent, k) => (
           // Cle = numero (pas le nom) : corriger le nom du parent ne doit pas
           // effacer sa signature.
@@ -405,9 +416,11 @@ function RegistrationForm({ info, onDone }) {
             <span className="essai-subgroup-title">
               Signature de {parent.name || 'du parent ou représentant légal'}
             </span>
-            <p className="essai-hint">
-              {fill(info.parentalConsent, joinNames(parent.children.map(fullName)), info.club, parent.name)}
-            </p>
+            {parent.children.length > 0 && (
+              <p className="essai-hint">
+                {fill(info.parentalConsent, joinNames(parent.children.map(fullName)), info.club, parent.name)}
+              </p>
+            )}
             <SignatureField pads={pads} name={`parent-${k}`} />
           </div>
         ))}
