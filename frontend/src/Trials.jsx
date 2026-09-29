@@ -166,13 +166,17 @@ function todayIso() {
 }
 
 // Etat des cours d'essai d'un eleve, pour la couleur du texte de sa ligne :
-// aucun (blanc), un cours fait aujourd'hui (vert), un cours fait un autre
-// jour (orange), les 2 cours faits (rouge).
+// - aucun essai : couleur normale ;
+// - essai 1 fait aujourd'hui : vert ;
+// - essai 1 fait un autre jour, et pas d'essai 2 ou essai 2 fait
+//   aujourd'hui : orange ;
+// - les 2 essais faits (essai 2 avant aujourd'hui) : rouge.
 function coursesState(student) {
-  const done = student.courses.filter((c) => c.date)
-  if (done.length === 0) return 'none'
-  if (done.length >= 2) return 'done'
-  return done[0].date === todayIso() ? 'today' : 'past'
+  const [first, second] = student.courses.map((c) => c.date)
+  const today = todayIso()
+  if (!first && !second) return 'none'
+  if (first && second) return second === today ? 'past' : 'done'
+  return (first ?? second) === today ? 'today' : 'past'
 }
 
 function CourseCell({ course }) {
