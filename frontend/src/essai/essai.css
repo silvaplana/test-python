@@ -351,14 +351,6 @@ body {
   pointer-events: none;
 }
 
-.essai-trap {
-  position: absolute;
-  left: -10000px;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
 .essai-error {
   margin: 0 0 1rem;
   color: var(--error);

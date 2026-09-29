@@ -80,7 +80,7 @@ class TrialsPublicReceiver:
         """Endpoint REST POST /public/trials/register (formulaire multipart :
         un certificat medical par personne). Champs communs : email,
         termsVersion, signature (1re personne), parentSignatureName{k} +
-        parentSignature{k} (representants legaux exterieurs), website ; par
+        parentSignature{k} (representants legaux exterieurs) ; par
         personne i (0 a 2) : firstName{i}, lastName{i}, minor{i}, age{i},
         waiverAccepted{i}, certificate{i}, parentIsFirst{i},
         parentFirstName{i}, parentLastName{i}.
@@ -91,10 +91,6 @@ class TrialsPublicReceiver:
         l'ecran, il est seulement renvoye par mail (voir Trials.register).
         422 avec un message lisible si incomplet."""
         form = await request.form()
-        # "website" : champ invisible pour un humain (piege a robots) -- s'il
-        # est rempli, on fait comme si tout allait bien sans rien enregistrer.
-        if form.get("website"):
-            return {"people": [], "emailSent": False}
         if not self.limiter.allow(client_ip(request)):
             raise HTTPException(status_code=429, detail="Trop d'inscriptions depuis cette connexion, réessayez plus tard")
         people = []

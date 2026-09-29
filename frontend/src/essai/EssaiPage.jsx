@@ -43,7 +43,6 @@ function emptyPerson(lastName = '') {
 
 const EMPTY_FORM = {
   email: '',
-  website: '',
 }
 
 // Page publique d'inscription au cours d'essai (voir essai.html) : modalites,
@@ -230,7 +229,6 @@ function RegistrationForm({ info, onDone }) {
       body.append(`parentSignatureName${k}`, parent.name)
       body.append(`parentSignature${k}`, pads.current[`parent-${k}`].toDataUrl())
     })
-    body.append('website', form.website)
     body.append('termsVersion', info.termsVersion)
     setPending(true)
     try {
@@ -414,18 +412,6 @@ function RegistrationForm({ info, onDone }) {
           </div>
         ))}
       </fieldset>
-
-      {/* Piege a robots : invisible pour un humain, rempli par les robots
-          qui remplissent tous les champs (voir backend). */}
-      <input
-        className="essai-trap"
-        name="website"
-        tabIndex={-1}
-        autoComplete="off"
-        aria-hidden="true"
-        value={form.website}
-        onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}
-      />
 
       {error && <p className="essai-error">{error}</p>}
 

@@ -447,8 +447,12 @@ def test_public_routes(trials):
     assert len(trials.mailer.sent) == 2
     unsigned = client.post("/public/trials/register", data={**data, "parentSignature0": ""}, files=files)
     assert unsigned.status_code == 422 and "Anne Durand" in unsigned.json()["detail"]
-    bot = client.post("/public/trials/register", data={**data, "firstName0": "Bot", "website": "spam"}, files=files)
-    assert bot.json() == {"people": [], "emailSent": False} and len(trials.list_students()) == 2
+    # un champ inconnu (ex: "website" rempli par la saisie automatique du
+    # navigateur) ne bloque pas l'inscription
+    autofilled = client.post(
+        "/public/trials/register", data={**data, "firstName0": "Marc", "website": "x"}, files=files
+    )
+    assert autofilled.status_code == 200 and len(trials.list_students()) == 3
 
 
 def test_public_register_rate_limited(trials):
