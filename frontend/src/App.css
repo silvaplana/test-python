@@ -1430,6 +1430,14 @@ td button + .ffst-role-picker,
   color: #f87171;
 }
 
+.trial-filter {
+  margin-bottom: 0.9rem;
+}
+
+.trial-filter small {
+  color: var(--text);
+}
+
 .trial-name {
   padding: 0;
   border: none;

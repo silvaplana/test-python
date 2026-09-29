@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import QrScanner from 'qr-scanner'
+import { memberIdentifier } from './HelloAsso.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -59,6 +60,16 @@ let urlCheckinPromise = null
 
 function checkIn(scanned) {
   return sendJson('/trials/checkin', 'POST', { token: scanned })
+}
+
+// Filtre "Masquer les adherents", memorise sur cet appareil.
+const HIDE_MEMBERS_KEY = 'trials-hide-members'
+function readHideMembers() {
+  try {
+    return localStorage.getItem(HIDE_MEMBERS_KEY) === '1'
+  } catch {
+    return false
+  }
 }
 
 const EMPTY_FORM = {
@@ -173,6 +184,34 @@ export function TrialsTable() {
   // Fenetre du scanner (ouverte si non null) : {result} une fois un QR code
   // verifie, {} pendant le scan.
   const [scan, setScan] = useState(null)
+  // Filtre "Masquer les adherents" : eleves a l'essai deja inscrits au club
+  // (presents dans HelloAsso/Adherents, meme nom et prenom sans tenir compte
+  // des majuscules ni des accents). Liste des adherents chargee seulement
+  // quand le filtre est actif (l'API HelloAsso est lente).
+  const [hideMembers, setHideMembers] = useState(readHideMembers)
+  const [memberIds, setMemberIds] = useState(null)
+  const [membersError, setMembersError] = useState(null)
+
+  useEffect(() => {
+    if (!hideMembers || memberIds) return
+    callApi('/helloasso/members')
+      .then((members) => setMemberIds(new Set(members.map((m) => memberIdentifier(m.lastName, m.firstName)))))
+      .catch((err) => setMembersError(`Adhérents HelloAsso indisponibles : ${err.message}`))
+  }, [hideMembers, memberIds])
+
+  function toggleHideMembers(e) {
+    setHideMembers(e.target.checked)
+    setMembersError(null)
+    try {
+      localStorage.setItem(HIDE_MEMBERS_KEY, e.target.checked ? '1' : '0')
+    } catch {
+      // stockage indisponible (navigation privee) : filtre non memorise
+    }
+  }
+
+  const isMember = (s) => memberIds?.has(memberIdentifier(s.lastName, s.firstName))
+  const visibleStudents = hideMembers && memberIds && students ? students.filter((s) => !isMember(s)) : students
+  const hiddenCount = (students?.length ?? 0) - (visibleStudents?.length ?? 0)
 
   const refetch = useCallback(async () => {
     try {
@@ -240,11 +279,30 @@ export function TrialsTable() {
         <button onClick={refetch}>Rafraîchir</button>
       </div>
 
+      <label className="toggle-row trial-filter">
+        <input type="checkbox" checked={hideMembers} onChange={toggleHideMembers} />
+        <span>
+          Masquer les adhérents
+          {hideMembers && (
+            <small>
+              {memberIds
+                ? ` (${hiddenCount} masqué${hiddenCount > 1 ? 's' : ''})`
+                : membersError
+                  ? ''
+                  : ' (chargement des adhérents…)'}
+            </small>
+          )}
+        </span>
+      </label>
+      {hideMembers && membersError && <p className="warning">{membersError}</p>}
+
       {error && <p className="error">{error}</p>}
 
       {students &&
         (students.length === 0 ? (
           <p className="empty-state">Aucun élève à l'essai pour l'instant</p>
+        ) : visibleStudents.length === 0 ? (
+          <p className="empty-state">Tous les élèves à l'essai sont déjà adhérents</p>
         ) : (
           <div className="table-wrapper">
             <table className="trials-table">
@@ -261,7 +319,7 @@ export function TrialsTable() {
                 </tr>
               </thead>
               <tbody>
-                {students.map((s) => {
+                {visibleStudents.map((s) => {
                   const full = s.courses.every((c) => c.date)
                   return (
                     <tr key={s.id}>

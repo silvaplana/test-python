@@ -151,8 +151,8 @@ function useHelloAssoFetch(path) {
 // "Leo" sur HelloAsso (sans accent) mais "Léo" sur le portail FFST ne
 // matchait jamais (juste .toUpperCase() avant, qui ne retire pas les
 // accents), Statut FFST affiche "Inconnu" a tort malgre une licence
-// bien creee.
-function memberIdentifier(lastName, firstName) {
+// bien creee. Reutilise par l'onglet Essai (filtre "Masquer les adherents").
+export function memberIdentifier(lastName, firstName) {
   return normaliserTexte(`${lastName} ${firstName}`.replace(/\s+/g, ' ').trim())
 }
 
