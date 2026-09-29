@@ -112,6 +112,11 @@ def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[st
   {f'<p style="margin:6px 0 0;font-size:13px;color:#666">Signée le {_signed_at(sig["signedAt"])}</p>' if sig["signedAt"] else ''}"""
         for i, sig in enumerate(signatures)
     )
+    certificates_note = (
+        "Le certificat médical de chaque personne est joint à ce mail."
+        if several
+        else "Le certificat médical est joint à ce mail."
+    )
     summary = _summary(students)
     summary_html = "".join(
         f"<h3 style='font-size:15px;margin:14px 0 4px'>{escape(title)}</h3>"
@@ -147,7 +152,7 @@ def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[st
 
   <h2 style="font-size:17px;margin:28px 0 4px;padding-top:16px;border-top:1px solid #ddd">Informations renseignées par {author}</h2>
   <div style="font-size:14px">{summary_html}</div>
-  <p style="margin:12px 0 0;font-size:13px;color:#666">Le certificat médical de chaque personne est joint à ce mail.</p>
+  <p style="margin:12px 0 0;font-size:13px;color:#666">{certificates_note}</p>
   {signature_html}
 
   <p style="margin:24px 0 0;font-size:12px;color:#888">{escape(content.PRIVACY)}</p>
@@ -183,7 +188,7 @@ def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[st
                 for line in ("", title, *(f"- {label} : {value}" for label, value in rows))
             ),
             "",
-            "Le certificat médical de chaque personne est joint à ce mail.",
+            certificates_note,
             "",
             *(
                 f"{_signature_title(sig, students)} : image dans ce mail, signée le {_signed_at(sig['signedAt'])}."

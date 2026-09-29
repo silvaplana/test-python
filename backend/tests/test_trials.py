@@ -364,10 +364,14 @@ def test_confirmation_email(trials):
     assert inline_images["signature-0"] == SIGNATURE and inline_images["signature-1"] == PARENT_SIGNATURE
     assert len(inline_images) == 4
     assert trials.mailer.text.count("Décharge de responsabilité : acceptée par Hugo Blanc") == 2
+    assert "Le certificat médical de chaque personne est joint à ce mail." in html
     assert [(name, mime) for name, _, mime in trials.mailer.attachments] == [
         ("certificat-Hugo-Blanc.pdf", "application/pdf"),
         ("certificat-Léo-Blanc.pdf", "application/pdf"),
     ]
+    # une seule personne : "Le certificat médical est joint à ce mail."
+    trials.send_confirmation(register(trials, [person("Zoé", "Roux")]))
+    assert "Le certificat médical est joint à ce mail." in trials.mailer.sent[-1][2]
 
 
 def test_mailer_builds_smtp_message(monkeypatch):
