@@ -285,6 +285,25 @@ export function TrialsTable() {
         <button onClick={refetch}>Rafraîchir</button>
       </div>
 
+      {/* Juste sous le titre, sur une meme ligne : scan du QR code presente
+          par l'eleve en debut de cours (souvent d'une main), et ajout d'un
+          inscrit avec le meme formulaire que l'inscription en ligne
+          (majeur/mineur, parent, certificat, decharge, signatures, QR code
+          et mail), ouvert dans un nouvel onglet. */}
+      <div className="trial-actions">
+        <button className="trial-scan-button" onClick={() => setScan({})}>
+          QR code
+        </button>
+        <a
+          className="trial-add-student-button"
+          href={`${import.meta.env.BASE_URL}essai.html`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Ajouter inscrit manuellement
+        </a>
+      </div>
+
       <div className="member-filters trial-filters">
         <label className="member-search">
           <span aria-hidden="true">🔍</span>
@@ -394,23 +413,6 @@ export function TrialsTable() {
             </table>
           </div>
         ))}
-
-      {/* Sous le tableau : scan du QR code presente par l'eleve en debut de
-          cours. Gros bouton, souvent utilise d'une main. */}
-      <button className="trial-scan-button" onClick={() => setScan({})}>
-        QR code
-      </button>
-      {/* Meme formulaire que l'inscription en ligne (majeur/mineur, parent,
-          certificat, decharge, signatures, QR code et mail), ouvert dans un
-          nouvel onglet : a remplir avec l'eleve, par exemple sur place. */}
-      <a
-        className="trial-add-student-button"
-        href={`${import.meta.env.BASE_URL}essai.html`}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Ajouter un élève
-      </a>
 
       {scan && <ScanDialog result={scan.result} onResult={showCheckin} onRestart={() => setScan({})} onClose={() => setScan(null)} />}
 

@@ -1301,10 +1301,15 @@ td button + .ffst-role-picker,
 
 /* Onglet Essai (voir Trials.jsx) : eleves en cours d'essai. Meme charte que
    les autres tableaux ; le nom de l'eleve ouvre sa fiche (.trial-dialog). */
+.trial-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
 .trial-scan-button {
+  flex: 1;
   display: block;
-  width: 100%;
-  margin-top: 1rem;
   padding: 0.85rem 1rem;
   border: 1px solid var(--accent-border);
   border-radius: 10px;
@@ -1317,12 +1322,13 @@ td button + .ffst-role-picker,
 }
 
 .trial-add-student-button {
-  display: block;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   box-sizing: border-box;
-  width: 100%;
   text-align: center;
   text-decoration: none;
-  margin-top: 0.6rem;
   padding: 0.7rem 1rem;
   border: 1px solid var(--border);
   border-radius: 10px;
