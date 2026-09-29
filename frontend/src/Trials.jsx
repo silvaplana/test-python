@@ -605,9 +605,23 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
   )
 }
 
+// Date du jour au format AAAA-MM-JJ (heure locale).
+function todayIso() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+// Scan "OK" (vert) : cours enregistre maintenant, ou eleve deja enregistre
+// aujourd'hui (QR code relu le jour meme). Sinon "KO" (rouge) : QR code
+// inconnu, ou cours d'essai deja fait un autre jour.
+function scanIsOk(result) {
+  if (result.status === 'added') return true
+  return (result.status === 'used' || result.status === 'full') && result.date === todayIso()
+}
+
 const CHECKIN_MESSAGES = {
   added: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré aujourd'hui`,
-  used: (r) => `Cours d'essai déjà effectué le ${dateFr(r.date)}`,
+  used: (r) => (r.date === todayIso() ? "Déjà enregistré aujourd'hui" : `Cours d'essai déjà effectué le ${dateFr(r.date)}`),
   full: (r) => `Les 2 cours d'essai sont déjà renseignés (dernier le ${dateFr(r.date)})`,
   unknown: () => 'QR code non identifié',
 }
@@ -615,16 +629,17 @@ const CHECKIN_MESSAGES = {
 // Scanner de QR code en continu (camera arriere, bibliotheque qr-scanner :
 // fonctionne sur Android comme sur iPhone, ou Safari ne sait pas lire les QR
 // codes seul). Chaque QR code lu
-// est verifie (voir backend Trials.check_in), son resultat remplace le
-// precedent et la camera continue : plusieurs eleves a la suite sans rien
+// est verifie (voir backend Trials.check_in), son resultat s'ajoute en haut
+// d'une liste compacte (vert si OK, rouge sinon) et la camera continue : plusieurs eleves a la suite sans rien
 // toucher. Un meme QR code n'est traite qu'une fois tant que la fenetre est
 // ouverte (sinon, reste devant la camera, il serait relu en boucle).
 function ScanDialog({ initialResult, onResult, onClose }) {
   const dialogRef = useRef(null)
   const videoRef = useRef(null)
   const seen = useRef(new Set())
-  // Resultat du dernier QR code lu (seul affiche).
-  const [last, setLast] = useState(initialResult)
+  // Resultats des QR codes lus, le plus recent en premier.
+  const nextKey = useRef(1)
+  const [results, setResults] = useState(() => (initialResult ? [{ ...initialResult, key: 0 }] : []))
   const [cameraError, setCameraError] = useState(null)
   const [pending, setPending] = useState(0)
 
@@ -649,7 +664,8 @@ function ScanDialog({ initialResult, onResult, onClose }) {
       } finally {
         setPending((n) => n - 1)
       }
-      setLast(entry)
+      const key = nextKey.current++
+      setResults((prev) => [{ ...entry, key }, ...prev])
     },
     [onResult]
   )
@@ -693,25 +709,20 @@ function ScanDialog({ initialResult, onResult, onClose }) {
       {cameraError && <p className="warning">{cameraError}</p>}
 
       {pending > 0 && <p className="profile-hint">Vérification…</p>}
-      {last && (
-        <p className={`trial-scan-entry trial-scan-${last.status}`}>
-          <span className="trial-scan-icon" aria-hidden="true">
-            {last.status === 'added' ? '✅' : last.status === 'unknown' || last.status === 'error' ? '❌' : '⚠️'}
-          </span>
-          <span>
-            {last.student && (
-              <strong>
-                {last.student.firstName} {last.student.lastName}
-                {last.student.age !== null && <small> · {last.student.age} ans</small>}
-              </strong>
-            )}
-            <span className="trial-scan-message">
-              {last.status === 'error' ? last.message : CHECKIN_MESSAGES[last.status](last)}
-            </span>
-          </span>
-        </p>
+      {results.length > 0 && (
+        <ul className="trial-scan-results">
+          {results.map((r) => (
+            <li key={r.key} className={scanIsOk(r) ? 'trial-scan-ok' : 'trial-scan-ko'}>
+              {r.student && (
+                <strong>
+                  {r.student.firstName} {r.student.lastName}
+                </strong>
+              )}
+              {r.status === 'error' ? r.message : CHECKIN_MESSAGES[r.status](r)}
+            </li>
+          ))}
+        </ul>
       )}
-
     </dialog>
   )
 }
