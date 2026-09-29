@@ -317,6 +317,7 @@ def test_confirmation_email_one_qr_per_person(trials):
     assert 'src="cid:signature"' in html and "Signée le" in html
     assert inline_images["signature"] == png_bytes()
     assert "Autorisation parentale : donnée" in trials.mailer.text
+    assert trials.mailer.text.count("Décharge de responsabilité : acceptée par Hugo Blanc") == 2
     assert [(name, mime) for name, _, mime in trials.mailer.attachments] == [
         ("certificat-Hugo-Blanc.pdf", "application/pdf"),
         ("certificat-Léo-Blanc.pdf", "application/pdf"),

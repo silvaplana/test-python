@@ -39,6 +39,9 @@ def _summary(students: list[dict]) -> list[tuple[str, list[tuple[str, str]]]]:
     """Recapitulatif de ce qui a ete saisi a l'inscription : [(titre,
     [(libelle, valeur)])], une section par personne puis le contact (la
     signature est ajoutee a part, en image)."""
+    # C'est la 1re personne inscrite qui remplit le formulaire : c'est elle
+    # qui accepte la decharge pour chacun.
+    author = f"{students[0]['firstName']} {students[0]['lastName']}"
     sections = []
     for student in students:
         rows = [
@@ -46,7 +49,7 @@ def _summary(students: list[dict]) -> list[tuple[str, list[tuple[str, str]]]]:
             ("Nom", student["lastName"]),
             ("Âge", f"{student['age']} ans (mineur)" if student["age"] is not None else "majeur"),
             ("Certificat médical", "joint" if student["hasMedicalCertificate"] else "non fourni"),
-            ("Décharge de responsabilité", "acceptée" if student["waiverAccepted"] else "non acceptée"),
+            ("Décharge de responsabilité", f"acceptée par {author}" if student["waiverAccepted"] else "non acceptée"),
         ]
         if student["parentName"]:
             rows.append(("Parent ou représentant légal", student["parentName"]))
