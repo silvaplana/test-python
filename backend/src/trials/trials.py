@@ -23,6 +23,7 @@ from __future__ import annotations
 import io
 import re
 import secrets
+import unicodedata
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -91,6 +92,13 @@ def today() -> date:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _normalize_name(name: str | None) -> str:
+    """"  Léa  " -> "lea" : comparaison des noms sans majuscules, accents ni
+    espaces en trop."""
+    decomposed = unicodedata.normalize("NFD", " ".join((name or "").split()))
+    return "".join(c for c in decomposed if not unicodedata.combining(c)).casefold()
 
 
 def _age(birth_date: str | None, on: date) -> int | None:
@@ -387,15 +395,16 @@ class Trials:
         les autres signatures -- representants legaux exterieurs, et un
         majeur de la famille quand la 1re personne est mineure.
 
-        Personne deja inscrite (meme e-mail, nom et prenom) : rien n'est
-        modifie et son QR code lui est renvoye par mail -- jamais affiche a
+        Personne deja inscrite (meme prenom et nom, voir _find_existing) :
+        rien n'est modifie et son QR code deja genere est renvoye par mail -- jamais affiche a
         l'ecran, sinon n'importe qui connaissant son nom et son e-mail le
         recupererait. Personne ajoutee a la main sans QR code : son
         inscription est completee.
 
         Retourne, par personne et dans l'ordre : {"status": "created" |
-        "existing", "student", "token", "familyId"} (familyId : la demande,
-        pour retrouver ses signatures). Leve RegistrationError si le
+        "existing", "student", "token", "familyId", "email"} (familyId : la
+        demande, pour retrouver ses signatures ; email : celui saisi dans la
+        demande, destinataire du mail). Leve RegistrationError si le
         formulaire est incomplet (rien n'est alors enregistre)."""
         email, people, signatures = self._validate_registration(form, people, signature_png, parent_signatures)
         now = _now_iso()
@@ -420,6 +429,7 @@ class Trials:
                             "student": self._to_dict(existing),
                             "token": existing["qr_token"],
                             "familyId": family_id,
+                            "email": email,
                         }
                     )
                     continue
@@ -455,6 +465,7 @@ class Trials:
                         "student": self._to_dict(self._get_row(connection, student_id)),
                         "token": token,
                         "familyId": family_id,
+                        "email": email,
                     }
                 )
         return results
@@ -574,14 +585,17 @@ class Trials:
 
     @staticmethod
     def _find_existing(connection, fields: dict):
-        """Meme eleve = meme e-mail + meme nom et prenom (sans tenir compte
-        des majuscules) : 2 enfants inscrits avec l'e-mail d'un parent restent
-        2 eleves."""
-        rows = connection.execute(
-            "SELECT * FROM trial_students WHERE lower(email) = ?", (fields["email"].lower(),)
-        ).fetchall()
-        key = (fields["first_name"].casefold(), fields["last_name"].casefold())
-        return next((row for row in rows if (row["first_name"].casefold(), row["last_name"].casefold()) == key), None)
+        """Meme eleve = meme prenom et meme nom, sans tenir compte des
+        majuscules, des accents ni des espaces en trop (quel que soit
+        l'e-mail : un deja inscrit qui se reinscrit avec une autre adresse
+        est reconnu). Deux homonymes sont donc consideres comme la meme
+        personne."""
+        key = (_normalize_name(fields["first_name"]), _normalize_name(fields["last_name"]))
+        rows = connection.execute("SELECT * FROM trial_students").fetchall()
+        return next(
+            (row for row in rows if (_normalize_name(row["first_name"]), _normalize_name(row["last_name"])) == key),
+            None,
+        )
 
     # ----- certificat medical et signature -----
 
@@ -655,11 +669,14 @@ class Trials:
         informations saisies, les signatures et les certificats. False si le
         mailer n'est pas configure ; MailError si l'envoi echoue."""
         students = [r["student"] for r in registrations]
-        email = students[0].get("email") if students else None
+        # Adresse saisie dans cette demande (une personne deja inscrite a pu
+        # l'etre avec une autre adresse).
+        email = (registrations[0].get("email") or students[0].get("email")) if students else None
         if self.mailer is None or not email:
             return False
         signatures = self.get_family_signatures(registrations[0].get("familyId"))
-        subject, html, text = confirmation_email(students, signatures)
+        already = [r["status"] == "existing" for r in registrations]
+        subject, html, text = confirmation_email(students, signatures, already)
         return self.mailer.send(
             email,
             f"{students[0]['firstName']} {students[0]['lastName']}",

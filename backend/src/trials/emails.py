@@ -79,16 +79,34 @@ def _signature_title(signature: dict, students: list[dict]) -> str:
     return title
 
 
-def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[str, str, str]:
+def _already_registered_note(student: dict) -> str:
+    """"Déjà inscrit(e) le 12/09/2026 : QR code déjà généré, toujours
+    valable" (personne reconnue a la reinscription)."""
+    registered = datetime.fromisoformat(student["createdAt"]).astimezone(PARIS).strftime("%d/%m/%Y")
+    return f"Déjà inscrit(e) le {registered} : QR code déjà généré, toujours valable"
+
+
+def confirmation_email(
+    students: list[dict], signatures: list[dict], already: list[bool] | None = None
+) -> tuple[str, str, str]:
     """Retourne (sujet, HTML, texte) du mail de confirmation pour les
     personnes d'une meme demande (1 a 3), avec le QR code de chacune (voir
-    qr_cid) et les signatures de la demande (voir signature_cid)."""
+    qr_cid) et les signatures de la demande (voir signature_cid). already :
+    par personne, True si elle etait deja inscrite (son QR code deja genere
+    est renvoye, et c'est signale)."""
+    already = already or [False] * len(students)
     several = len(students) > 1
     qr_codes = "".join(
         f"""<p style="text-align:center;margin:0 0 4px">
     <img src="cid:{qr_cid(i)}" width="220" height="220" alt="QR code de {escape(s['firstName'])}" style="display:inline-block;border:0">
   </p>
-  <p style="text-align:center;margin:0 0 20px;font-weight:bold">{escape(s['firstName'])} {escape(s['lastName'])}</p>"""
+  <p style="text-align:center;margin:0 0 {'4px' if already[i] else '20px'};font-weight:bold">{escape(s['firstName'])} {escape(s['lastName'])}</p>"""
+        + (
+            f"""
+  <p style="text-align:center;margin:0 0 20px;font-size:13px;color:#b45309">{escape(_already_registered_note(s))}</p>"""
+            if already[i]
+            else ""
+        )
         for i, s in enumerate(students)
     )
     rules = "".join(f"<li style='margin-bottom:4px'>{escape(rule)}</li>" for rule in content.RULES)
@@ -170,6 +188,11 @@ def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[st
             f"L'inscription de {_names(students)} au cours d'essai est confirmée.",
             "Présentez le QR code de chaque personne (images de ce mail) à l'entraîneur au début du cours d'essai "
             "(valable pour un seul cours).",
+            *(
+                f"{s['firstName']} {s['lastName']} : {_already_registered_note(s)}."
+                for s, is_already in zip(students, already)
+                if is_already
+            ),
             "",
             "MODALITÉS",
             *(f"- {rule}" for rule in content.RULES),

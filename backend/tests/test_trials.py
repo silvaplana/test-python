@@ -317,8 +317,10 @@ def test_register_first_person_minor_needs_external_parent(trials):
 
 def test_register_twice_returns_existing_same_token(trials):
     [first] = register(trials)
-    [again] = register(trials, [person("HUGO", "Blanc")], email="Hugo@Example.com")
+    # meme prenom et nom (majuscules, accents, espaces et e-mail differents)
+    [again] = register(trials, [person(" HUGO ", "Blânc")], email="autre@example.com")
     assert again["status"] == "existing" and again["token"] == first["token"]
+    assert again["email"] == "autre@example.com" and again["student"]["email"] == "hugo@example.com"
     # meme demande : Hugo deja inscrit, Léo nouveau
     results = register(trials, [person(), person("Léo", "Blanc", 9)])
     assert [r["status"] for r in results] == ["existing", "created"]
@@ -398,6 +400,7 @@ def test_confirmation_email(trials):
     assert inline_images["signature-0"] == SIGNATURE and inline_images["signature-1"] == PARENT_SIGNATURE
     assert len(inline_images) == 4
     assert trials.mailer.text.count("Décharge de responsabilité : acceptée par Hugo Blanc") == 2
+    assert "Déjà inscrit" not in html
     assert "Le certificat médical de chaque personne est joint à ce mail." in html
     assert [(name, mime) for name, _, mime in trials.mailer.attachments] == [
         ("certificat-Hugo-Blanc.pdf", "application/pdf"),
@@ -500,3 +503,17 @@ def test_public_register_rate_limited(trials):
     client = TestClient(app)
     codes = [client.post("/public/trials/register", data={"firstName0": "x"}).status_code for _ in range(3)]
     assert codes == [422, 422, 429]
+
+
+def test_confirmation_email_resends_existing_qr_to_new_address(trials):
+    trials.mailer = FakeMailer()
+    [first] = register(trials)
+    results = register(trials, [person("Hugo", "Blanc"), person("Léo", "Blanc")], email="nouvelle@example.com")
+    assert [r["status"] for r in results] == ["existing", "created"]
+    trials.send_confirmation(results)
+    to_email, _, html, inline_images = trials.mailer.sent[-1]
+    # mail envoye a l'adresse saisie, avec le QR code deja genere de Hugo
+    assert to_email == "nouvelle@example.com"
+    assert inline_images["qrcode-0"] == trials.qr_png(first["token"])
+    assert html.count("QR code déjà généré, toujours valable") == 1
+    assert "Hugo Blanc : Déjà inscrit(e) le" in trials.mailer.text
