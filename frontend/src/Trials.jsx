@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import QrScanner from 'qr-scanner'
-import { memberIdentifier } from './HelloAsso.jsx'
+import { memberIdentifier, normaliserTexte } from './HelloAsso.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -62,15 +62,13 @@ function checkIn(scanned) {
   return sendJson('/trials/checkin', 'POST', { token: scanned })
 }
 
-// Filtre "Masquer les adherents", memorise sur cet appareil.
-const HIDE_MEMBERS_KEY = 'trials-hide-members'
-function readHideMembers() {
-  try {
-    return localStorage.getItem(HIDE_MEMBERS_KEY) === '1'
-  } catch {
-    return false
-  }
-}
+// Puces de filtre (meme charte que HelloAsso/Adherents) : "Non-adherents"
+// par defaut, les eleves a l'essai deja inscrits au club etant en general
+// sans interet ici.
+const MEMBER_FILTERS = [
+  { value: 'tous', label: 'Tous' },
+  { value: 'non-adherents', label: 'Non-adhérents' },
+]
 
 const EMPTY_FORM = {
   firstName: '',
@@ -184,34 +182,32 @@ export function TrialsTable() {
   // Fenetre du scanner (ouverte si non null) : {result} une fois un QR code
   // verifie, {} pendant le scan.
   const [scan, setScan] = useState(null)
-  // Filtre "Masquer les adherents" : eleves a l'essai deja inscrits au club
-  // (presents dans HelloAsso/Adherents, meme nom et prenom sans tenir compte
-  // des majuscules ni des accents). Liste des adherents chargee seulement
-  // quand le filtre est actif (l'API HelloAsso est lente).
-  const [hideMembers, setHideMembers] = useState(readHideMembers)
+  // Filtres facon HelloAsso/Adherents : recherche textuelle (nom, prenom,
+  // e-mail, sans tenir compte des majuscules ni des accents) et puce
+  // "Tous" / "Non-adherents". Adherent = present dans HelloAsso/Adherents
+  // (meme nom et prenom, voir memberIdentifier) ; liste chargee seulement
+  // si la puce "Non-adherents" est choisie (l'API HelloAsso est lente).
+  const [recherche, setRecherche] = useState('')
+  const [filtreAdherents, setFiltreAdherents] = useState('non-adherents')
   const [memberIds, setMemberIds] = useState(null)
   const [membersError, setMembersError] = useState(null)
+  const hideMembers = filtreAdherents === 'non-adherents'
 
   useEffect(() => {
-    if (!hideMembers || memberIds) return
+    if (!hideMembers || memberIds || membersError) return
     callApi('/helloasso/members')
       .then((members) => setMemberIds(new Set(members.map((m) => memberIdentifier(m.lastName, m.firstName)))))
       .catch((err) => setMembersError(`Adhérents HelloAsso indisponibles : ${err.message}`))
-  }, [hideMembers, memberIds])
+  }, [hideMembers, memberIds, membersError])
 
-  function toggleHideMembers(e) {
-    setHideMembers(e.target.checked)
-    setMembersError(null)
-    try {
-      localStorage.setItem(HIDE_MEMBERS_KEY, e.target.checked ? '1' : '0')
-    } catch {
-      // stockage indisponible (navigation privee) : filtre non memorise
+  const visibleStudents = (students ?? []).filter((s) => {
+    if (hideMembers && memberIds?.has(memberIdentifier(s.lastName, s.firstName))) return false
+    if (recherche.trim()) {
+      const cible = normaliserTexte(`${s.lastName} ${s.firstName} ${s.email ?? ''}`)
+      if (!cible.includes(normaliserTexte(recherche))) return false
     }
-  }
-
-  const isMember = (s) => memberIds?.has(memberIdentifier(s.lastName, s.firstName))
-  const visibleStudents = hideMembers && memberIds && students ? students.filter((s) => !isMember(s)) : students
-  const hiddenCount = (students?.length ?? 0) - (visibleStudents?.length ?? 0)
+    return true
+  })
 
   const refetch = useCallback(async () => {
     try {
@@ -289,21 +285,33 @@ export function TrialsTable() {
         <button onClick={refetch}>Rafraîchir</button>
       </div>
 
-      <label className="toggle-row trial-filter">
-        <input type="checkbox" checked={hideMembers} onChange={toggleHideMembers} />
-        <span>
-          Masquer les adhérents
-          {hideMembers && (
-            <small>
-              {memberIds
-                ? ` (${hiddenCount} masqué${hiddenCount > 1 ? 's' : ''})`
-                : membersError
-                  ? ''
-                  : ' (chargement des adhérents…)'}
-            </small>
+      <div className="member-filters trial-filters">
+        <label className="member-search">
+          <span aria-hidden="true">🔍</span>
+          <input
+            type="search"
+            name="trial-search"
+            placeholder="Rechercher un inscrit au cours d'essai..."
+            value={recherche}
+            onChange={(e) => setRecherche(e.target.value)}
+          />
+        </label>
+        <div className="filter-chips" role="group" aria-label="Filtrer les adhérents">
+          {MEMBER_FILTERS.map(({ value, label }) => (
+            <button
+              key={value}
+              className={filtreAdherents === value ? 'filter-chip filter-chip-active' : 'filter-chip'}
+              aria-pressed={filtreAdherents === value}
+              onClick={() => setFiltreAdherents(value)}
+            >
+              {label}
+            </button>
+          ))}
+          {hideMembers && !memberIds && !membersError && (
+            <span className="trial-filter-hint">chargement des adhérents…</span>
           )}
-        </span>
-      </label>
+        </div>
+      </div>
       {hideMembers && membersError && <p className="warning">{membersError}</p>}
 
       {error && <p className="error">{error}</p>}
@@ -312,7 +320,9 @@ export function TrialsTable() {
         (students.length === 0 ? (
           <p className="empty-state">Aucun élève à l'essai pour l'instant</p>
         ) : visibleStudents.length === 0 ? (
-          <p className="empty-state">Tous les élèves à l'essai sont déjà adhérents</p>
+          <p className="empty-state">
+            {recherche.trim() ? 'Aucun inscrit ne correspond à la recherche' : "Tous les élèves à l'essai sont déjà adhérents"}
+          </p>
         ) : (
           <div className="table-wrapper">
             <table className="trials-table">

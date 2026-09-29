@@ -166,8 +166,8 @@ function ffstIdentifiers(ffstRows) {
 
 // Texte normalise (sans accents, insensible a la casse) pour la recherche
 // textuelle des adherents : "é"/"e" ou "Denane"/"denane" doivent matcher
-// pareil.
-function normaliserTexte(text) {
+// pareil. Reutilise par la recherche de l'onglet Essai.
+export function normaliserTexte(text) {
   return (text || '')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')

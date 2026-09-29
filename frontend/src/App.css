@@ -1433,12 +1433,15 @@ td button + .ffst-role-picker,
   color: #f87171;
 }
 
-.trial-filter {
-  margin-bottom: 0.9rem;
+.trial-filters {
+  margin-bottom: 1rem;
 }
 
-.trial-filter small {
+.trial-filter-hint {
+  align-self: center;
   color: var(--text);
+  font-size: 0.8rem;
+  white-space: nowrap;
 }
 
 .trial-name {
