@@ -1347,6 +1347,39 @@ td button + .ffst-role-picker,
   border-color: var(--accent);
 }
 
+/* Titre du scanner et croix de fermeture a l'extreme droite. */
+.trial-scan-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.trial-dialog .trial-scan-header h3 {
+  margin: 0;
+}
+
+.trial-scan-close {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.trial-scan-close:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
 .trial-scan-dialog:focus {
   outline: none;
 }

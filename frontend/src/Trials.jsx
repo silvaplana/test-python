@@ -684,7 +684,18 @@ function ScanDialog({ initialResult, onResult, onClose }) {
 
   return (
     <dialog ref={dialogRef} className="trial-dialog trial-scan-dialog" tabIndex={-1} onClose={onClose}>
-      <h3>Scanner les QR codes des élèves</h3>
+      <div className="trial-scan-header">
+        <h3>Scanner les QR codes des inscrits</h3>
+        <button
+          type="button"
+          className="trial-scan-close"
+          onClick={() => dialogRef.current.close()}
+          aria-label="Fermer"
+          title="Fermer"
+        >
+          ✕
+        </button>
+      </div>
       <div className="trial-scan-video">
         <video ref={videoRef} muted playsInline />
       </div>
@@ -727,11 +738,6 @@ function ScanDialog({ initialResult, onResult, onClose }) {
         </ul>
       )}
 
-      <div className="trial-dialog-actions">
-        <button type="button" onClick={() => dialogRef.current.close()}>
-          Fermer
-        </button>
-      </div>
     </dialog>
   )
 }
