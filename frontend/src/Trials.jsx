@@ -615,16 +615,16 @@ const CHECKIN_MESSAGES = {
 // Scanner de QR code en continu (camera arriere, bibliotheque qr-scanner :
 // fonctionne sur Android comme sur iPhone, ou Safari ne sait pas lire les QR
 // codes seul). Chaque QR code lu
-// est verifie (voir backend Trials.check_in), le resultat s'ajoute en haut de
-// la liste et la camera continue : plusieurs eleves a la suite sans rien
+// est verifie (voir backend Trials.check_in), son resultat remplace le
+// precedent et la camera continue : plusieurs eleves a la suite sans rien
 // toucher. Un meme QR code n'est traite qu'une fois tant que la fenetre est
 // ouverte (sinon, reste devant la camera, il serait relu en boucle).
 function ScanDialog({ initialResult, onResult, onClose }) {
   const dialogRef = useRef(null)
   const videoRef = useRef(null)
   const seen = useRef(new Set())
-  const nextKey = useRef(1)
-  const [results, setResults] = useState(() => (initialResult ? [{ ...initialResult, key: 0 }] : []))
+  // Resultat du dernier QR code lu (seul affiche).
+  const [last, setLast] = useState(initialResult)
   const [cameraError, setCameraError] = useState(null)
   const [pending, setPending] = useState(0)
 
@@ -649,8 +649,7 @@ function ScanDialog({ initialResult, onResult, onClose }) {
       } finally {
         setPending((n) => n - 1)
       }
-      const key = nextKey.current++
-      setResults((prev) => [{ ...entry, key }, ...prev].slice(0, 8))
+      setLast(entry)
     },
     [onResult]
   )
@@ -694,27 +693,23 @@ function ScanDialog({ initialResult, onResult, onClose }) {
       {cameraError && <p className="warning">{cameraError}</p>}
 
       {pending > 0 && <p className="profile-hint">Vérification…</p>}
-      {results.length > 0 && (
-        <ul className="trial-scan-results">
-          {results.map((r) => (
-            <li key={r.key} className={`trial-scan-entry trial-scan-${r.status}`}>
-              <span className="trial-scan-icon" aria-hidden="true">
-                {r.status === 'added' ? '✅' : r.status === 'unknown' || r.status === 'error' ? '❌' : '⚠️'}
-              </span>
-              <span>
-                {r.student && (
-                  <strong>
-                    {r.student.firstName} {r.student.lastName}
-                    {r.student.age !== null && <small> · {r.student.age} ans</small>}
-                  </strong>
-                )}
-                <span className="trial-scan-message">
-                  {r.status === 'error' ? r.message : CHECKIN_MESSAGES[r.status](r)}
-                </span>
-              </span>
-            </li>
-          ))}
-        </ul>
+      {last && (
+        <p className={`trial-scan-entry trial-scan-${last.status}`}>
+          <span className="trial-scan-icon" aria-hidden="true">
+            {last.status === 'added' ? '✅' : last.status === 'unknown' || last.status === 'error' ? '❌' : '⚠️'}
+          </span>
+          <span>
+            {last.student && (
+              <strong>
+                {last.student.firstName} {last.student.lastName}
+                {last.student.age !== null && <small> · {last.student.age} ans</small>}
+              </strong>
+            )}
+            <span className="trial-scan-message">
+              {last.status === 'error' ? last.message : CHECKIN_MESSAGES[last.status](last)}
+            </span>
+          </span>
+        </p>
       )}
 
     </dialog>

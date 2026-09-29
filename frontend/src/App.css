@@ -1400,34 +1400,15 @@ td button + .ffst-role-picker,
   object-fit: cover;
 }
 
-/* Resultats du scanner, le plus recent en haut (le scan continue). */
-.trial-scan-results {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  margin: 0.75rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
+/* Resultat du dernier QR code lu (le scan continue). */
 .trial-scan-entry {
   display: flex;
   align-items: flex-start;
   gap: 0.6rem;
-  padding: 0.5rem 0.65rem;
-  border: 1px solid var(--border);
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 2px solid var(--border);
   border-radius: 8px;
-  font-size: 0.9rem;
-}
-
-/* Le dernier resultat, bien visible ; les precedents s'estompent. */
-.trial-scan-entry:first-child {
-  border-width: 2px;
-  font-size: 1rem;
-}
-
-.trial-scan-entry:not(:first-child) {
-  opacity: 0.65;
 }
 
 .trial-scan-icon {
