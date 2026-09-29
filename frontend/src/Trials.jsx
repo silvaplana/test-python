@@ -179,8 +179,8 @@ export function TrialsTable() {
   const [pendingId, setPendingId] = useState(null)
   // Eleve dont la fiche est ouverte (modification), null sinon.
   const [editing, setEditing] = useState(null)
-  // Fenetre du scanner (ouverte si non null) : {result} une fois un QR code
-  // verifie, {} pendant le scan.
+  // Fenetre du scanner (ouverte si non null) : {initial}, resultat deja
+  // obtenu a l'ouverture (QR code scanne avec l'appareil photo), ou null.
   const [scan, setScan] = useState(null)
   // Filtres facon HelloAsso/Adherents : recherche textuelle (nom, prenom,
   // e-mail, sans tenir compte des majuscules ni des accents) et puce
@@ -236,21 +236,28 @@ export function TrialsTable() {
     setStudents((prev) => prev.map((s) => (s.id === updated.id ? updated : s)))
   }
 
-  // Resultat d'un scan : met a jour la ligne de l'eleve et l'affiche.
-  const showCheckin = useCallback((result) => {
+  // Resultat d'un scan : met a jour la ligne de l'eleve (le scanner, lui,
+  // affiche le message et continue).
+  const applyCheckin = useCallback((result) => {
     if (result.student) {
       setStudents((prev) => prev && prev.map((s) => (s.id === result.student.id ? result.student : s)))
     }
     if (result.status === 'added') navigator.vibrate?.(200)
-    setScan({ result })
   }, [])
 
-  // Ouverture de l'appli par le QR code (appareil photo du telephone).
+  // Ouverture de l'appli par le QR code (appareil photo du telephone) :
+  // resultat affiche dans le scanner, qui reste ouvert pour les suivants.
   useEffect(() => {
     if (!checkinFromUrl) return
     urlCheckinPromise ??= checkIn(checkinFromUrl)
-    urlCheckinPromise.then(showCheckin, (err) => setError(err.message))
-  }, [showCheckin])
+    urlCheckinPromise.then(
+      (result) => {
+        applyCheckin(result)
+        setScan({ initial: result })
+      },
+      (err) => setError(err.message)
+    )
+  }, [applyCheckin])
 
   async function addCourse(student) {
     setPendingId(student.id)
@@ -291,7 +298,7 @@ export function TrialsTable() {
           (majeur/mineur, parent, certificat, decharge, signatures, QR code
           et mail), ouvert dans un nouvel onglet. */}
       <div className="trial-actions">
-        <button className="trial-scan-button" onClick={() => setScan({})}>
+        <button className="trial-scan-button" onClick={() => setScan({ initial: null })}>
           QR code
         </button>
         <a
@@ -414,7 +421,7 @@ export function TrialsTable() {
           </div>
         ))}
 
-      {scan && <ScanDialog result={scan.result} onResult={showCheckin} onRestart={() => setScan({})} onClose={() => setScan(null)} />}
+      {scan && <ScanDialog initialResult={scan.initial} onResult={applyCheckin} onClose={() => setScan(null)} />}
 
       {editing && (
         <StudentDialog
@@ -605,17 +612,22 @@ const CHECKIN_MESSAGES = {
   unknown: () => 'QR code non identifié',
 }
 
-// Scanner de QR code (camera arriere, bibliotheque qr-scanner : fonctionne
-// sur Android comme sur iPhone, ou Safari ne sait pas lire les QR codes
-// seul), avec saisie manuelle du code en secours. Affiche ensuite le
-// resultat de la verification (voir backend Trials.check_in).
-function ScanDialog({ result, onResult, onRestart, onClose }) {
+// Scanner de QR code en continu (camera arriere, bibliotheque qr-scanner :
+// fonctionne sur Android comme sur iPhone, ou Safari ne sait pas lire les QR
+// codes seul), avec saisie manuelle du code en secours. Chaque QR code lu
+// est verifie (voir backend Trials.check_in), le resultat s'ajoute en haut de
+// la liste et la camera continue : plusieurs eleves a la suite sans rien
+// toucher. Un meme QR code n'est traite qu'une fois tant que la fenetre est
+// ouverte (sinon, reste devant la camera, il serait relu en boucle).
+function ScanDialog({ initialResult, onResult, onClose }) {
   const dialogRef = useRef(null)
   const videoRef = useRef(null)
+  const seen = useRef(new Set())
+  const nextKey = useRef(1)
+  const [results, setResults] = useState(() => (initialResult ? [{ ...initialResult, key: 0 }] : []))
   const [cameraError, setCameraError] = useState(null)
   const [manualCode, setManualCode] = useState('')
-  const [pending, setPending] = useState(false)
-  const [error, setError] = useState(null)
+  const [pending, setPending] = useState(0)
 
   // Focus sur la fenetre elle-meme (tabIndex -1) : sinon le navigateur le
   // donne au premier champ (la saisie manuelle du code), ce qui ouvre le
@@ -627,32 +639,33 @@ function ScanDialog({ result, onResult, onRestart, onClose }) {
 
   const verify = useCallback(
     async (scanned) => {
-      setPending(true)
-      setError(null)
+      setPending((n) => n + 1)
+      let entry
       try {
-        onResult(await checkIn(scanned))
+        const result = await checkIn(scanned)
+        onResult(result)
+        entry = result
       } catch (err) {
-        setError(err.message)
+        entry = { status: 'error', message: err.message }
       } finally {
-        setPending(false)
+        setPending((n) => n - 1)
       }
+      const key = nextKey.current++
+      setResults((prev) => [{ ...entry, key }, ...prev].slice(0, 8))
     },
     [onResult]
   )
 
-  // Camera allumee seulement pendant le scan (pas sur l'ecran de resultat).
+  // Camera allumee tant que la fenetre est ouverte.
   useEffect(() => {
-    if (result) return
-    let done = false
     const scanner = new QrScanner(
       videoRef.current,
       (decoded) => {
-        if (done) return
-        done = true
-        scanner.stop()
+        if (seen.current.has(decoded.data)) return
+        seen.current.add(decoded.data)
         verify(decoded.data)
       },
-      { preferredCamera: 'environment', highlightScanRegion: true, returnDetailedScanResult: true }
+      { preferredCamera: 'environment', highlightScanRegion: true, returnDetailedScanResult: true, maxScansPerSecond: 8 }
     )
     scanner.start().catch(() =>
       setCameraError(
@@ -660,60 +673,61 @@ function ScanDialog({ result, onResult, onRestart, onClose }) {
       )
     )
     return () => scanner.destroy()
-  }, [result, verify])
+  }, [verify])
 
   function submitManual(e) {
     e.preventDefault()
-    if (manualCode.trim()) verify(manualCode.trim())
+    if (!manualCode.trim()) return
+    verify(manualCode.trim())
+    setManualCode('')
   }
-
-  const student = result?.student
 
   return (
     <dialog ref={dialogRef} className="trial-dialog trial-scan-dialog" tabIndex={-1} onClose={onClose}>
-      {result ? (
-        <div className={`trial-scan-result trial-scan-${result.status}`}>
-          <p className="trial-scan-icon">{result.status === 'added' ? '✅' : result.status === 'unknown' ? '❌' : '⚠️'}</p>
-          {student && (
-            <h3>
-              {student.firstName} {student.lastName}
-              {student.age !== null && <span> · {student.age} ans</span>}
-            </h3>
-          )}
-          <p>{CHECKIN_MESSAGES[result.status](result)}</p>
-        </div>
-      ) : (
-        <>
-          <h3>Scanner le QR code de l'élève</h3>
-          <div className="trial-scan-video">
-            <video ref={videoRef} muted playsInline />
-          </div>
-          {cameraError && <p className="warning">{cameraError}</p>}
-          <form className="trial-scan-manual" onSubmit={submitManual}>
-            <input
-              value={manualCode}
-              onChange={(e) => setManualCode(e.target.value)}
-              placeholder="ou code saisi à la main"
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck="false"
-            />
-            <button type="submit" disabled={pending || !manualCode.trim()}>
-              Vérifier
-            </button>
-          </form>
-        </>
+      <h3>Scanner les QR codes des élèves</h3>
+      <div className="trial-scan-video">
+        <video ref={videoRef} muted playsInline />
+      </div>
+      {cameraError && <p className="warning">{cameraError}</p>}
+      <form className="trial-scan-manual" onSubmit={submitManual}>
+        <input
+          value={manualCode}
+          onChange={(e) => setManualCode(e.target.value)}
+          placeholder="ou code saisi à la main"
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck="false"
+        />
+        <button type="submit" disabled={!manualCode.trim()}>
+          Vérifier
+        </button>
+      </form>
+
+      {pending > 0 && <p className="profile-hint">Vérification…</p>}
+      {results.length > 0 && (
+        <ul className="trial-scan-results">
+          {results.map((r) => (
+            <li key={r.key} className={`trial-scan-entry trial-scan-${r.status}`}>
+              <span className="trial-scan-icon" aria-hidden="true">
+                {r.status === 'added' ? '✅' : r.status === 'unknown' || r.status === 'error' ? '❌' : '⚠️'}
+              </span>
+              <span>
+                {r.student && (
+                  <strong>
+                    {r.student.firstName} {r.student.lastName}
+                    {r.student.age !== null && <small> · {r.student.age} ans</small>}
+                  </strong>
+                )}
+                <span className="trial-scan-message">
+                  {r.status === 'error' ? r.message : CHECKIN_MESSAGES[r.status](r)}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
 
-      {pending && <p className="profile-hint">Vérification…</p>}
-      {error && <p className="error">{error}</p>}
-
       <div className="trial-dialog-actions">
-        {result && (
-          <button type="button" className="trial-save" onClick={onRestart}>
-            Scanner un autre
-          </button>
-        )}
         <button type="button" onClick={() => dialogRef.current.close()}>
           Fermer
         </button>

@@ -1351,12 +1351,14 @@ td button + .ffst-role-picker,
   outline: none;
 }
 
+/* 4/3 plutot que carre : le dernier resultat reste visible sous la camera
+   sans faire defiler, sur un telephone. */
 .trial-scan-video {
   position: relative;
   overflow: hidden;
   border-radius: 10px;
   background: #000;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
 }
 
 .trial-scan-video video {
@@ -1400,42 +1402,81 @@ td button + .ffst-role-picker,
   cursor: not-allowed;
 }
 
-.trial-scan-result {
-  padding: 1rem 0.5rem 0.25rem;
-  text-align: center;
+/* Resultats du scanner, le plus recent en haut (le scan continue). */
+.trial-scan-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trial-scan-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+/* Le dernier resultat, bien visible ; les precedents s'estompent. */
+.trial-scan-entry:first-child {
+  border-width: 2px;
+  font-size: 1rem;
+}
+
+.trial-scan-entry:not(:first-child) {
+  opacity: 0.65;
 }
 
 .trial-scan-icon {
-  margin: 0;
-  font-size: 3rem;
+  font-size: 1.3rem;
   line-height: 1.2;
 }
 
-.trial-scan-result h3 {
-  margin: 0.5rem 0 0.25rem;
+.trial-scan-entry strong {
+  display: block;
+  color: var(--text-h);
 }
 
-.trial-scan-result h3 span {
+.trial-scan-entry small {
   font-weight: 400;
   color: var(--text);
 }
 
-.trial-scan-result > p:last-child {
-  margin: 0;
-  font-size: 1.1rem;
+.trial-scan-message {
+  display: block;
   font-weight: 600;
 }
 
-.trial-scan-added > p:last-child {
+.trial-scan-added {
+  border-color: rgba(74, 222, 128, 0.6);
+}
+
+.trial-scan-added .trial-scan-message {
   color: #4ade80;
 }
 
-.trial-scan-used > p:last-child,
-.trial-scan-full > p:last-child {
+.trial-scan-used,
+.trial-scan-full {
+  border-color: rgba(250, 204, 21, 0.6);
+}
+
+.trial-scan-used .trial-scan-message,
+.trial-scan-full .trial-scan-message {
   color: #facc15;
 }
 
-.trial-scan-unknown > p:last-child {
+.trial-scan-unknown,
+.trial-scan-error {
+  border-color: rgba(248, 113, 113, 0.6);
+}
+
+.trial-scan-unknown .trial-scan-message,
+.trial-scan-error .trial-scan-message {
   color: #f87171;
 }
 
