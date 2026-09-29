@@ -631,7 +631,9 @@ function scanColor(result) {
 
 const CHECKIN_MESSAGES = {
   added: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré`,
-  today: () => "Déjà enregistré aujourd'hui",
+  // Deja un cours a la date du jour (QR code relu) : meme message que lors
+  // de l'enregistrement, rien n'est ajoute.
+  today: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré`,
   full: () => "Les 2 cours d'essai ont déjà été faits",
   unknown: () => 'Code inconnu',
 }
