@@ -4,20 +4,6 @@ import banner from '../assets/essai-banner.jpg'
 import clubLogo from '../assets/club-logo-transparent.png'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const ADULT_AGE = 18
-
-function ageOn(birthDate, today = new Date()) {
-  if (!birthDate) return null
-  const [year, month, day] = birthDate.split('-').map(Number)
-  const beforeBirthday = today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)
-  return today.getFullYear() - year - (beforeBirthday ? 1 : 0)
-}
-
-// Date du jour au format AAAA-MM-JJ (heure locale), pour le max du champ date.
-function todayIso() {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
 
 // Textes du serveur (voir backend trials/content.py) : {eleve} et {club}
 // remplaces par le nom de l'eleve et du club.
@@ -28,12 +14,11 @@ function fill(text, studentName, club) {
 const EMPTY_FORM = {
   firstName: '',
   lastName: '',
-  birthDate: '',
-  gender: '',
+  // "adult" | "minor" : pas de date de naissance demandee, l'eleve (ou son
+  // parent) indique simplement s'il est mineur.
+  ageGroup: '',
   email: '',
-  phone: '',
   parentName: '',
-  medicalAttestation: false,
   parentalConsent: false,
   waiverAccepted: false,
   website: '',
@@ -160,8 +145,7 @@ function RegistrationForm({ info, onDone }) {
   const [error, setError] = useState(null)
   const padRef = useRef(null)
 
-  const age = ageOn(form.birthDate)
-  const minor = age !== null && age < ADULT_AGE
+  const minor = form.ageGroup === 'minor'
   const studentName = `${form.firstName} ${form.lastName}`.trim()
 
   function update(key) {
@@ -174,14 +158,21 @@ function RegistrationForm({ info, onDone }) {
   async function submit(e) {
     e.preventDefault()
     setError(null)
-    if (!form.gender) return setError('Merci d’indiquer le genre')
+    if (!form.ageGroup) return setError('Merci d’indiquer si l’élève est majeur ou mineur')
+    if (!certificate) return setError('Merci de joindre le certificat médical')
     if (padRef.current.isEmpty()) return setError('Merci de signer dans le cadre prévu')
     const body = new FormData()
-    for (const [key, value] of Object.entries(form)) body.append(key, value)
-    if (!minor) body.set('parentName', '')
+    body.append('firstName', form.firstName)
+    body.append('lastName', form.lastName)
+    body.append('email', form.email)
+    body.append('minor', minor)
+    body.append('parentName', minor ? form.parentName : '')
+    body.append('parentalConsent', minor && form.parentalConsent)
+    body.append('waiverAccepted', form.waiverAccepted)
+    body.append('website', form.website)
     body.append('termsVersion', info.termsVersion)
     body.append('signature', padRef.current.toDataUrl())
-    if (certificate) body.append('certificate', certificate)
+    body.append('certificate', certificate)
     setPending(true)
     try {
       const response = await fetch(`${API_URL}/public/trials/register`, { method: 'POST', body })
@@ -211,26 +202,21 @@ function RegistrationForm({ info, onDone }) {
           Nom
           <input value={form.lastName} onChange={update('lastName')} required autoComplete="family-name" />
         </label>
-        <label>
-          Date de naissance
-          <input
-            type="date"
-            value={form.birthDate}
-            onChange={update('birthDate')}
-            required
-            max={todayIso()}
-            min="1920-01-01"
-          />
-        </label>
-        <div className="essai-label" role="radiogroup" aria-label="Genre">
-          Genre
+        <div className="essai-label" role="radiogroup" aria-label="L'élève est">
+          L'élève est
           <div className="essai-choice">
             {[
-              ['M', 'Homme'],
-              ['F', 'Femme'],
+              ['adult', 'Majeur'],
+              ['minor', 'Mineur'],
             ].map(([value, label]) => (
-              <label key={value} className={form.gender === value ? 'essai-choice-active' : undefined}>
-                <input type="radio" name="gender" value={value} checked={form.gender === value} onChange={update('gender')} />
+              <label key={value} className={form.ageGroup === value ? 'essai-choice-active' : undefined}>
+                <input
+                  type="radio"
+                  name="ageGroup"
+                  value={value}
+                  checked={form.ageGroup === value}
+                  onChange={update('ageGroup')}
+                />
                 {label}
               </label>
             ))}
@@ -252,10 +238,6 @@ function RegistrationForm({ info, onDone }) {
           />
           <small>Le QR code vous sera envoyé à cette adresse.</small>
         </label>
-        <label>
-          <span>Téléphone <small>(facultatif)</small></span>
-          <input type="tel" inputMode="tel" value={form.phone} onChange={update('phone')} autoComplete="tel" />
-        </label>
       </fieldset>
 
       {minor && (
@@ -273,16 +255,7 @@ function RegistrationForm({ info, onDone }) {
       )}
 
       <fieldset>
-        <legend>Santé</legend>
-        <label className="essai-check">
-          <input
-            type="checkbox"
-            checked={form.medicalAttestation}
-            onChange={update('medicalAttestation')}
-            required
-          />
-          <span>{fill(info.medicalAttestation, studentName, info.club)}</span>
-        </label>
+        <legend>Certificat médical</legend>
         <p className="essai-hint">{info.medicalCertificateHint}</p>
         {/* accept image/* : propose l'appareil photo sur Android et iPhone. */}
         <label className="essai-file">

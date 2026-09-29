@@ -60,7 +60,6 @@ class RegistrationError(ValueError):
 
 
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-ADULT_AGE = 18
 MAX_SIGNATURE_BYTES = 500_000
 MAX_CERTIFICATE_BYTES = 15_000_000
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
@@ -117,7 +116,6 @@ class Trials:
             "email": row["email"],
             "phone": row["phone"],
             "parentName": row["parent_name"],
-            "medicalAttestation": bool(row["medical_attestation"]),
             "hasMedicalCertificate": bool(row["medical_certificate_file"]),
             "parentalConsent": bool(row["parental_consent"]),
             "waiverAccepted": bool(row["waiver_accepted"]),
@@ -330,8 +328,8 @@ class Trials:
 
     def register(self, form: dict, signature_png: bytes, certificate: tuple[str, bytes] | None, ip: str | None) -> dict:
         """Inscription depuis la page publique. form : first_name, last_name,
-        birth_date, gender, email, phone, parent_name, medical_attestation,
-        parental_consent, waiver_accepted, terms_version.
+        email, minor, parent_name, parental_consent, waiver_accepted,
+        terms_version. certificate : (nom du fichier, contenu), obligatoire.
 
         Eleve deja inscrit (meme e-mail, nom et prenom) : rien n'est modifie
         et on lui renvoie son QR code par mail -- jamais affiche a l'ecran,
@@ -340,7 +338,7 @@ class Trials:
 
         Retourne {"status": "created" | "existing", "student", "token"}.
         Leve RegistrationError si le formulaire est incomplet."""
-        fields = self._validate_registration(form, signature_png)
+        fields = self._validate_registration(form, signature_png, certificate)
         now = _now_iso()
         with self.db.connect() as connection:
             existing = self._find_existing(connection, fields)
@@ -371,46 +369,40 @@ class Trials:
                     f"INSERT INTO trial_students ({columns}) VALUES ({placeholders})", tuple(fields.values())
                 )
                 student_id = cursor.lastrowid
-            if certificate is not None:
-                self._store_certificate(connection, student_id, *certificate)
+            self._store_certificate(connection, student_id, *certificate)
             return {"status": "created", "student": self._to_dict(self._get_row(connection, student_id)), "token": token}
 
-    def _validate_registration(self, form: dict, signature_png: bytes) -> dict:
+    def _validate_registration(
+        self, form: dict, signature_png: bytes, certificate: tuple[str, bytes] | None
+    ) -> dict:
+        """Verifie le formulaire, dans l'ordre de la page (le 1er manque est
+        signale). Mineur : declare par la case "L'eleve est mineur" (pas de
+        date de naissance demandee) -- nom du parent et autorisation
+        parentale alors obligatoires. Certificat medical obligatoire."""
         try:
-            date.fromisoformat(form.get("birth_date") or "")
-        except ValueError as exc:
-            raise RegistrationError("Merci d'indiquer une date de naissance valide") from exc
-        try:
-            fields = self._clean({key: form.get(key) for key in EDITABLE_FIELDS if key != "comment"})
+            fields = self._clean({key: form.get(key) for key in ("first_name", "last_name", "email", "parent_name")})
         except ValueError as exc:
             raise RegistrationError(str(exc)) from exc
-        for key, label in (("birth_date", "la date de naissance"), ("gender", "le genre"), ("email", "l'e-mail")):
-            if not fields.get(key):
-                raise RegistrationError(f"Merci d'indiquer {label}")
+        if not fields.get("email"):
+            raise RegistrationError("Merci d'indiquer l'e-mail")
         if not EMAIL_PATTERN.match(fields["email"]):
             raise RegistrationError("Adresse e-mail invalide")
-        age = _age(fields["birth_date"], today())
-        if age < 3 or age > 100:
-            raise RegistrationError("Date de naissance invalide")
-        minor = age < ADULT_AGE
-        if minor and not fields.get("parent_name"):
-            raise RegistrationError("Pour un mineur, merci d'indiquer le nom du parent ou représentant légal")
-        if not minor:
-            fields["parent_name"] = None
-        checks = {
-            "medical_attestation": "Merci de cocher l'attestation médicale",
-            "waiver_accepted": "Merci d'accepter la décharge de responsabilité",
-        }
+        minor = bool(form.get("minor"))
         if minor:
-            checks["parental_consent"] = "Merci de cocher l'autorisation parentale"
-        for key, message in checks.items():
-            if not form.get(key):
-                raise RegistrationError(message)
+            if not fields.get("parent_name"):
+                raise RegistrationError("Pour un mineur, merci d'indiquer le nom du parent ou représentant légal")
+            if not form.get("parental_consent"):
+                raise RegistrationError("Merci de cocher l'autorisation parentale")
+        else:
+            fields["parent_name"] = None
+        if certificate is None:
+            raise RegistrationError("Merci de joindre le certificat médical")
+        if not form.get("waiver_accepted"):
+            raise RegistrationError("Merci d'accepter la décharge de responsabilité")
         if not signature_png.startswith(PNG_MAGIC) or len(signature_png) > MAX_SIGNATURE_BYTES:
             raise RegistrationError("Signature manquante ou invalide")
         fields.update(
             {
-                "medical_attestation": 1,
                 "waiver_accepted": 1,
                 "parental_consent": 1 if minor else 0,
                 "terms_version": form.get("terms_version") or content.TERMS_VERSION,

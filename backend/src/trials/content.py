@@ -7,7 +7,7 @@ que l'eleve accepte (decharge, accord parental, attestation) : changer aussi
 TERMS_VERSION -- chaque inscription garde la version acceptee.
 """
 
-TERMS_VERSION = "2026-09-26"
+TERMS_VERSION = "2026-09-29"
 
 CLUB_NAME = "Alliance Sambo Combat La Ciotat"
 
@@ -25,6 +25,7 @@ RULES = [
     "Un seul cours d'essai par personne.",
     "Présentez votre QR code à l'entraîneur au début du cours (sur votre téléphone ou imprimé).",
     "Tenue : short ou jogging, t-shirt, bouteille d'eau. Pas de bijoux. Protège-dents conseillé.",
+    "Un certificat médical d'aptitude au sambo est requis (à joindre à l'inscription).",
     "Arrivez 10 minutes avant le début du cours.",
     "Les mineurs doivent être inscrits par un parent ou représentant légal.",
 ]
@@ -57,13 +58,8 @@ CONTACTS = [
     {"name": "Karima", "phone": "07 66 09 63 68"},
 ]
 
-MEDICAL_ATTESTATION = (
-    "J'atteste que {eleve} ne présente, à ma connaissance, aucune contre-indication à la pratique "
-    "des sports de combat (MMA, sambo)."
-)
-
 MEDICAL_CERTIFICATE_HINT = (
-    "Facultatif pour le cours d'essai : vous pouvez joindre un certificat médical (photo ou PDF)."
+    "Obligatoire : joignez un certificat médical d'aptitude au sambo / MMA (photo ou PDF)."
 )
 
 PARENTAL_CONSENT = (
@@ -99,7 +95,6 @@ def public_info() -> dict:
         "schedule": SCHEDULE,
         "places": PLACES,
         "contacts": CONTACTS,
-        "medicalAttestation": MEDICAL_ATTESTATION,
         "medicalCertificateHint": MEDICAL_CERTIFICATE_HINT,
         "parentalConsent": PARENTAL_CONSENT,
         "waiver": WAIVER,

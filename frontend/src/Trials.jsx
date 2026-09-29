@@ -272,7 +272,9 @@ export function TrialsTable() {
                           {s.firstName} {s.lastName}
                         </button>
                       </td>
-                      <td>{s.age ?? '—'}</td>
+                      {/* Inscription en ligne : pas de date de naissance, seulement
+                          majeur/mineur (mineur = autorisation parentale donnee). */}
+                      <td>{s.age ?? (s.source === 'web' ? (s.parentalConsent ? 'mineur' : 'majeur') : '—')}</td>
                       <td className="col-secondary">{s.qrGenerated ? `✓ ${timestampFr(s.qrCreatedAt)}` : '—'}</td>
                       <td>
                         <CourseCell course={s.courses[0]} />

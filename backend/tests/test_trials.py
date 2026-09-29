@@ -156,19 +156,20 @@ def png_bytes(size=(40, 20), fmt="PNG"):
     return buffer.getvalue()
 
 
+# Certificat medical (obligatoire a l'inscription en ligne).
+CERT = ("certif.pdf", b"%PDF-1.4 test")
+
+
 def adult_form(**overrides):
     form = {
         "first_name": "Hugo",
         "last_name": "Blanc",
-        "birth_date": "1990-01-15",
-        "gender": "M",
         "email": "hugo@example.com",
-        "phone": "",
+        "minor": False,
         "parent_name": "",
-        "medical_attestation": True,
         "parental_consent": False,
         "waiver_accepted": True,
-        "terms_version": "2026-09-26",
+        "terms_version": "2026-09-29",
     }
     form.update(overrides)
     return form
@@ -186,7 +187,7 @@ class FakeMailer:
 
 
 def test_register_creates_student_with_qr(trials):
-    result = trials.register(adult_form(), png_bytes(), None, "1.2.3.4")
+    result = trials.register(adult_form(), png_bytes(), CERT, "1.2.3.4")
     assert result["status"] == "created"
     student = result["student"]
     assert student["source"] == "web" and student["qrGenerated"] and student["hasSignature"]
@@ -197,16 +198,16 @@ def test_register_creates_student_with_qr(trials):
 
 
 def test_register_twice_returns_existing_same_token(trials):
-    first = trials.register(adult_form(), png_bytes(), None, None)
-    again = trials.register(adult_form(first_name="HUGO", email="Hugo@Example.com"), png_bytes(), None, None)
+    first = trials.register(adult_form(), png_bytes(), CERT, None)
+    again = trials.register(adult_form(first_name="HUGO", email="Hugo@Example.com"), png_bytes(), CERT, None)
     assert again["status"] == "existing" and again["token"] == first["token"]
-    sibling = trials.register(adult_form(first_name="Léo"), png_bytes(), None, None)
+    sibling = trials.register(adult_form(first_name="Léo"), png_bytes(), CERT, None)
     assert sibling["status"] == "created" and sibling["token"] != first["token"]
 
 
 def test_register_completes_manual_student(trials):
     manual = trials.add_student("Hugo", "Blanc", email="hugo@example.com")
-    result = trials.register(adult_form(), png_bytes(), None, None)
+    result = trials.register(adult_form(), png_bytes(), CERT, None)
     assert result["status"] == "created" and result["student"]["id"] == manual["id"]
     assert result["student"]["qrGenerated"] and len(trials.list_students()) == 1
 
@@ -214,24 +215,30 @@ def test_register_completes_manual_student(trials):
 @pytest.mark.parametrize(
     "overrides, message",
     [
-        ({"birth_date": ""}, "date de naissance"),
+        ({"email": ""}, "e-mail"),
         ({"email": "pas-un-mail"}, "e-mail"),
-        ({"medical_attestation": False}, "attestation"),
         ({"waiver_accepted": False}, "décharge"),
-        ({"birth_date": "2015-03-01"}, "parent"),
-        ({"birth_date": "2015-03-01", "parent_name": "Paul Blanc"}, "autorisation parentale"),
+        ({"minor": True}, "parent"),
+        ({"minor": True, "parent_name": "Paul Blanc"}, "autorisation parentale"),
     ],
 )
 def test_register_validation(trials, overrides, message):
     with pytest.raises(RegistrationError, match=message):
-        trials.register(adult_form(**overrides), png_bytes(), None, None)
+        trials.register(adult_form(**overrides), png_bytes(), CERT, None)
 
 
-def test_register_minor_and_signature_required(trials):
+def test_register_minor_signature_and_certificate_required(trials):
     with pytest.raises(RegistrationError, match="Signature"):
-        trials.register(adult_form(), b"pas une image", None, None)
-    minor = adult_form(birth_date="2015-03-01", parent_name="Paul Blanc", parental_consent=True)
-    assert trials.register(minor, png_bytes(), None, None)["student"]["parentName"] == "Paul Blanc"
+        trials.register(adult_form(), b"pas une image", CERT, None)
+    with pytest.raises(RegistrationError, match="certificat médical"):
+        trials.register(adult_form(), png_bytes(), None, None)
+    assert trials.list_students() == []
+    minor = adult_form(minor=True, parent_name="Paul Blanc", parental_consent=True)
+    student = trials.register(minor, png_bytes(), CERT, None)["student"]
+    assert student["parentName"] == "Paul Blanc" and student["parentalConsent"] and student["hasMedicalCertificate"]
+    # adulte : un nom de parent saisi par erreur n'est pas garde
+    adult = trials.register(adult_form(first_name="Léo", parent_name="X"), png_bytes(), CERT, None)["student"]
+    assert adult["parentName"] is None and not adult["parentalConsent"]
 
 
 def test_certificate_photo_converted_and_deleted_with_student(trials):
@@ -253,7 +260,7 @@ def test_certificate_pdf_kept_and_garbage_refused(trials):
 
 def test_confirmation_email(trials):
     trials.mailer = FakeMailer()
-    result = trials.register(adult_form(), png_bytes(), None, None)
+    result = trials.register(adult_form(), png_bytes(), CERT, None)
     assert trials.send_confirmation(result["student"], result["token"]) is True
     to_email, subject, html, inline_images = trials.mailer.sent[0]
     assert to_email == "hugo@example.com" and "cours d'essai" in subject
@@ -308,18 +315,20 @@ def test_public_routes(trials):
     assert client.get("/public/trials/info").json()["termsVersion"]
     signature = "data:image/png;base64," + base64.b64encode(png_bytes()).decode()
     data = {
-        "firstName": "Léa", "lastName": "Martin", "birthDate": "2000-05-03", "gender": "F",
-        "email": "lea@example.com", "medicalAttestation": "true", "waiverAccepted": "true",
+        "firstName": "Léa", "lastName": "Martin", "email": "lea@example.com", "waiverAccepted": "true",
         "signature": signature,
     }
-    created = client.post("/public/trials/register", data=data, files={"certificate": ("c.pdf", b"%PDF-1.4", "application/pdf")})
+    files = {"certificate": ("c.pdf", b"%PDF-1.4", "application/pdf")}
+    missing = client.post("/public/trials/register", data=data)
+    assert missing.status_code == 422 and "certificat" in missing.json()["detail"]
+    created = client.post("/public/trials/register", data=data, files=files)
     assert created.status_code == 200, created.text
     body = created.json()
     assert body["status"] == "created" and body["emailSent"] and base64.b64decode(body["qrPng"]).startswith(b"\x89PNG")
-    again = client.post("/public/trials/register", data=data).json()
+    again = client.post("/public/trials/register", data=data, files=files).json()
     assert again == {"status": "existing", "emailSent": True}
     assert len(trials.mailer.sent) == 2
-    incomplete = client.post("/public/trials/register", data={**data, "waiverAccepted": "false"})
+    incomplete = client.post("/public/trials/register", data={**data, "waiverAccepted": "false"}, files=files)
     assert incomplete.status_code == 422 and "décharge" in incomplete.json()["detail"]
     bot = client.post("/public/trials/register", data={**data, "firstName": "Bot", "website": "spam"})
     assert bot.status_code == 200 and len(trials.list_students()) == 1
