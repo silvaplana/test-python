@@ -13,6 +13,7 @@ class StudentCreate(BaseModel):
 
     firstName: str
     lastName: str
+    age: Optional[int] = None
     birthDate: Optional[datetime.date] = None
     gender: Optional[Literal["M", "F"]] = None
     email: Optional[str] = None
@@ -27,6 +28,7 @@ class StudentUpdate(BaseModel):
 
     firstName: Optional[str] = None
     lastName: Optional[str] = None
+    age: Optional[int] = None
     birthDate: Optional[datetime.date] = None
     gender: Optional[Literal["M", "F"]] = None
     email: Optional[str] = None
@@ -59,6 +61,7 @@ class CheckIn(BaseModel):
 _FIELD_NAMES = {
     "firstName": "first_name",
     "lastName": "last_name",
+    "age": "age",
     "birthDate": "birth_date",
     "gender": "gender",
     "email": "email",

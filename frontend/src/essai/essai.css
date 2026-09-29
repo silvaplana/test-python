@@ -220,6 +220,7 @@ body {
 .essai-form input:not([type]),
 .essai-form input[type='email'],
 .essai-form input[type='tel'],
+.essai-form input[type='number'],
 .essai-form input[type='date'] {
   box-sizing: border-box;
   width: 100%;
@@ -409,4 +410,57 @@ body {
 
 .essai-title + .essai-band {
   padding-top: 1rem;
+}
+
+/* ----- plusieurs personnes d'une meme famille ----- */
+
+.essai-form .essai-age {
+  max-width: 7rem;
+}
+
+.essai-add-person {
+  display: block;
+  width: 100%;
+  margin: -0.5rem 0 1.75rem;
+  padding: 0.8rem 1rem;
+  border: 1px dashed #000;
+  border-radius: 0;
+  background: #fff;
+  color: #000;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.essai-add-person:hover {
+  background: var(--green);
+}
+
+.essai-remove-person {
+  color: var(--error);
+}
+
+.essai-qr-card {
+  margin: 0 0 1.5rem;
+}
+
+.essai-qr-card .essai-qr {
+  margin-bottom: 0.4rem;
+}
+
+.essai-qr-card figcaption {
+  font-family: Lora, Georgia, serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.essai-existing {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.essai-result h2 + p,
+.essai-existing h2 + p {
+  margin-top: 0;
 }

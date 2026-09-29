@@ -3,12 +3,14 @@ import binascii
 import time
 from collections import defaultdict, deque
 
-from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from starlette.datastructures import UploadFile as StarletteUploadFile
 
 from mailer import MailError
 
 from . import content
-from .trials import RegistrationError, Trials
+from .trials import MAX_FAMILY_SIZE, RegistrationError, Trials
 
 
 class RateLimiter:
@@ -49,6 +51,11 @@ def _decode_signature(data_url: str) -> bytes:
         return b""
 
 
+def _checked(value) -> bool:
+    """Case a cocher du formulaire ("true"/"on"/"1") -> booleen."""
+    return str(value or "").lower() in ("true", "on", "1")
+
+
 class TrialsPublicReceiver:
     """Routes PUBLIQUES (sans mot de passe) de la page d'inscription au cours
     d'essai. Montees directement sur l'app (pas sur le routeur protege, voir
@@ -69,60 +76,72 @@ class TrialsPublicReceiver:
         (modalites, horaires, lieux, decharge...), voir trials/content.py."""
         return content.public_info()
 
-    def register(
-        self,
-        request: Request,
-        firstName: str = Form(""),
-        lastName: str = Form(""),
-        email: str = Form(""),
-        minor: bool = Form(False),
-        parentName: str = Form(""),
-        parentalConsent: bool = Form(False),
-        waiverAccepted: bool = Form(False),
-        termsVersion: str = Form(""),
-        signature: str = Form(""),
-        website: str = Form(""),
-        certificate: UploadFile | None = File(None),
-    ) -> dict:
-        """Endpoint REST POST /public/trials/register (formulaire multipart,
-        pour le fichier du certificat). Retourne {"status": "created",
-        "qrPng" (base64), "emailSent"} ou {"status": "existing", "emailSent"}
-        -- dans ce 2e cas, le QR code n'est envoye que par mail (voir
-        Trials.register). 422 avec un message lisible si incomplet."""
+    async def register(self, request: Request) -> dict:
+        """Endpoint REST POST /public/trials/register (formulaire multipart :
+        un certificat medical par personne). Champs communs : email,
+        parentName, parentalConsent, termsVersion, signature, website ; par
+        personne i (0 a 2) : firstName{i}, lastName{i}, minor{i}, age{i}
+        (mineur seulement), waiverAccepted{i}, certificate{i}.
+
+        Retourne {"people": [{"status": "created", "firstName", "lastName",
+        "qrPng" (base64)} ou {"status": "existing", "firstName", "lastName"}],
+        "emailSent"} -- une personne deja inscrite ne voit pas son QR code a
+        l'ecran, il est seulement renvoye par mail (voir Trials.register).
+        422 avec un message lisible si incomplet."""
+        form = await request.form()
         # "website" : champ invisible pour un humain (piege a robots) -- s'il
         # est rempli, on fait comme si tout allait bien sans rien enregistrer.
-        if website:
-            return {"status": "created", "qrPng": None, "emailSent": False}
+        if form.get("website"):
+            return {"people": [], "emailSent": False}
         if not self.limiter.allow(client_ip(request)):
             raise HTTPException(status_code=429, detail="Trop d'inscriptions depuis cette connexion, réessayez plus tard")
-        form = {
-            "first_name": firstName,
-            "last_name": lastName,
-            "email": email,
-            "minor": minor,
-            "parent_name": parentName,
-            "parental_consent": parentalConsent,
-            "waiver_accepted": waiverAccepted,
-            "terms_version": termsVersion,
+        people = []
+        for i in range(MAX_FAMILY_SIZE):
+            if f"firstName{i}" not in form:
+                break
+            certificate = form.get(f"certificate{i}")
+            people.append(
+                {
+                    "first_name": form.get(f"firstName{i}", ""),
+                    "last_name": form.get(f"lastName{i}", ""),
+                    "minor": _checked(form.get(f"minor{i}")),
+                    "age": form.get(f"age{i}", ""),
+                    "waiver_accepted": _checked(form.get(f"waiverAccepted{i}")),
+                    "certificate": (certificate.filename, await certificate.read())
+                    if isinstance(certificate, StarletteUploadFile) and certificate.filename
+                    else None,
+                }
+            )
+        shared = {
+            "email": form.get("email", ""),
+            "parent_name": form.get("parentName", ""),
+            "parental_consent": _checked(form.get("parentalConsent")),
+            "terms_version": form.get("termsVersion", ""),
         }
-        certificate_file = None
-        if certificate is not None and certificate.filename:
-            certificate_file = (certificate.filename, certificate.file.read())
         try:
-            result = self.client.register(form, _decode_signature(signature), certificate_file, client_ip(request))
+            registrations = await run_in_threadpool(
+                self.client.register, shared, people, _decode_signature(form.get("signature", "")), client_ip(request)
+            )
         except RegistrationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         try:
-            email_sent = self.client.send_confirmation(result["student"], result["token"])
+            email_sent = await run_in_threadpool(self.client.send_confirmation, registrations)
         except MailError as exc:
             print(f"register: mail de confirmation non envoyé ({exc})")
             email_sent = False
-        if result["status"] == "existing":
-            return {"status": "existing", "emailSent": email_sent}
         return {
-            "status": "created",
-            "firstName": result["student"]["firstName"],
-            "lastName": result["student"]["lastName"],
-            "qrPng": base64.b64encode(self.client.qr_png(result["token"])).decode("ascii"),
+            "people": [
+                {
+                    "status": r["status"],
+                    "firstName": r["student"]["firstName"],
+                    "lastName": r["student"]["lastName"],
+                    **(
+                        {"qrPng": base64.b64encode(self.client.qr_png(r["token"])).decode("ascii")}
+                        if r["status"] == "created"
+                        else {}
+                    ),
+                }
+                for r in registrations
+            ],
             "emailSent": email_sent,
         }

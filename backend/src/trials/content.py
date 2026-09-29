@@ -7,7 +7,7 @@ que l'eleve accepte (decharge, accord parental, attestation) : changer aussi
 TERMS_VERSION -- chaque inscription garde la version acceptee.
 """
 
-TERMS_VERSION = "2026-09-29"
+TERMS_VERSION = "2026-09-29b"
 
 CLUB_NAME = "Alliance Sambo Combat La Ciotat"
 
@@ -23,6 +23,7 @@ INTRO = (
 RULES = [
     "Le cours d'essai est gratuit et sans engagement.",
     "Un seul cours d'essai par personne.",
+    "Vous pouvez inscrire jusqu'à 3 personnes d'une même famille dans la même demande.",
     "Présentez votre QR code à l'entraîneur au début du cours (sur votre téléphone ou imprimé).",
     "Tenue : short ou jogging, t-shirt, bouteille d'eau. Pas de bijoux. Protège-dents conseillé.",
     "Un certificat médical d'aptitude au sambo est requis (à joindre à l'inscription).",
@@ -58,19 +59,20 @@ CONTACTS = [
     {"name": "Karima", "phone": "07 66 09 63 68"},
 ]
 
-MEDICAL_CERTIFICATE_HINT = (
-    "Obligatoire : joignez un certificat médical d'aptitude au sambo / MMA (photo ou PDF)."
-)
+MEDICAL_CERTIFICATE_HINT = "Certificat médical d'aptitude au sambo / MMA, obligatoire (photo ou PDF)."
 
+# {eleve} : le ou les noms des personnes concernees ("Léa Martin et Tom
+# Martin"), d'ou des tournures qui marchent au singulier comme au pluriel.
 PARENTAL_CONSENT = (
-    "Je soussigné(e), représentant légal de {eleve}, l'autorise à participer à un cours d'essai "
+    "Je soussigné(e), représentant légal, autorise la participation de {eleve} à un cours d'essai "
     "de MMA / sambo organisé par {club}, et autorise les encadrants à prendre toute mesure "
     "d'urgence nécessaire (appel des secours) en cas d'accident."
 )
 
 WAIVER = (
     "Je reconnais que le MMA et le sambo sont des sports de combat comportant des risques de "
-    "blessure. {eleve} participe au cours d'essai en respectant les consignes des encadrants. "
+    "blessure. La participation de {eleve} au cours d'essai se fait dans le respect des consignes "
+    "des encadrants. "
     "Je renonce à tout recours contre {club} et ses encadrants en cas d'accident survenu pendant "
     "le cours d'essai, sauf faute de leur part. Je déclare être couvert(e) par une assurance "
     "responsabilité civile."

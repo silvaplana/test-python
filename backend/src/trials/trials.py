@@ -34,7 +34,7 @@ from database import Database
 from mailer import Mailer
 
 from . import content
-from .emails import QR_CID, confirmation_email
+from .emails import confirmation_email, qr_cid
 
 # Photos d'iPhone (HEIC) : lisibles par Pillow une fois ce module enregistre.
 pillow_heif.register_heif_opener()
@@ -43,7 +43,17 @@ PARIS = ZoneInfo("Europe/Paris")
 COURSE_MODES = ("qr", "manual")
 GENDERS = ("M", "F")
 # Champs modifiables depuis l'onglet (voir update_student).
-EDITABLE_FIELDS = ("first_name", "last_name", "birth_date", "gender", "email", "phone", "parent_name", "comment")
+EDITABLE_FIELDS = (
+    "first_name",
+    "last_name",
+    "age",
+    "birth_date",
+    "gender",
+    "email",
+    "phone",
+    "parent_name",
+    "comment",
+)
 
 
 class TrialStudentNotFoundError(LookupError):
@@ -62,7 +72,13 @@ class RegistrationError(ValueError):
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MAX_SIGNATURE_BYTES = 500_000
 MAX_CERTIFICATE_BYTES = 15_000_000
+# Pieces jointes du mail de confirmation (Gmail : 25 Mo max, encodage compris).
+MAX_ATTACHMENTS_BYTES = 15_000_000
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+ADULT_AGE = 18
+MIN_AGE, MAX_AGE = 3, 100
+# Personnes d'une meme famille inscrites en une seule demande.
+MAX_FAMILY_SIZE = 3
 
 
 def today() -> date:
@@ -111,7 +127,10 @@ class Trials:
             "firstName": row["first_name"],
             "lastName": row["last_name"],
             "birthDate": row["birth_date"],
-            "age": _age(row["birth_date"], today()),
+            # Age declare a l'inscription ; a defaut (anciennes inscriptions,
+            # ajouts a la main), calcule depuis la date de naissance.
+            "age": row["age"] if row["age"] is not None else _age(row["birth_date"], today()),
+            "familyId": row["family_id"],
             "gender": row["gender"],
             "email": row["email"],
             "phone": row["phone"],
@@ -169,6 +188,13 @@ class Trials:
             raise ValueError(f"Genre inconnu : {cleaned['gender']}")
         if cleaned.get("birth_date"):
             date.fromisoformat(cleaned["birth_date"])
+        if cleaned.get("age") is not None:
+            try:
+                cleaned["age"] = int(cleaned["age"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("Âge invalide") from exc
+            if not MIN_AGE <= cleaned["age"] <= MAX_AGE:
+                raise ValueError("Âge invalide")
         for key in ("first_name", "last_name"):
             if key in cleaned and not cleaned[key]:
                 raise ValueError("Le prénom et le nom sont obligatoires")
@@ -178,6 +204,7 @@ class Trials:
         self,
         first_name: str,
         last_name: str,
+        age: int | None = None,
         birth_date: str | date | None = None,
         gender: str | None = None,
         email: str | None = None,
@@ -191,6 +218,7 @@ class Trials:
             {
                 "first_name": first_name,
                 "last_name": last_name,
+                "age": age,
                 "birth_date": birth_date,
                 "gender": gender,
                 "email": email,
@@ -326,89 +354,136 @@ class Trials:
 
     # ----- inscription en ligne (page publique) -----
 
-    def register(self, form: dict, signature_png: bytes, certificate: tuple[str, bytes] | None, ip: str | None) -> dict:
-        """Inscription depuis la page publique. form : first_name, last_name,
-        email, minor, parent_name, parental_consent, waiver_accepted,
-        terms_version. certificate : (nom du fichier, contenu), obligatoire.
+    def register(self, form: dict, people: list[dict], signature_png: bytes, ip: str | None) -> list[dict]:
+        """Inscription depuis la page publique, pour 1 a 3 personnes d'une
+        meme famille (meme e-mail, une seule signature, mais une decharge, un
+        certificat medical et un QR code par personne).
 
-        Eleve deja inscrit (meme e-mail, nom et prenom) : rien n'est modifie
-        et on lui renvoie son QR code par mail -- jamais affiche a l'ecran,
-        sinon n'importe qui connaissant son nom et son e-mail le recupererait.
-        Eleve ajoute a la main sans QR code : son inscription est completee.
+        form : email, parent_name, parental_consent, terms_version.
+        people : [{first_name, last_name, minor, age, waiver_accepted,
+        certificate}] -- age seulement pour un mineur, certificate = (nom du
+        fichier, contenu), obligatoire.
 
-        Retourne {"status": "created" | "existing", "student", "token"}.
-        Leve RegistrationError si le formulaire est incomplet."""
-        fields = self._validate_registration(form, signature_png, certificate)
+        Personne deja inscrite (meme e-mail, nom et prenom) : rien n'est
+        modifie et son QR code lui est renvoye par mail -- jamais affiche a
+        l'ecran, sinon n'importe qui connaissant son nom et son e-mail le
+        recupererait. Personne ajoutee a la main sans QR code : son
+        inscription est completee.
+
+        Retourne, par personne et dans l'ordre : {"status": "created" |
+        "existing", "student", "token"}. Leve RegistrationError si le
+        formulaire est incomplet (rien n'est alors enregistre)."""
+        shared, people = self._validate_registration(form, people, signature_png)
         now = _now_iso()
+        family_id = secrets.token_hex(8) if len(people) > 1 else None
+        results = []
         with self.db.connect() as connection:
-            existing = self._find_existing(connection, fields)
-            if existing is not None and existing["qr_token"]:
-                return {"status": "existing", "student": self._to_dict(existing), "token": existing["qr_token"]}
-            token = self.new_qr_token()
-            fields.update(
-                {
-                    "signature_png": signature_png,
-                    "signed_at": now,
-                    "signed_ip": ip,
-                    "qr_token": token,
-                    "qr_created_at": now,
-                    "updated_at": now,
-                }
-            )
-            if existing is not None:
-                assignments = ", ".join(f"{key} = ?" for key in fields)
-                connection.execute(
-                    f"UPDATE trial_students SET {assignments} WHERE id = ?", (*fields.values(), existing["id"])
+            for person in people:
+                certificate = person.pop("certificate")
+                fields = {**shared, **person}
+                existing = self._find_existing(connection, fields)
+                if existing is not None and existing["qr_token"]:
+                    results.append({"status": "existing", "student": self._to_dict(existing), "token": existing["qr_token"]})
+                    continue
+                token = self.new_qr_token()
+                fields.update(
+                    {
+                        "family_id": family_id,
+                        "signature_png": signature_png,
+                        "signed_at": now,
+                        "signed_ip": ip,
+                        "qr_token": token,
+                        "qr_created_at": now,
+                        "updated_at": now,
+                    }
                 )
-                student_id = existing["id"]
-            else:
-                fields.update({"source": "web", "created_at": now})
-                columns = ", ".join(fields)
-                placeholders = ", ".join("?" for _ in fields)
-                cursor = connection.execute(
-                    f"INSERT INTO trial_students ({columns}) VALUES ({placeholders})", tuple(fields.values())
+                if existing is not None:
+                    assignments = ", ".join(f"{key} = ?" for key in fields)
+                    connection.execute(
+                        f"UPDATE trial_students SET {assignments} WHERE id = ?", (*fields.values(), existing["id"])
+                    )
+                    student_id = existing["id"]
+                else:
+                    fields.update({"source": "web", "created_at": now})
+                    columns = ", ".join(fields)
+                    placeholders = ", ".join("?" for _ in fields)
+                    cursor = connection.execute(
+                        f"INSERT INTO trial_students ({columns}) VALUES ({placeholders})", tuple(fields.values())
+                    )
+                    student_id = cursor.lastrowid
+                self._store_certificate(connection, student_id, *certificate)
+                results.append(
+                    {"status": "created", "student": self._to_dict(self._get_row(connection, student_id)), "token": token}
                 )
-                student_id = cursor.lastrowid
-            self._store_certificate(connection, student_id, *certificate)
-            return {"status": "created", "student": self._to_dict(self._get_row(connection, student_id)), "token": token}
+        return results
 
     def _validate_registration(
-        self, form: dict, signature_png: bytes, certificate: tuple[str, bytes] | None
-    ) -> dict:
+        self, form: dict, people: list[dict], signature_png: bytes
+    ) -> tuple[dict, list[dict]]:
         """Verifie le formulaire, dans l'ordre de la page (le 1er manque est
-        signale). Mineur : declare par la case "L'eleve est mineur" (pas de
-        date de naissance demandee) -- nom du parent et autorisation
-        parentale alors obligatoires. Certificat medical obligatoire."""
+        signale). Retourne (champs communs, champs par personne). Age demande
+        seulement pour un mineur (moins de 18 ans) ; au moins un mineur : nom
+        du parent et autorisation parentale obligatoires. Decharge acceptee
+        et certificat medical pour chaque personne."""
+        if not 1 <= len(people) <= MAX_FAMILY_SIZE:
+            raise RegistrationError(f"Une demande concerne de 1 à {MAX_FAMILY_SIZE} personnes")
         try:
-            fields = self._clean({key: form.get(key) for key in ("first_name", "last_name", "email", "parent_name")})
+            shared = self._clean({"email": form.get("email"), "parent_name": form.get("parent_name")})
         except ValueError as exc:
             raise RegistrationError(str(exc)) from exc
-        if not fields.get("email"):
-            raise RegistrationError("Merci d'indiquer l'e-mail")
-        if not EMAIL_PATTERN.match(fields["email"]):
-            raise RegistrationError("Adresse e-mail invalide")
-        minor = bool(form.get("minor"))
-        if minor:
-            if not fields.get("parent_name"):
+        cleaned_people = []
+        for number, person in enumerate(people, start=1):
+            label = f" (personne {number})" if len(people) > 1 else ""
+            minor = bool(person.get("minor"))
+            try:
+                fields = self._clean(
+                    {
+                        "first_name": person.get("first_name"),
+                        "last_name": person.get("last_name"),
+                        "age": person.get("age") if minor else None,
+                    }
+                )
+            except ValueError as exc:
+                raise RegistrationError(f"{exc}{label}") from exc
+            if number == 1:
+                if not shared.get("email"):
+                    raise RegistrationError("Merci d'indiquer l'e-mail")
+                if not EMAIL_PATTERN.match(shared["email"]):
+                    raise RegistrationError("Adresse e-mail invalide")
+            if minor and fields["age"] is None:
+                raise RegistrationError(f"Merci d'indiquer l'âge{label}")
+            if minor and fields["age"] >= ADULT_AGE:
+                raise RegistrationError(f"Un mineur a moins de {ADULT_AGE} ans{label}")
+            if person.get("certificate") is None:
+                raise RegistrationError(f"Merci de joindre le certificat médical{label}")
+            if not person.get("waiver_accepted"):
+                raise RegistrationError(f"Merci d'accepter la décharge de responsabilité{label}")
+            fields.update({"minor": minor, "certificate": person["certificate"]})
+            cleaned_people.append(fields)
+        names = [(p["first_name"].casefold(), p["last_name"].casefold()) for p in cleaned_people]
+        if len(set(names)) != len(names):
+            raise RegistrationError("La même personne apparaît deux fois dans la demande")
+        if any(p["minor"] for p in cleaned_people):
+            if not shared.get("parent_name"):
                 raise RegistrationError("Pour un mineur, merci d'indiquer le nom du parent ou représentant légal")
             if not form.get("parental_consent"):
                 raise RegistrationError("Merci de cocher l'autorisation parentale")
-        else:
-            fields["parent_name"] = None
-        if certificate is None:
-            raise RegistrationError("Merci de joindre le certificat médical")
-        if not form.get("waiver_accepted"):
-            raise RegistrationError("Merci d'accepter la décharge de responsabilité")
         if not signature_png.startswith(PNG_MAGIC) or len(signature_png) > MAX_SIGNATURE_BYTES:
             raise RegistrationError("Signature manquante ou invalide")
-        fields.update(
-            {
-                "waiver_accepted": 1,
-                "parental_consent": 1 if minor else 0,
-                "terms_version": form.get("terms_version") or content.TERMS_VERSION,
-            }
+        # Parent et autorisation parentale : seulement sur les lignes des mineurs.
+        for p in cleaned_people:
+            minor = p.pop("minor")
+            p.update(
+                {
+                    "parent_name": shared["parent_name"] if minor else None,
+                    "parental_consent": 1 if minor else 0,
+                    "waiver_accepted": 1,
+                }
+            )
+        return (
+            {"email": shared["email"], "terms_version": form.get("terms_version") or content.TERMS_VERSION},
+            cleaned_people,
         )
-        return fields
 
     @staticmethod
     def _find_existing(connection, fields: dict):
@@ -467,21 +542,47 @@ class Trials:
 
     # ----- mail de confirmation -----
 
-    def send_confirmation(self, student: dict, token: str) -> bool:
-        """Envoie (ou renvoie) a l'eleve le mail avec son QR code et les
-        modalites du cours d'essai. False si le mailer n'est pas configure ;
-        MailError si l'envoi echoue."""
-        if self.mailer is None or not student.get("email"):
+    def send_confirmation(self, registrations: list[dict]) -> bool:
+        """Envoie (ou renvoie) le mail avec le QR code de chaque personne
+        de la demande (voir register) et les modalites du cours d'essai. False
+        si le mailer n'est pas configure ; MailError si l'envoi echoue."""
+        students = [r["student"] for r in registrations]
+        email = students[0].get("email") if students else None
+        if self.mailer is None or not email:
             return False
-        subject, html, text = confirmation_email(student)
+        subject, html, text = confirmation_email(students)
+        names = ", ".join(f"{s['firstName']} {s['lastName']}" for s in students)
         return self.mailer.send(
-            student["email"],
-            f"{student['firstName']} {student['lastName']}",
+            email,
+            students[0]["parentName"] or names,
             subject,
             html,
             text,
-            inline_images={QR_CID: self.qr_png(token)},
+            inline_images={qr_cid(i): self.qr_png(r["token"]) for i, r in enumerate(registrations)},
+            attachments=self._certificate_attachments(students),
         )
+
+    def _certificate_attachments(self, students: list[dict]) -> list[tuple[str, bytes, str]]:
+        """Certificats medicaux des personnes, en pieces jointes du mail de
+        confirmation : "certificat-Lea-Martin.jpg"... Au plus
+        MAX_ATTACHMENTS_BYTES au total (Gmail refuse les mails de plus de
+        25 Mo) : un certificat qui ferait depasser est laisse de cote (il
+        reste consultable dans l'onglet Essai)."""
+        attachments, total = [], 0
+        for student in students:
+            if not student["hasMedicalCertificate"]:
+                continue
+            path, media_type = self.get_certificate(student["id"])
+            if not path.exists():
+                continue
+            data = path.read_bytes()
+            if total + len(data) > MAX_ATTACHMENTS_BYTES:
+                print(f"send_confirmation: certificat de l'élève {student['id']} trop volumineux pour le mail")
+                continue
+            total += len(data)
+            name = re.sub(r"[^\w-]+", "-", f"{student['firstName']}-{student['lastName']}").strip("-")
+            attachments.append((f"certificat-{name}{path.suffix}", data, media_type))
+        return attachments
 
     # ----- conservation des donnees -----
 

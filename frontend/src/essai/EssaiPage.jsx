@@ -5,22 +5,32 @@ import clubLogo from '../assets/club-logo-transparent.png'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
+// Personnes d'une meme famille dans une seule demande (voir backend
+// Trials.register) : meme e-mail, une signature, un certificat et un QR
+// code par personne.
+const MAX_PEOPLE = 3
+
 // Textes du serveur (voir backend trials/content.py) : {eleve} et {club}
-// remplaces par le nom de l'eleve et du club.
-function fill(text, studentName, club) {
-  return text.replaceAll('{eleve}', studentName || "l'élève").replaceAll('{club}', club)
+// remplaces par le ou les noms des personnes et le nom du club.
+function fill(text, names, club) {
+  return text.replaceAll('{eleve}', names || "l'élève").replaceAll('{club}', club)
+}
+
+// ["Léa Martin", "Tom Martin"] -> "Léa Martin et Tom Martin".
+function joinNames(names) {
+  return names.length <= 1 ? (names[0] ?? '') : `${names.slice(0, -1).join(', ')} et ${names.at(-1)}`
+}
+
+let nextPersonKey = 0
+function emptyPerson() {
+  nextPersonKey += 1
+  return { key: nextPersonKey, firstName: '', lastName: '', minor: false, age: '', certificate: null, waiverAccepted: false }
 }
 
 const EMPTY_FORM = {
-  firstName: '',
-  lastName: '',
-  // "adult" | "minor" : pas de date de naissance demandee, l'eleve (ou son
-  // parent) indique simplement s'il est mineur.
-  ageGroup: '',
   email: '',
   parentName: '',
   parentalConsent: false,
-  waiverAccepted: false,
   website: '',
 }
 
@@ -138,15 +148,22 @@ export default function EssaiPage() {
   )
 }
 
+// Ordre voulu par le club : 1re personne (prenom, nom, e-mail, age si
+// mineur, certificat, decharge), puis eventuellement jusqu'a 2 membres de la
+// meme famille (prenom, age si mineur, certificat, decharge -- nom et e-mail
+// repris de la 1re personne), puis le parent si un mineur est inscrit, puis
+// la signature (une seule pour toute la demande).
 function RegistrationForm({ info, onDone }) {
+  const [people, setPeople] = useState(() => [emptyPerson()])
   const [form, setForm] = useState(EMPTY_FORM)
-  const [certificate, setCertificate] = useState(null)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const padRef = useRef(null)
 
-  const minor = form.ageGroup === 'minor'
-  const studentName = `${form.firstName} ${form.lastName}`.trim()
+  const lastName = people[0].lastName
+  const fullName = (p) => `${p.firstName} ${lastName}`.trim()
+  const minors = people.filter((p) => p.minor)
+  const anyMinor = minors.length > 0
 
   function update(key) {
     return (e) => {
@@ -155,24 +172,44 @@ function RegistrationForm({ info, onDone }) {
     }
   }
 
+  function updatePerson(index, key) {
+    return (e) => {
+      const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
+      setPeople((prev) => prev.map((p, i) => (i === index ? { ...p, [key]: value } : p)))
+    }
+  }
+
+  function setCertificate(index, file) {
+    setPeople((prev) => prev.map((p, i) => (i === index ? { ...p, certificate: file } : p)))
+  }
+
   async function submit(e) {
     e.preventDefault()
     setError(null)
-    if (!form.ageGroup) return setError('Merci d’indiquer si l’élève est majeur ou mineur')
-    if (!certificate) return setError('Merci de joindre le certificat médical')
+    const missing = people.findIndex((p) => !p.certificate)
+    if (missing !== -1) {
+      return setError(
+        people.length > 1
+          ? `Merci de joindre le certificat médical de ${people[missing].firstName || `la personne ${missing + 1}`}`
+          : 'Merci de joindre le certificat médical'
+      )
+    }
     if (padRef.current.isEmpty()) return setError('Merci de signer dans le cadre prévu')
     const body = new FormData()
-    body.append('firstName', form.firstName)
-    body.append('lastName', form.lastName)
+    people.forEach((p, i) => {
+      body.append(`firstName${i}`, p.firstName)
+      body.append(`lastName${i}`, lastName)
+      body.append(`minor${i}`, p.minor)
+      body.append(`age${i}`, p.minor ? p.age : '')
+      body.append(`waiverAccepted${i}`, p.waiverAccepted)
+      body.append(`certificate${i}`, p.certificate)
+    })
     body.append('email', form.email)
-    body.append('minor', minor)
-    body.append('parentName', minor ? form.parentName : '')
-    body.append('parentalConsent', minor && form.parentalConsent)
-    body.append('waiverAccepted', form.waiverAccepted)
+    body.append('parentName', anyMinor ? form.parentName : '')
+    body.append('parentalConsent', anyMinor && form.parentalConsent)
     body.append('website', form.website)
     body.append('termsVersion', info.termsVersion)
     body.append('signature', padRef.current.toDataUrl())
-    body.append('certificate', certificate)
     setPending(true)
     try {
       const response = await fetch(`${API_URL}/public/trials/register`, { method: 'POST', body })
@@ -191,56 +228,105 @@ function RegistrationForm({ info, onDone }) {
 
   return (
     <form className="essai-form" onSubmit={submit}>
-
-      <fieldset>
-        <legend>L'élève</legend>
-        <label>
-          Prénom
-          <input value={form.firstName} onChange={update('firstName')} required autoComplete="given-name" />
-        </label>
-        <label>
-          Nom
-          <input value={form.lastName} onChange={update('lastName')} required autoComplete="family-name" />
-        </label>
-        <div className="essai-label" role="radiogroup" aria-label="L'élève est">
-          L'élève est
-          <div className="essai-choice">
-            {[
-              ['adult', 'Majeur'],
-              ['minor', 'Mineur'],
-            ].map(([value, label]) => (
-              <label key={value} className={form.ageGroup === value ? 'essai-choice-active' : undefined}>
-                <input
-                  type="radio"
-                  name="ageGroup"
-                  value={value}
-                  checked={form.ageGroup === value}
-                  onChange={update('ageGroup')}
-                />
-                {label}
+      {people.map((p, i) => (
+        <fieldset key={p.key}>
+          <legend>{i === 0 ? 'La personne à inscrire' : `Membre de la famille ${i + 1}`}</legend>
+          <label>
+            Prénom
+            <input
+              value={p.firstName}
+              onChange={updatePerson(i, 'firstName')}
+              required
+              autoComplete={i === 0 ? 'given-name' : 'off'}
+            />
+          </label>
+          {i === 0 && (
+            <>
+              <label>
+                Nom
+                <input value={p.lastName} onChange={updatePerson(i, 'lastName')} required autoComplete="family-name" />
               </label>
-            ))}
+              <label>
+                E-mail
+                <input
+                  type="email"
+                  inputMode="email"
+                  value={form.email}
+                  onChange={update('email')}
+                  required
+                  autoComplete="email"
+                />
+                <small>Le QR code vous sera envoyé à cette adresse (celui de chaque membre de la famille aussi).</small>
+              </label>
+            </>
+          )}
+          <label className="essai-check">
+            <input type="checkbox" checked={p.minor} onChange={updatePerson(i, 'minor')} />
+            <span>{i === 0 ? 'Cette personne est mineure' : 'Mineur(e)'}</span>
+          </label>
+          {p.minor && (
+            <label>
+              Âge
+              <input
+                type="number"
+                inputMode="numeric"
+                min="3"
+                max="17"
+                value={p.age}
+                onChange={updatePerson(i, 'age')}
+                required
+                className="essai-age"
+              />
+            </label>
+          )}
+          <div className="essai-label">
+            Certificat médical
+            <small>{info.medicalCertificateHint}</small>
+            {/* accept image/* : propose l'appareil photo sur Android et iPhone. */}
+            <label className="essai-file">
+              <input
+                type="file"
+                accept="image/*,application/pdf,.heic,.heif"
+                onChange={(e) => setCertificate(i, e.target.files[0] ?? null)}
+              />
+              {p.certificate ? `📎 ${p.certificate.name}` : '📷 Joindre le certificat médical'}
+            </label>
+            {p.certificate && (
+              <button type="button" className="essai-link" onClick={() => setCertificate(i, null)}>
+                Retirer le certificat
+              </button>
+            )}
           </div>
-        </div>
-      </fieldset>
+          <label className="essai-check">
+            <input type="checkbox" checked={p.waiverAccepted} onChange={updatePerson(i, 'waiverAccepted')} required />
+            <span>
+              <strong>Décharge de responsabilité : </strong>
+              {fill(info.waiver, fullName(p), info.club)}
+            </span>
+          </label>
+          {i > 0 && (
+            <button
+              type="button"
+              className="essai-link essai-remove-person"
+              onClick={() => setPeople((prev) => prev.filter((_, j) => j !== i))}
+            >
+              Retirer ce membre de la famille
+            </button>
+          )}
+        </fieldset>
+      ))}
 
-      <fieldset>
-        <legend>Contact</legend>
-        <label>
-          <span>E-mail {minor && <small>(du parent)</small>}</span>
-          <input
-            type="email"
-            inputMode="email"
-            value={form.email}
-            onChange={update('email')}
-            required
-            autoComplete="email"
-          />
-          <small>Le QR code vous sera envoyé à cette adresse.</small>
-        </label>
-      </fieldset>
+      {people.length < MAX_PEOPLE && (
+        <button
+          type="button"
+          className="essai-add-person"
+          onClick={() => setPeople((prev) => [...prev, emptyPerson()])}
+        >
+          + Ajouter un membre de la même famille
+        </button>
+      )}
 
-      {minor && (
+      {anyMinor && (
         <fieldset>
           <legend>Parent ou représentant légal</legend>
           <label>
@@ -249,40 +335,13 @@ function RegistrationForm({ info, onDone }) {
           </label>
           <label className="essai-check">
             <input type="checkbox" checked={form.parentalConsent} onChange={update('parentalConsent')} required />
-            <span>{fill(info.parentalConsent, studentName, info.club)}</span>
+            <span>{fill(info.parentalConsent, joinNames(minors.map(fullName).filter(Boolean)), info.club)}</span>
           </label>
         </fieldset>
       )}
 
       <fieldset>
-        <legend>Certificat médical</legend>
-        <p className="essai-hint">{info.medicalCertificateHint}</p>
-        {/* accept image/* : propose l'appareil photo sur Android et iPhone. */}
-        <label className="essai-file">
-          <input
-            type="file"
-            accept="image/*,application/pdf,.heic,.heif"
-            onChange={(e) => setCertificate(e.target.files[0] ?? null)}
-          />
-          {certificate ? `📎 ${certificate.name}` : '📷 Joindre un certificat médical'}
-        </label>
-        {certificate && (
-          <button type="button" className="essai-link" onClick={() => setCertificate(null)}>
-            Retirer le certificat
-          </button>
-        )}
-      </fieldset>
-
-      <fieldset>
-        <legend>Décharge de responsabilité</legend>
-        <label className="essai-check">
-          <input type="checkbox" checked={form.waiverAccepted} onChange={update('waiverAccepted')} required />
-          <span>{fill(info.waiver, studentName, info.club)}</span>
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>{minor ? 'Signature du parent ou représentant légal' : 'Signature'}</legend>
+        <legend>{anyMinor ? 'Signature du parent ou représentant légal' : 'Signature'}</legend>
         <SignatureField padRef={padRef} />
       </fieldset>
 
@@ -362,38 +421,46 @@ function SignatureField({ padRef }) {
   )
 }
 
+// Resultat : le QR code de chaque personne nouvellement inscrite. Une
+// personne deja inscrite ne voit pas le sien (il lui est renvoye par mail).
 function Result({ result }) {
-  if (result.status === 'existing') {
-    return (
-      <div className="essai-result">
-        <h2>Vous êtes déjà inscrit(e)</h2>
-        {result.emailSent ? (
-          <p>
-            Votre QR code vient de vous être renvoyé par e-mail à <strong>{result.email}</strong>. Pensez à regarder
-            dans les courriers indésirables.
-          </p>
-        ) : (
-          <p>Votre QR code a déjà été généré lors de votre première inscription. Contactez le club si vous l'avez perdu.</p>
-        )}
-      </div>
-    )
-  }
-  const qrSrc = `data:image/png;base64,${result.qrPng}`
+  const created = result.people.filter((p) => p.status === 'created')
+  const existing = result.people.filter((p) => p.status === 'existing')
+  const name = (p) => `${p.firstName} ${p.lastName}`
   return (
     <div className="essai-result">
-      <h2>Inscription confirmée</h2>
-      <p>
-        <strong>
-          {result.firstName} {result.lastName}
-        </strong>
-        , présentez ce QR code à l'entraîneur <strong>au début de votre cours d'essai</strong>. Il n'est valable que
-        pour un seul cours.
-      </p>
-      <img src={qrSrc} alt="QR code du cours d'essai" className="essai-qr" />
+      {created.length > 0 && (
+        <>
+          <h2>Inscription confirmée</h2>
+          <p>
+            Présentez {created.length > 1 ? 'le QR code de chaque personne' : 'ce QR code'} à l'entraîneur{' '}
+            <strong>au début du cours d'essai</strong>. {created.length > 1 ? 'Chacun n’est' : 'Il n’est'} valable que
+            pour un seul cours.
+          </p>
+          {created.map((p) => (
+            <figure key={name(p)} className="essai-qr-card">
+              <img src={`data:image/png;base64,${p.qrPng}`} alt={`QR code de ${name(p)}`} className="essai-qr" />
+              <figcaption>{name(p)}</figcaption>
+            </figure>
+          ))}
+        </>
+      )}
+      {existing.length > 0 && (
+        <div className="essai-existing">
+          <h2>{existing.length > 1 ? 'Déjà inscrits' : 'Déjà inscrit(e)'}</h2>
+          <p>
+            <strong>{joinNames(existing.map(name))}</strong>{' '}
+            {existing.length > 1 ? 'étaient déjà inscrits' : 'était déjà inscrit(e)'} au cours d'essai.{' '}
+            {result.emailSent
+              ? 'Le QR code vient d’être renvoyé par e-mail.'
+              : 'Le QR code a été envoyé lors de la première inscription : contactez le club en cas de perte.'}
+          </p>
+        </div>
+      )}
       <p className="essai-hint">
         {result.emailSent
-          ? `Un e-mail récapitulatif avec ce QR code a été envoyé à ${result.email}.`
-          : 'Faites une capture d’écran de ce QR code pour le garder.'}
+          ? `Un e-mail récapitulatif avec ${result.people.length > 1 ? 'les QR codes' : 'le QR code'} a été envoyé à ${result.email} (pensez à regarder dans les courriers indésirables).`
+          : 'Faites une capture d’écran pour garder vos QR codes.'}
       </p>
     </div>
   )

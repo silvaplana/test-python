@@ -64,7 +64,7 @@ function checkIn(scanned) {
 const EMPTY_FORM = {
   firstName: '',
   lastName: '',
-  birthDate: '',
+  age: '',
   gender: '',
   email: '',
   phone: '',
@@ -76,7 +76,7 @@ const EMPTY_FORM = {
 // commentaire (toujours une chaine).
 function formToBody(form) {
   return Object.fromEntries(
-    Object.entries(form).map(([key, value]) => [key, key === 'comment' ? value : value.trim() || null])
+    Object.entries(form).map(([key, value]) => [key, key === 'comment' ? value : String(value).trim() || null])
   )
 }
 
@@ -332,6 +332,11 @@ export function TrialsTable() {
       {editing && (
         <StudentDialog
           student={editing.student}
+          family={
+            editing.student?.familyId
+              ? students.filter((s) => s.familyId === editing.student.familyId && s.id !== editing.student.id)
+              : []
+          }
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             setEditing(null)
@@ -351,7 +356,7 @@ export function TrialsTable() {
 // Fenetre d'ajout (student absent) ou de modification d'un eleve. <dialog>
 // natif : fond assombri, touche Echap et accessibilite geres par le
 // navigateur (Android comme iPhone).
-function StudentDialog({ student, onClose, onSaved, onDeleted }) {
+function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
   const dialogRef = useRef(null)
   const [form, setForm] = useState(() =>
     student
@@ -428,8 +433,8 @@ function StudentDialog({ student, onClose, onSaved, onDeleted }) {
             <input value={form.lastName} onChange={update('lastName')} required autoComplete="off" />
           </label>
           <label>
-            Date de naissance
-            <input type="date" value={form.birthDate} onChange={update('birthDate')} />
+            Âge
+            <input type="number" inputMode="numeric" min="3" max="100" value={form.age} onChange={update('age')} />
           </label>
           <label>
             Genre
@@ -482,6 +487,11 @@ function StudentDialog({ student, onClose, onSaved, onDeleted }) {
           <p className="profile-hint">
             {student.source === 'web' ? 'Inscrit en ligne' : 'Ajouté à la main'} le {timestampFr(student.createdAt)}
             {student.qrGenerated ? ' · QR code généré' : ' · pas de QR code'}
+          </p>
+        )}
+        {family.length > 0 && (
+          <p className="profile-hint">
+            Même demande que : {family.map((s) => `${s.firstName} ${s.lastName}`).join(', ')}
           </p>
         )}
         {(student?.hasSignature || student?.hasMedicalCertificate) && (

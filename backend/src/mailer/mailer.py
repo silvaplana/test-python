@@ -54,10 +54,12 @@ class Mailer:
         html: str,
         text: str,
         inline_images: dict[str, bytes] | None = None,
+        attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> bool:
         """Envoie un mail HTML (+ version texte pour les messageries qui
         n'affichent pas le HTML). inline_images : {cid: PNG}, images integrees
-        au mail et referencees dans le HTML par src="cid:<cid>". Retourne False
+        au mail et referencees dans le HTML par src="cid:<cid>". attachments :
+        pieces jointes (nom du fichier, contenu, type MIME). Retourne False
         sans rien faire si le mailer n'est pas configure ; leve MailError si
         l'envoi echoue."""
         if not self.enabled:
@@ -75,6 +77,9 @@ class Mailer:
         html_part = message.get_payload()[1]
         for cid, png in (inline_images or {}).items():
             html_part.add_related(png, maintype="image", subtype="png", cid=f"<{cid}>", filename=f"{cid}.png")
+        for filename, data, mime_type in attachments or []:
+            maintype, _, subtype = mime_type.partition("/")
+            message.add_attachment(data, maintype=maintype, subtype=subtype, filename=filename)
         try:
             with smtplib.SMTP(self.host, self.port, timeout=20) as smtp:
                 smtp.starttls(context=ssl.create_default_context())

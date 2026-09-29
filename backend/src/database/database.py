@@ -53,6 +53,14 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX trial_students_email ON trial_students (lower(email));
     """,
+    # 2 : inscription de plusieurs personnes d'une meme famille en une seule
+    # demande (family_id commun, un QR code par personne) et age declare a
+    # l'inscription (la date de naissance n'est plus demandee).
+    """
+    ALTER TABLE trial_students ADD COLUMN age INTEGER;
+    ALTER TABLE trial_students ADD COLUMN family_id TEXT;
+    CREATE INDEX trial_students_family ON trial_students (family_id);
+    """,
 ]
 
 
