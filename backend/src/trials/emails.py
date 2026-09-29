@@ -198,4 +198,6 @@ def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[st
             content.PRIVACY,
         ]
     )
-    return f"Votre cours d'essai – {content.CLUB_NAME}", html, text
+    # Objet : le nom de la 1re personne inscrite (celle qui a rempli la
+    # demande) ; le club apparait deja comme expediteur.
+    return f"Votre cours d'essai – {first['firstName']} {first['lastName']}", html, text

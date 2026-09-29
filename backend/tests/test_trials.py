@@ -372,7 +372,7 @@ def test_confirmation_email(trials):
     )
     assert trials.send_confirmation(results) is True
     [(to_email, subject, html, inline_images)] = trials.mailer.sent
-    assert to_email == "hugo@example.com" and "cours d'essai" in subject
+    assert to_email == "hugo@example.com" and subject == "Votre cours d'essai – Hugo Blanc"
     assert "Hugo Blanc et Léo Blanc" in html
     assert 'src="cid:qrcode-0"' in html and 'src="cid:qrcode-1"' in html
     # recapitulatif, signatures de la 1re personne et du parent exterieur
