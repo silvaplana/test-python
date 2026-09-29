@@ -1468,9 +1468,12 @@ td button + .ffst-role-picker,
 
 /* Nom sur plusieurs lignes si besoin (noms composes) plutot qu'un tableau
    plus large que l'ecran du telephone. */
+/* Colonne "Inscrit" la plus etroite possible : le nom passe a la ligne a
+   chaque mot. */
+.trials-table th:first-child,
 .trial-name-cell {
+  width: 1%;
   white-space: normal;
-  min-width: 7.5rem;
 }
 
 .trial-course {
@@ -1480,19 +1483,42 @@ td button + .ffst-role-picker,
   gap: 0.1rem 0.3rem;
 }
 
-/* Colonnes de cours colorees selon l'etat de l'eleve (voir coursesState) :
-   rien (0 cours), vert (1 cours aujourd'hui), orange (1 cours un autre
-   jour), rouge (2 cours faits). */
-.trial-courses-today {
-  background: rgba(74, 222, 128, 0.14);
+/* Texte de toute la ligne colore selon l'etat de l'eleve (voir
+   coursesState) : normal (0 cours), vert (1 cours aujourd'hui), orange
+   (1 cours un autre jour), rouge (2 cours faits). Le nom, les etiquettes
+   QR/manuel et le commentaire prennent aussi la couleur de la ligne. */
+.trial-row-today {
+  --row-color: #4ade80;
 }
 
-.trial-courses-past {
-  background: rgba(251, 146, 60, 0.16);
+.trial-row-past {
+  --row-color: #fb923c;
 }
 
-.trial-courses-done {
-  background: rgba(248, 113, 113, 0.16);
+.trial-row-done {
+  --row-color: #f87171;
+}
+
+.trial-row-today td,
+.trial-row-past td,
+.trial-row-done td,
+.trial-row-today .trial-name,
+.trial-row-past .trial-name,
+.trial-row-done .trial-name,
+.trial-row-today .trial-comment-edit input,
+.trial-row-past .trial-comment-edit input,
+.trial-row-done .trial-comment-edit input,
+.trial-row-today .trial-course-empty,
+.trial-row-past .trial-course-empty,
+.trial-row-done .trial-course-empty {
+  color: var(--row-color);
+}
+
+.trial-row-today .trial-mode,
+.trial-row-past .trial-mode,
+.trial-row-done .trial-mode {
+  color: var(--row-color);
+  border-color: var(--row-color);
 }
 
 .trial-course-empty {

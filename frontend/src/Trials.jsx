@@ -165,7 +165,7 @@ function todayIso() {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
 }
 
-// Etat des cours d'essai d'un eleve, pour la couleur des colonnes de cours :
+// Etat des cours d'essai d'un eleve, pour la couleur du texte de sa ligne :
 // aucun (blanc), un cours fait aujourd'hui (vert), un cours fait un autre
 // jour (orange), les 2 cours faits (rouge).
 function coursesState(student) {
@@ -370,11 +370,11 @@ export function TrialsTable() {
             <table className="trials-table">
               <thead>
                 <tr>
-                  <th>Élève</th>
+                  <th>Inscrit</th>
+                  <th>Essai 1</th>
+                  <th>Essai 2</th>
                   <th>Âge</th>
                   <th className="col-secondary">QR code</th>
-                  <th>1er cours</th>
-                  <th>2e cours</th>
                   <th>Inscription</th>
                   <th>Commentaire</th>
                   <th></th>
@@ -384,7 +384,7 @@ export function TrialsTable() {
                 {visibleStudents.map((s) => {
                   const full = s.courses.every((c) => c.date)
                   return (
-                    <tr key={s.id}>
+                    <tr key={s.id} className={`trial-row-${coursesState(s)}`}>
                       <td className="trial-name-cell">
                         {/* Clic sur le nom : fiche complete (modification,
                             correction des dates, suppression). */}
@@ -392,16 +392,16 @@ export function TrialsTable() {
                           {s.firstName} {s.lastName}
                         </button>
                       </td>
+                      <td>
+                        <CourseCell course={s.courses[0]} />
+                      </td>
+                      <td>
+                        <CourseCell course={s.courses[1]} />
+                      </td>
                       {/* Inscription en ligne : pas de date de naissance, seulement
                           majeur/mineur (mineur = autorisation parentale donnee). */}
                       <td>{s.age ?? (s.source === 'web' ? (s.parentalConsent ? 'mineur' : 'majeur') : '—')}</td>
                       <td className="col-secondary">{s.qrGenerated ? `✓ ${timestampFr(s.qrCreatedAt)}` : '—'}</td>
-                      <td className={`trial-courses-${coursesState(s)}`}>
-                        <CourseCell course={s.courses[0]} />
-                      </td>
-                      <td className={`trial-courses-${coursesState(s)}`}>
-                        <CourseCell course={s.courses[1]} />
-                      </td>
                       {/* Date d'inscription au cours d'essai (en ligne ou ajout
                           a la main). */}
                       <td title={s.source === 'web' ? 'Inscrit en ligne' : 'Ajouté à la main'}>
