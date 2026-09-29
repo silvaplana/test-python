@@ -629,12 +629,17 @@ function scanColor(result) {
   return result.status === 'today' ? 'ok' : 'ko'
 }
 
+// Date d'un cours (1 ou 2) de l'eleve renvoye par le scan, format JJ/MM/AAAA.
+function courseDate(result, number) {
+  return dateFr(result.student?.courses[number - 1]?.date)
+}
+
 const CHECKIN_MESSAGES = {
-  added: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré`,
+  added: (r) => `ok pour essai ${r.course} le ${courseDate(r, r.course)}`,
   // Deja un cours a la date du jour (QR code relu) : meme message que lors
   // de l'enregistrement, rien n'est ajoute.
-  today: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré`,
-  full: () => "Les 2 cours d'essai ont déjà été faits",
+  today: (r) => `ok pour essai ${r.course} le ${courseDate(r, r.course)}`,
+  full: (r) => `Les 2 cours d'essai ont déjà été faits le ${courseDate(r, 1)} et le ${courseDate(r, 2)}`,
   unknown: () => 'Code inconnu',
 }
 
