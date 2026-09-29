@@ -159,6 +159,22 @@ function CommentCell({ student, onSaved }) {
   )
 }
 
+// Date du jour au format AAAA-MM-JJ (heure locale).
+function todayIso() {
+  const now = new Date()
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+// Etat des cours d'essai d'un eleve, pour la couleur des colonnes de cours :
+// aucun (blanc), un cours fait aujourd'hui (vert), un cours fait un autre
+// jour (orange), les 2 cours faits (rouge).
+function coursesState(student) {
+  const done = student.courses.filter((c) => c.date)
+  if (done.length === 0) return 'none'
+  if (done.length >= 2) return 'done'
+  return done[0].date === todayIso() ? 'today' : 'past'
+}
+
 function CourseCell({ course }) {
   if (!course.date) return <span className="trial-course-empty">—</span>
   return (
@@ -380,10 +396,10 @@ export function TrialsTable() {
                           majeur/mineur (mineur = autorisation parentale donnee). */}
                       <td>{s.age ?? (s.source === 'web' ? (s.parentalConsent ? 'mineur' : 'majeur') : '—')}</td>
                       <td className="col-secondary">{s.qrGenerated ? `✓ ${timestampFr(s.qrCreatedAt)}` : '—'}</td>
-                      <td>
+                      <td className={`trial-courses-${coursesState(s)}`}>
                         <CourseCell course={s.courses[0]} />
                       </td>
-                      <td>
+                      <td className={`trial-courses-${coursesState(s)}`}>
                         <CourseCell course={s.courses[1]} />
                       </td>
                       {/* Date d'inscription au cours d'essai (en ligne ou ajout
@@ -605,32 +621,26 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
   )
 }
 
-// Date du jour au format AAAA-MM-JJ (heure locale).
-function todayIso() {
-  const now = new Date()
-  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
-}
-
-// Scan "OK" (vert) : cours enregistre maintenant, ou eleve deja enregistre
-// aujourd'hui (QR code relu le jour meme). Sinon "KO" (rouge) : QR code
-// inconnu, ou cours d'essai deja fait un autre jour.
-function scanIsOk(result) {
-  if (result.status === 'added') return true
-  return (result.status === 'used' || result.status === 'full') && result.date === todayIso()
+// Resultat d'un scan (voir backend Trials.check_in) : message et couleur.
+// Vert : 1er cours enregistre, ou deja enregistre aujourd'hui ; orange : 2e
+// cours enregistre (exception) ; rouge : 2 cours deja faits, code inconnu.
+function scanColor(result) {
+  if (result.status === 'added') return result.course === 1 ? 'ok' : 'warn'
+  return result.status === 'today' ? 'ok' : 'ko'
 }
 
 const CHECKIN_MESSAGES = {
-  added: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré aujourd'hui`,
-  used: (r) => (r.date === todayIso() ? "Déjà enregistré aujourd'hui" : `Cours d'essai déjà effectué le ${dateFr(r.date)}`),
-  full: (r) => `Les 2 cours d'essai sont déjà renseignés (dernier le ${dateFr(r.date)})`,
-  unknown: () => 'QR code non identifié',
+  added: (r) => `${r.course === 1 ? '1er' : '2e'} cours d'essai enregistré`,
+  today: () => "Déjà enregistré aujourd'hui",
+  full: () => "Les 2 cours d'essai ont déjà été faits",
+  unknown: () => 'Code inconnu',
 }
 
 // Scanner de QR code en continu (camera arriere, bibliotheque qr-scanner :
 // fonctionne sur Android comme sur iPhone, ou Safari ne sait pas lire les QR
 // codes seul). Chaque QR code lu
 // est verifie (voir backend Trials.check_in), son resultat s'ajoute en haut
-// d'une liste compacte (vert si OK, rouge sinon) et la camera continue : plusieurs eleves a la suite sans rien
+// d'une liste compacte (voir scanColor) et la camera continue : plusieurs eleves a la suite sans rien
 // toucher. Un meme QR code n'est traite qu'une fois tant que la fenetre est
 // ouverte (sinon, reste devant la camera, il serait relu en boucle).
 function ScanDialog({ initialResult, onResult, onClose }) {
@@ -712,7 +722,7 @@ function ScanDialog({ initialResult, onResult, onClose }) {
       {results.length > 0 && (
         <ul className="trial-scan-results">
           {results.map((r) => (
-            <li key={r.key} className={scanIsOk(r) ? 'trial-scan-ok' : 'trial-scan-ko'}>
+            <li key={r.key} className={`trial-scan-${r.status === 'error' ? 'ko' : scanColor(r)}`}>
               {r.student && (
                 <strong>
                   {r.student.firstName} {r.student.lastName}

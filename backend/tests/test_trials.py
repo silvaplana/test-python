@@ -82,15 +82,32 @@ def test_set_course_clears_and_keeps_mode(trials):
     assert student["courses"][0] == {"number": 1, "date": None, "mode": None}
 
 
-def test_check_in_is_single_use(trials):
+def test_check_in_same_day_adds_nothing(trials):
     student = trials.add_student("Léa", "Martin")
     token = give_qr(trials, student["id"])
     assert trials.check_in("inconnu") == {"status": "unknown"}
     assert trials.check_in("") == {"status": "unknown"}
     result = trials.check_in(token)
     assert result["status"] == "added" and result["course"] == 1
+    # relu le meme jour : rien n'est ajoute
     again = trials.check_in(token)
-    assert again["status"] == "used" and again["date"] == today().isoformat()
+    assert again["status"] == "today" and again["course"] == 1
+    assert again["student"]["courses"][1]["date"] is None
+
+
+def test_check_in_second_course_another_day_then_full(trials):
+    student = trials.add_student("Léa", "Martin")
+    token = give_qr(trials, student["id"])
+    trials.check_in(token)
+    # 1er cours fait un autre jour : le QR code remplit le 2e cours
+    trials.set_course(student["id"], 1, today() - timedelta(days=7))
+    second = trials.check_in(token)
+    assert second["status"] == "added" and second["course"] == 2
+    assert [c["mode"] for c in second["student"]["courses"]] == ["qr", "qr"]
+    assert trials.check_in(token)["status"] == "today"
+    # les 2 cours faits a d'autres jours : refuse
+    trials.set_course(student["id"], 2, today() - timedelta(days=1))
+    assert trials.check_in(token)["status"] == "full"
 
 
 def test_check_in_after_manual_first_course_fills_second(trials):
@@ -252,7 +269,7 @@ def test_register_family_parent_is_first_person(trials):
     assert [s["name"] for s in trials.get_family_signatures(results[0]["familyId"])] == ["Paul Martin"]
     # chaque QR code est independant
     assert trials.check_in(results[1]["token"])["status"] == "added"
-    assert trials.check_in(results[1]["token"])["status"] == "used"
+    assert trials.check_in(results[1]["token"])["status"] == "today"
 
 
 def test_register_external_parents_sign_once_each(trials):

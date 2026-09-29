@@ -4,8 +4,9 @@ Un eleve s'inscrit sur la page publique (ou est ajoute a la main dans
 l'onglet, exceptionnellement) et recoit un QR code, a montrer au debut de son
 cours d'essai. Regles (decidees avec le bureau du club) :
 - un seul QR code par eleve, pour toujours (reinscription -> le meme) ;
-- il ne sert qu'une fois : le scan remplit le 1er cours vide (sinon le 2e),
-  un nouveau scan repond "cours d'essai deja effectue le ..." ;
+- scanne en debut de cours, il remplit le 1er cours vide (sinon le 2e) avec
+  la date du jour ; rescanne le meme jour, il ne change rien ; les 2 cours
+  deja faits (a d'autres dates) : refuse ;
 - 2 cours d'essai au maximum : on en annonce un, un 2e est une exception.
   Un cours peut aussi etre ajoute a la main (eleve sans son QR code) ; pour
   chaque cours on garde sa date et son mode ("qr" ou "manual").
@@ -313,24 +314,28 @@ class Trials:
 
     def check_in(self, token: str) -> dict:
         """Scan du QR code presente en debut de cours. Retourne {"status"} :
-        - "added"     : cours du jour ajoute (+ "course", numero du cours) ;
-        - "unknown"   : QR code non identifie ;
-        - "used"      : QR code deja utilise (+ "date" de ce cours) ;
-        - "full"      : QR code jamais utilise mais 2 cours deja renseignes a
-                        la main (+ "date" du dernier).
+        - "added"   : cours du jour ajoute dans le 1er cours vide (+ "course",
+                      1 ou 2) ;
+        - "today"   : l'eleve a deja un cours a la date du jour (QR code relu
+                      le meme jour) : rien n'est ajoute (+ "course") ;
+        - "full"    : les 2 cours d'essai sont deja faits, a d'autres dates ;
+        - "unknown" : code inconnu.
         "student" (sauf si unknown) : l'eleve a jour."""
         token = self._extract_token(token)
+        today_iso = today().isoformat()
         with self.db.connect() as connection:
             row = connection.execute("SELECT * FROM trial_students WHERE qr_token = ?", (token,)).fetchone()
             if not token or row is None:
                 return {"status": "unknown"}
-            used = next((n for n in range(1, self.MAX_COURSES + 1) if row[f"course{n}_mode"] == "qr"), None)
-            if used is not None:
-                return {"status": "used", "date": row[f"course{used}_date"], "student": self._to_dict(row)}
+            done_today = next(
+                (n for n in range(1, self.MAX_COURSES + 1) if row[f"course{n}_date"] == today_iso), None
+            )
+            if done_today is not None:
+                return {"status": "today", "course": done_today, "student": self._to_dict(row)}
             number = self._next_free_course(row)
             if number is None:
-                return {"status": "full", "date": row[f"course{self.MAX_COURSES}_date"], "student": self._to_dict(row)}
-            self._write_course(connection, row["id"], number, today().isoformat(), "qr")
+                return {"status": "full", "student": self._to_dict(row)}
+            self._write_course(connection, row["id"], number, today_iso, "qr")
             return {"status": "added", "course": number, "student": self._to_dict(self._get_row(connection, row["id"]))}
 
     # ----- QR code -----
