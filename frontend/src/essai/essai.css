@@ -464,3 +464,30 @@ body {
 .essai-existing h2 + p {
   margin-top: 0;
 }
+
+/* Parent ou representant legal d'un mineur, et blocs de signature. */
+.essai-subgroup,
+.essai-signature-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.8rem;
+  border-left: 3px solid var(--gold);
+  background: var(--green);
+}
+
+.essai-signature-block + .essai-signature-block {
+  margin-top: 0.8rem;
+}
+
+.essai-subgroup-title {
+  font-family: Lora, Georgia, serif;
+  font-weight: 700;
+}
+
+.essai-add-person small {
+  display: block;
+  margin-top: 0.2rem;
+  font-weight: 400;
+  font-size: 0.82rem;
+}

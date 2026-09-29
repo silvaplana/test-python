@@ -20,8 +20,10 @@ from . import content
 PARIS = ZoneInfo("Europe/Paris")
 
 
-# Image de la signature (une seule pour toute la demande), en fin de mail.
-SIGNATURE_CID = "signature"
+def signature_cid(index: int) -> str:
+    """Identifiant de l'image de la signature numero index (1re personne,
+    puis representants legaux) dans le mail : src="cid:signature-0"..."""
+    return f"signature-{index}"
 
 
 def qr_cid(index: int) -> str:
@@ -37,8 +39,8 @@ def _names(students: list[dict]) -> str:
 
 def _summary(students: list[dict]) -> list[tuple[str, list[tuple[str, str]]]]:
     """Recapitulatif de ce qui a ete saisi a l'inscription : [(titre,
-    [(libelle, valeur)])], une section par personne puis le contact (la
-    signature est ajoutee a part, en image)."""
+    [(libelle, valeur)])], une section par personne puis le contact (les
+    signatures sont ajoutees a part, en image)."""
     # C'est la 1re personne inscrite qui remplit le formulaire : c'est elle
     # qui accepte la decharge pour chacun.
     author = f"{students[0]['firstName']} {students[0]['lastName']}"
@@ -53,23 +55,34 @@ def _summary(students: list[dict]) -> list[tuple[str, list[tuple[str, str]]]]:
         ]
         if student["parentName"]:
             rows.append(("Parent ou représentant légal", student["parentName"]))
-            rows.append(("Autorisation parentale", "donnée" if student["parentalConsent"] else "non donnée"))
+            rows.append(
+                ("Autorisation parentale", "donnée (signature)" if student["parentalConsent"] else "non donnée")
+            )
         sections.append((f"{student['firstName']} {student['lastName']}", rows))
     sections.append(("Contact", [("E-mail", students[0]["email"] or "")]))
     return sections
 
 
-def _signed_at(student: dict) -> str | None:
+def _signed_at(signed_at: str | None) -> str | None:
     """Date et heure de la signature, heure de Paris ("29/09/2026 à 14h05")."""
-    if not student["signedAt"]:
+    if not signed_at:
         return None
-    return datetime.fromisoformat(student["signedAt"]).astimezone(PARIS).strftime("%d/%m/%Y à %Hh%M")
+    return datetime.fromisoformat(signed_at).astimezone(PARIS).strftime("%d/%m/%Y à %Hh%M")
 
 
-def confirmation_email(students: list[dict]) -> tuple[str, str, str]:
+def _signature_title(signature: dict, students: list[dict]) -> str:
+    """"Signature de Paul Martin" (+ ", représentant légal de Léa Martin")."""
+    title = f"Signature de {signature['name']}"
+    children = [s for s in students if (s["parentName"] or "").casefold() == signature["name"].casefold()]
+    if children:
+        title += f", représentant légal de {_names(children)}"
+    return title
+
+
+def confirmation_email(students: list[dict], signatures: list[dict]) -> tuple[str, str, str]:
     """Retourne (sujet, HTML, texte) du mail de confirmation pour les
     personnes d'une meme demande (1 a 3), avec le QR code de chacune (voir
-    qr_cid)."""
+    qr_cid) et les signatures de la demande (voir signature_cid)."""
     several = len(students) > 1
     qr_codes = "".join(
         f"""<p style="text-align:center;margin:0 0 4px">
@@ -93,13 +106,11 @@ def confirmation_email(students: list[dict]) -> tuple[str, str, str]:
     contacts = " – ".join(f"{escape(c['name'])} : {escape(c['phone'])}" for c in content.CONTACTS)
     first = students[0]
     author = escape(f"{first['firstName']} {first['lastName']}")
-    signed_at = _signed_at(first)
-    signature_html = (
-        f"""<h3 style="font-size:15px;margin:18px 0 6px">Signature</h3>
-  <img src="cid:{SIGNATURE_CID}" width="280" alt="Signature" style="display:block;max-width:100%;height:auto;border:1px solid #ccc">
-  {f'<p style="margin:6px 0 0;font-size:13px;color:#666">Signée le {signed_at}</p>' if signed_at else ''}"""
-        if first.get("hasSignature")
-        else ""
+    signature_html = "".join(
+        f"""<h3 style="font-size:15px;margin:18px 0 6px">{escape(_signature_title(sig, students))}</h3>
+  <img src="cid:{signature_cid(i)}" width="280" alt="Signature" style="display:block;max-width:100%;height:auto;border:1px solid #ccc">
+  {f'<p style="margin:6px 0 0;font-size:13px;color:#666">Signée le {_signed_at(sig["signedAt"])}</p>' if sig["signedAt"] else ''}"""
+        for i, sig in enumerate(signatures)
     )
     summary = _summary(students)
     summary_html = "".join(
@@ -173,7 +184,11 @@ def confirmation_email(students: list[dict]) -> tuple[str, str, str]:
             ),
             "",
             "Le certificat médical de chaque personne est joint à ce mail.",
-            *(["", f"Signature : image jointe à ce mail, signée le {signed_at}."] if signed_at else []),
+            "",
+            *(
+                f"{_signature_title(sig, students)} : image dans ce mail, signée le {_signed_at(sig['signedAt'])}."
+                for sig in signatures
+            ),
             "",
             content.PRIVACY,
         ]

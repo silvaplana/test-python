@@ -61,6 +61,22 @@ MIGRATIONS: list[str] = [
     ALTER TABLE trial_students ADD COLUMN family_id TEXT;
     CREATE INDEX trial_students_family ON trial_students (family_id);
     """,
+    # 3 : signatures d'une demande d'inscription (family_id) : celle de la
+    # 1re personne inscrite et celle de chaque representant legal exterieur
+    # (parent d'un mineur qui n'est pas la 1re personne). role : "first" ou
+    # "parent".
+    """
+    CREATE TABLE trial_signatures (
+        id INTEGER PRIMARY KEY,
+        family_id TEXT NOT NULL,
+        signer_name TEXT NOT NULL,
+        role TEXT NOT NULL,
+        png BLOB NOT NULL,
+        signed_at TEXT NOT NULL,
+        signed_ip TEXT
+    );
+    CREATE INDEX trial_signatures_family ON trial_signatures (family_id);
+    """,
 ]
 
 

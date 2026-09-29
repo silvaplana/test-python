@@ -7,7 +7,7 @@ que l'eleve accepte (decharge, accord parental, attestation) : changer aussi
 TERMS_VERSION -- chaque inscription garde la version acceptee.
 """
 
-TERMS_VERSION = "2026-09-29b"
+TERMS_VERSION = "2026-09-29c"
 
 CLUB_NAME = "Alliance Sambo Combat La Ciotat"
 
@@ -23,7 +23,8 @@ INTRO = (
 RULES = [
     "Le cours d'essai est gratuit et sans engagement.",
     "Un seul cours d'essai par personne.",
-    "Vous pouvez inscrire jusqu'à 3 personnes d'une même famille dans la même demande.",
+    "Vous pouvez inscrire jusqu'à 3 personnes d'une même famille (même adresse e-mail) dans la même demande.",
+    "Les mineurs sont accueillis à partir de 9 ans.",
     "Présentez votre QR code à l'entraîneur au début du cours (sur votre téléphone ou imprimé).",
     "Tenue : short ou jogging, t-shirt, bouteille d'eau. Pas de bijoux. Protège-dents conseillé.",
     "Un certificat médical d'aptitude au sambo est requis (à joindre à l'inscription).",
@@ -61,20 +62,21 @@ CONTACTS = [
 
 MEDICAL_CERTIFICATE_HINT = "Certificat médical d'aptitude au sambo / MMA, obligatoire (photo ou PDF)."
 
-# {eleve} : le ou les noms des personnes concernees ("Léa Martin et Tom
-# Martin"), d'ou des tournures qui marchent au singulier comme au pluriel.
+# {eleve} : prenom et nom de la personne concernee (ou des enfants, pour
+# l'autorisation parentale), {parent} : le parent ou representant legal qui
+# signe, {club} : le nom du club. L'autorisation parentale est affichee juste
+# au-dessus de la signature du parent : signer vaut autorisation.
 PARENTAL_CONSENT = (
-    "Je soussigné(e), représentant légal, autorise la participation de {eleve} à un cours d'essai "
-    "de MMA / sambo organisé par {club}, et autorise les encadrants à prendre toute mesure "
-    "d'urgence nécessaire (appel des secours) en cas d'accident."
+    "En signant, je soussigné(e), {parent}, représentant légal de {eleve}, donne mon autorisation "
+    "pour le cours d'essai de MMA / sambo organisé par {club}, et autorise les encadrants à prendre "
+    "toute mesure d'urgence nécessaire (appel des secours) en cas d'accident."
 )
 
 WAIVER = (
     "Je reconnais que le MMA et le sambo sont des sports de combat comportant des risques de "
-    "blessure. La participation de {eleve} au cours d'essai se fait dans le respect des consignes "
-    "des encadrants. "
-    "Je renonce à tout recours contre {club} et ses encadrants en cas d'accident survenu pendant "
-    "le cours d'essai, sauf faute de leur part. Je déclare être couvert(e) par une assurance "
+    "blessure, et que le cours d'essai se fait dans le respect des consignes des encadrants. "
+    "Je renonce à tout recours contre {club} et ses encadrants en cas d'accident survenu à {eleve} "
+    "pendant le cours d'essai, sauf faute de leur part. Je déclare être couvert(e) par une assurance "
     "responsabilité civile."
 )
 

@@ -79,9 +79,11 @@ class TrialsPublicReceiver:
     async def register(self, request: Request) -> dict:
         """Endpoint REST POST /public/trials/register (formulaire multipart :
         un certificat medical par personne). Champs communs : email,
-        parentName, parentalConsent, termsVersion, signature, website ; par
-        personne i (0 a 2) : firstName{i}, lastName{i}, minor{i}, age{i}
-        (mineur seulement), waiverAccepted{i}, certificate{i}.
+        termsVersion, signature (1re personne), parentSignatureName{k} +
+        parentSignature{k} (representants legaux exterieurs), website ; par
+        personne i (0 a 2) : firstName{i}, lastName{i}, minor{i}, age{i},
+        waiverAccepted{i}, certificate{i}, parentIsFirst{i},
+        parentFirstName{i}, parentLastName{i}.
 
         Retourne {"people": [{"status": "created", "firstName", "lastName",
         "qrPng" (base64)} ou {"status": "existing", "firstName", "lastName"}],
@@ -110,17 +112,24 @@ class TrialsPublicReceiver:
                     "certificate": (certificate.filename, await certificate.read())
                     if isinstance(certificate, StarletteUploadFile) and certificate.filename
                     else None,
+                    "parent_is_first": _checked(form.get(f"parentIsFirst{i}")),
+                    "parent_first_name": form.get(f"parentFirstName{i}", ""),
+                    "parent_last_name": form.get(f"parentLastName{i}", ""),
                 }
             )
-        shared = {
-            "email": form.get("email", ""),
-            "parent_name": form.get("parentName", ""),
-            "parental_consent": _checked(form.get("parentalConsent")),
-            "terms_version": form.get("termsVersion", ""),
-        }
+        parent_signatures = [
+            (form.get(f"parentSignatureName{k}", ""), _decode_signature(form.get(f"parentSignature{k}", "")))
+            for k in range(MAX_FAMILY_SIZE)
+            if f"parentSignatureName{k}" in form
+        ]
         try:
             registrations = await run_in_threadpool(
-                self.client.register, shared, people, _decode_signature(form.get("signature", "")), client_ip(request)
+                self.client.register,
+                {"email": form.get("email", ""), "terms_version": form.get("termsVersion", "")},
+                people,
+                _decode_signature(form.get("signature", "")),
+                parent_signatures,
+                client_ip(request),
             )
         except RegistrationError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc

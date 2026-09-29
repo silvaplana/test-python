@@ -34,7 +34,7 @@ from database import Database
 from mailer import Mailer
 
 from . import content
-from .emails import SIGNATURE_CID, confirmation_email, qr_cid
+from .emails import confirmation_email, qr_cid, signature_cid
 
 # Photos d'iPhone (HEIC) : lisibles par Pillow une fois ce module enregistre.
 pillow_heif.register_heif_opener()
@@ -77,6 +77,8 @@ MAX_ATTACHMENTS_BYTES = 15_000_000
 PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 ADULT_AGE = 18
 MIN_AGE, MAX_AGE = 3, 100
+# Age d'un mineur inscrit en ligne (cours ouverts a partir de 9 ans).
+MIN_MINOR_AGE = 9
 # Personnes d'une meme famille inscrites en une seule demande.
 MAX_FAMILY_SIZE = 3
 
@@ -261,6 +263,7 @@ class Trials:
         with self.db.connect() as connection:
             row = self._get_row(connection, student_id)
             connection.execute("DELETE FROM trial_students WHERE id = ?", (student_id,))
+            self._delete_orphan_signatures(connection)
         self._delete_certificate(row["medical_certificate_file"])
 
     def _delete_certificate(self, filename: str | None) -> None:
@@ -354,15 +357,27 @@ class Trials:
 
     # ----- inscription en ligne (page publique) -----
 
-    def register(self, form: dict, people: list[dict], signature_png: bytes, ip: str | None) -> list[dict]:
+    def register(
+        self,
+        form: dict,
+        people: list[dict],
+        signature_png: bytes,
+        parent_signatures: list[tuple[str, bytes]],
+        ip: str | None,
+    ) -> list[dict]:
         """Inscription depuis la page publique, pour 1 a 3 personnes d'une
-        meme famille (meme e-mail, une seule signature, mais une decharge, un
-        certificat medical et un QR code par personne).
+        meme famille, toutes avec l'e-mail de la 1re personne. Chaque
+        personne : prenom, nom, mineur (+ age), certificat medical
+        (obligatoire), decharge ; pour un mineur, son parent ou representant
+        legal (par defaut la 1re personne inscrite, sinon quelqu'un d'autre,
+        nomme). Signatures : la 1re personne, et chaque representant legal
+        exterieur -- sa signature vaut autorisation parentale.
 
-        form : email, parent_name, parental_consent, terms_version.
-        people : [{first_name, last_name, minor, age, waiver_accepted,
-        certificate}] -- age seulement pour un mineur, certificate = (nom du
-        fichier, contenu), obligatoire.
+        form : email, terms_version. people : [{first_name, last_name, minor,
+        age, waiver_accepted, certificate, parent_is_first,
+        parent_first_name, parent_last_name}], certificate = (nom du fichier,
+        contenu). signature_png : signature de la 1re personne.
+        parent_signatures : [(nom du parent, PNG)].
 
         Personne deja inscrite (meme e-mail, nom et prenom) : rien n'est
         modifie et son QR code lui est renvoye par mail -- jamais affiche a
@@ -371,25 +386,39 @@ class Trials:
         inscription est completee.
 
         Retourne, par personne et dans l'ordre : {"status": "created" |
-        "existing", "student", "token"}. Leve RegistrationError si le
+        "existing", "student", "token", "familyId"} (familyId : la demande,
+        pour retrouver ses signatures). Leve RegistrationError si le
         formulaire est incomplet (rien n'est alors enregistre)."""
-        shared, people = self._validate_registration(form, people, signature_png)
+        email, people, signatures = self._validate_registration(form, people, signature_png, parent_signatures)
         now = _now_iso()
-        family_id = secrets.token_hex(8) if len(people) > 1 else None
+        family_id = secrets.token_hex(8)
+        terms_version = form.get("terms_version") or content.TERMS_VERSION
         results = []
         with self.db.connect() as connection:
+            for name, role, png in signatures:
+                connection.execute(
+                    "INSERT INTO trial_signatures (family_id, signer_name, role, png, signed_at, signed_ip) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (family_id, name, role, png, now, ip),
+                )
             for person in people:
                 certificate = person.pop("certificate")
-                fields = {**shared, **person}
+                fields = {**person, "email": email, "terms_version": terms_version}
                 existing = self._find_existing(connection, fields)
                 if existing is not None and existing["qr_token"]:
-                    results.append({"status": "existing", "student": self._to_dict(existing), "token": existing["qr_token"]})
+                    results.append(
+                        {
+                            "status": "existing",
+                            "student": self._to_dict(existing),
+                            "token": existing["qr_token"],
+                            "familyId": family_id,
+                        }
+                    )
                     continue
                 token = self.new_qr_token()
                 fields.update(
                     {
                         "family_id": family_id,
-                        "signature_png": signature_png,
                         "signed_at": now,
                         "signed_ip": ip,
                         "qr_token": token,
@@ -413,25 +442,30 @@ class Trials:
                     student_id = cursor.lastrowid
                 self._store_certificate(connection, student_id, *certificate)
                 results.append(
-                    {"status": "created", "student": self._to_dict(self._get_row(connection, student_id)), "token": token}
+                    {
+                        "status": "created",
+                        "student": self._to_dict(self._get_row(connection, student_id)),
+                        "token": token,
+                        "familyId": family_id,
+                    }
                 )
         return results
 
+    @staticmethod
+    def _valid_png(png: bytes | None) -> bool:
+        return bool(png) and png.startswith(PNG_MAGIC) and len(png) <= MAX_SIGNATURE_BYTES
+
     def _validate_registration(
-        self, form: dict, people: list[dict], signature_png: bytes
-    ) -> tuple[dict, list[dict]]:
+        self, form: dict, people: list[dict], signature_png: bytes, parent_signatures: list[tuple[str, bytes]]
+    ) -> tuple[str, list[dict], list[tuple[str, str, bytes]]]:
         """Verifie le formulaire, dans l'ordre de la page (le 1er manque est
-        signale). Retourne (champs communs, champs par personne). Age demande
-        seulement pour un mineur (moins de 18 ans) ; au moins un mineur : nom
-        du parent et autorisation parentale obligatoires. Decharge acceptee
-        et certificat medical pour chaque personne."""
+        signale). Retourne (e-mail, champs par personne, signatures [(nom,
+        role, PNG)]). La signature enregistree sur la ligne d'un eleve est
+        celle de la personne qui s'engage pour lui : son parent s'il est
+        mineur, la 1re personne sinon."""
         if not 1 <= len(people) <= MAX_FAMILY_SIZE:
             raise RegistrationError(f"Une demande concerne de 1 à {MAX_FAMILY_SIZE} personnes")
-        try:
-            shared = self._clean({"email": form.get("email"), "parent_name": form.get("parent_name")})
-        except ValueError as exc:
-            raise RegistrationError(str(exc)) from exc
-        cleaned_people = []
+        cleaned_people, first_name, first_minor = [], "", False
         for number, person in enumerate(people, start=1):
             label = f" (personne {number})" if len(people) > 1 else ""
             minor = bool(person.get("minor"))
@@ -445,45 +479,80 @@ class Trials:
                 )
             except ValueError as exc:
                 raise RegistrationError(f"{exc}{label}") from exc
+            full_name = f"{fields['first_name']} {fields['last_name']}"
             if number == 1:
-                if not shared.get("email"):
+                first_name, first_minor = full_name, minor
+            parent_name, parent_external = None, False
+            if minor:
+                if number > 1 and person.get("parent_is_first"):
+                    if first_minor:
+                        raise RegistrationError(
+                            f"Le parent ou représentant légal ne peut pas être une personne mineure{label}"
+                        )
+                    parent_name = first_name
+                else:
+                    try:
+                        parent = self._clean(
+                            {"first_name": person.get("parent_first_name"), "last_name": person.get("parent_last_name")}
+                        )
+                    except ValueError as exc:
+                        raise RegistrationError(
+                            f"Merci d'indiquer le prénom et le nom du parent ou représentant légal{label}"
+                        ) from exc
+                    parent_name, parent_external = f"{parent['first_name']} {parent['last_name']}", True
+            if number == 1:
+                try:
+                    email = self._clean({"email": form.get("email")}).get("email")
+                except ValueError as exc:
+                    raise RegistrationError(str(exc)) from exc
+                if not email:
                     raise RegistrationError("Merci d'indiquer l'e-mail")
-                if not EMAIL_PATTERN.match(shared["email"]):
+                if not EMAIL_PATTERN.match(email):
                     raise RegistrationError("Adresse e-mail invalide")
-            if minor and fields["age"] is None:
-                raise RegistrationError(f"Merci d'indiquer l'âge{label}")
-            if minor and fields["age"] >= ADULT_AGE:
-                raise RegistrationError(f"Un mineur a moins de {ADULT_AGE} ans{label}")
+            if minor:
+                if fields["age"] is None:
+                    raise RegistrationError(f"Merci d'indiquer l'âge{label}")
+                if not MIN_MINOR_AGE <= fields["age"] < ADULT_AGE:
+                    raise RegistrationError(
+                        f"L'âge d'un mineur doit être compris entre {MIN_MINOR_AGE} et {ADULT_AGE - 1} ans{label}"
+                    )
             if person.get("certificate") is None:
                 raise RegistrationError(f"Merci de joindre le certificat médical{label}")
             if not person.get("waiver_accepted"):
                 raise RegistrationError(f"Merci d'accepter la décharge de responsabilité{label}")
-            fields.update({"minor": minor, "certificate": person["certificate"]})
+            fields.update(
+                {
+                    "parent_name": parent_name,
+                    # Autorisation parentale : donnee par la signature du parent.
+                    "parental_consent": 1 if minor else 0,
+                    "waiver_accepted": 1,
+                    "parent_external": parent_external,
+                    "certificate": person["certificate"],
+                }
+            )
             cleaned_people.append(fields)
         names = [(p["first_name"].casefold(), p["last_name"].casefold()) for p in cleaned_people]
         if len(set(names)) != len(names):
             raise RegistrationError("La même personne apparaît deux fois dans la demande")
-        if any(p["minor"] for p in cleaned_people):
-            if not shared.get("parent_name"):
-                raise RegistrationError("Pour un mineur, merci d'indiquer le nom du parent ou représentant légal")
-            if not form.get("parental_consent"):
-                raise RegistrationError("Merci de cocher l'autorisation parentale")
-        if not signature_png.startswith(PNG_MAGIC) or len(signature_png) > MAX_SIGNATURE_BYTES:
-            raise RegistrationError("Signature manquante ou invalide")
-        # Parent et autorisation parentale : seulement sur les lignes des mineurs.
+
+        # Signatures : la 1re personne, puis chaque representant legal
+        # exterieur (une seule fois meme s'il est le parent de 2 enfants).
+        if not self._valid_png(signature_png):
+            raise RegistrationError(f"Merci de faire signer {first_name}")
+        received = {name.strip().casefold(): png for name, png in parent_signatures}
+        signatures = [(first_name, "first", signature_png)]
+        by_signer = {first_name.casefold(): signature_png}
         for p in cleaned_people:
-            minor = p.pop("minor")
-            p.update(
-                {
-                    "parent_name": shared["parent_name"] if minor else None,
-                    "parental_consent": 1 if minor else 0,
-                    "waiver_accepted": 1,
-                }
-            )
-        return (
-            {"email": shared["email"], "terms_version": form.get("terms_version") or content.TERMS_VERSION},
-            cleaned_people,
-        )
+            if p.pop("parent_external"):
+                key = p["parent_name"].casefold()
+                if key not in by_signer:
+                    png = received.get(key)
+                    if not self._valid_png(png):
+                        raise RegistrationError(f"Merci de faire signer {p['parent_name']}")
+                    signatures.append((p["parent_name"], "parent", png))
+                    by_signer[key] = png
+            p["signature_png"] = by_signer[(p["parent_name"] or first_name).casefold()]
+        return email, cleaned_people, signatures
 
     @staticmethod
     def _find_existing(connection, fields: dict):
@@ -540,27 +609,48 @@ class Trials:
             raise TrialStudentNotFoundError(student_id)
         return row["signature_png"]
 
+    def get_family_signatures(self, family_id: str | None) -> list[dict]:
+        """Signatures d'une demande d'inscription, dans l'ordre (1re personne
+        puis representants legaux) : [{"name", "role", "png", "signedAt"}]."""
+        if not family_id:
+            return []
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                "SELECT signer_name, role, png, signed_at FROM trial_signatures WHERE family_id = ? ORDER BY id",
+                (family_id,),
+            ).fetchall()
+        return [{"name": r["signer_name"], "role": r["role"], "png": r["png"], "signedAt": r["signed_at"]} for r in rows]
+
+    @staticmethod
+    def _delete_orphan_signatures(connection) -> None:
+        """Signatures des demandes dont plus aucun eleve n'existe."""
+        connection.execute(
+            "DELETE FROM trial_signatures WHERE family_id NOT IN "
+            "(SELECT family_id FROM trial_students WHERE family_id IS NOT NULL)"
+        )
+
     # ----- mail de confirmation -----
 
     def send_confirmation(self, registrations: list[dict]) -> bool:
         """Envoie (ou renvoie) le mail avec le QR code de chaque personne
-        de la demande (voir register) et les modalites du cours d'essai. False
-        si le mailer n'est pas configure ; MailError si l'envoi echoue."""
+        de la demande (voir register), les modalites du cours d'essai, les
+        informations saisies, les signatures et les certificats. False si le
+        mailer n'est pas configure ; MailError si l'envoi echoue."""
         students = [r["student"] for r in registrations]
         email = students[0].get("email") if students else None
         if self.mailer is None or not email:
             return False
-        subject, html, text = confirmation_email(students)
-        names = ", ".join(f"{s['firstName']} {s['lastName']}" for s in students)
+        signatures = self.get_family_signatures(registrations[0].get("familyId"))
+        subject, html, text = confirmation_email(students, signatures)
         return self.mailer.send(
             email,
-            students[0]["parentName"] or names,
+            f"{students[0]['firstName']} {students[0]['lastName']}",
             subject,
             html,
             text,
             inline_images={
                 **{qr_cid(i): self.qr_png(r["token"]) for i, r in enumerate(registrations)},
-                **({SIGNATURE_CID: self.get_signature(students[0]["id"])} if students[0]["hasSignature"] else {}),
+                **{signature_cid(i): sig["png"] for i, sig in enumerate(signatures)},
             },
             attachments=self._certificate_attachments(students),
         )
@@ -603,6 +693,7 @@ class Trials:
                 if max(filter(None, (row["created_at"][:10], row["course1_date"], row["course2_date"]))) < limit
             ]
             connection.executemany("DELETE FROM trial_students WHERE id = ?", [(row["id"],) for row in expired])
+            self._delete_orphan_signatures(connection)
         for row in expired:
             self._delete_certificate(row["medical_certificate_file"])
         return len(expired)

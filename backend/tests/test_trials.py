@@ -167,8 +167,19 @@ def png_bytes(size=(40, 20), fmt="PNG"):
 CERT = ("certif.pdf", b"%PDF-1.4 test")
 
 
-def person(first_name="Hugo", last_name="Blanc", age=None, certificate=CERT, waiver_accepted=True, minor=None):
-    """Adulte par defaut ; age donne -> mineur (sauf minor explicite)."""
+def person(
+    first_name="Hugo",
+    last_name="Blanc",
+    age=None,
+    certificate=CERT,
+    waiver_accepted=True,
+    minor=None,
+    parent_is_first=True,
+    parent_first_name="",
+    parent_last_name="",
+):
+    """Adulte par defaut ; age donne -> mineur (sauf minor explicite), dont
+    le parent est la 1re personne inscrite (sauf parent_is_first=False)."""
     return {
         "first_name": first_name,
         "last_name": last_name,
@@ -176,22 +187,27 @@ def person(first_name="Hugo", last_name="Blanc", age=None, certificate=CERT, wai
         "age": age,
         "waiver_accepted": waiver_accepted,
         "certificate": certificate,
+        "parent_is_first": parent_is_first,
+        "parent_first_name": parent_first_name,
+        "parent_last_name": parent_last_name,
     }
 
 
 def form(**overrides):
-    fields = {
-        "email": "hugo@example.com",
-        "parent_name": "",
-        "parental_consent": False,
-        "terms_version": "2026-09-29b",
-    }
+    fields = {"email": "hugo@example.com", "terms_version": "2026-09-29c"}
     fields.update(overrides)
     return fields
 
 
-def register(trials, people=None, signature=None, **overrides):
-    return trials.register(form(**overrides), people or [person()], signature or png_bytes(), "1.2.3.4")
+# Signatures (images PNG) de la 1re personne et d'un parent exterieur.
+SIGNATURE = png_bytes((40, 20))
+PARENT_SIGNATURE = png_bytes((50, 20))
+
+
+def register(trials, people=None, signature=None, parent_signatures=(), **overrides):
+    return trials.register(
+        form(**overrides), people or [person()], signature or SIGNATURE, list(parent_signatures), "1.2.3.4"
+    )
 
 
 class FakeMailer:
@@ -212,28 +228,57 @@ def test_register_creates_student_with_qr(trials):
     assert result["status"] == "created"
     student = result["student"]
     assert student["source"] == "web" and student["qrGenerated"] and student["hasSignature"]
-    assert student["age"] is None and student["parentName"] is None and student["familyId"] is None
-    assert student["hasMedicalCertificate"]
+    assert student["age"] is None and student["parentName"] is None and student["familyId"]
+    assert student["hasMedicalCertificate"] and student["email"] == "hugo@example.com"
+    assert trials.get_signature(student["id"]) == SIGNATURE
+    assert [s["name"] for s in trials.get_family_signatures(result["familyId"])] == ["Hugo Blanc"]
     assert trials.qr_png(result["token"]).startswith(b"\x89PNG")
     # le QR code contient l'URL de l'appli : le scan accepte l'URL complete
     assert trials.check_in(f"https://silvaplana.cloud/sambo-admin/?essai={result['token']}")["status"] == "added"
 
 
-def test_register_family_one_qr_per_person(trials):
+def test_register_family_parent_is_first_person(trials):
     people = [person("Paul", "Martin"), person("Léa", "Martin", 12), person("Tom", "Martin", 9)]
-    results = register(trials, people, email="paul@example.com", parent_name="Paul Martin", parental_consent=True)
+    results = register(trials, people, email="paul@example.com")
     assert [r["status"] for r in results] == ["created"] * 3
-    tokens = {r["token"] for r in results}
-    families = {r["student"]["familyId"] for r in results}
-    assert len(tokens) == 3 and len(families) == 1 and None not in families
-    # parent et autorisation parentale : seulement sur les lignes des mineurs
-    assert [r["student"]["parentName"] for r in results] == [None, "Paul Martin", "Paul Martin"]
-    assert [r["student"]["parentalConsent"] for r in results] == [False, True, True]
-    assert [r["student"]["age"] for r in results] == [None, 12, 9]
+    students = [r["student"] for r in results]
+    assert len({r["token"] for r in results}) == 3 and len({s["familyId"] for s in students}) == 1
+    # meme e-mail pour tous, parent = 1re personne pour les mineurs
+    assert {s["email"] for s in students} == {"paul@example.com"}
+    assert [s["parentName"] for s in students] == [None, "Paul Martin", "Paul Martin"]
+    assert [s["parentalConsent"] for s in students] == [False, True, True]
+    assert [s["age"] for s in students] == [None, 12, 9]
+    # une seule signature : celle de Paul, qui s'engage pour tous
+    assert [s["name"] for s in trials.get_family_signatures(results[0]["familyId"])] == ["Paul Martin"]
     # chaque QR code est independant
     assert trials.check_in(results[1]["token"])["status"] == "added"
-    assert trials.check_in(results[2]["token"])["status"] == "added"
     assert trials.check_in(results[1]["token"])["status"] == "used"
+
+
+def test_register_external_parents_sign_once_each(trials):
+    mother = {"parent_is_first": False, "parent_first_name": "Anne", "parent_last_name": "Durand"}
+    people = [person("Paul", "Martin"), person("Léa", "Martin", 12, **mother), person("Tom", "Martin", 10, **mother)]
+    with pytest.raises(RegistrationError, match="Merci de faire signer Anne Durand"):
+        register(trials, people)
+    results = register(trials, people, parent_signatures=[("anne durand", PARENT_SIGNATURE)])
+    students = [r["student"] for r in results]
+    assert [s["parentName"] for s in students] == [None, "Anne Durand", "Anne Durand"]
+    signatures = trials.get_family_signatures(results[0]["familyId"])
+    assert [(s["name"], s["role"]) for s in signatures] == [("Paul Martin", "first"), ("Anne Durand", "parent")]
+    # la signature d'un eleve est celle de la personne qui s'engage pour lui
+    assert trials.get_signature(students[0]["id"]) == SIGNATURE
+    assert trials.get_signature(students[1]["id"]) == PARENT_SIGNATURE
+
+
+def test_register_first_person_minor_needs_external_parent(trials):
+    people = [person("Léa", "Martin", 15, parent_is_first=False, parent_first_name="Anne", parent_last_name="Martin")]
+    [result] = register(trials, people, parent_signatures=[("Anne Martin", PARENT_SIGNATURE)])
+    assert result["student"]["parentName"] == "Anne Martin"
+    signatures = trials.get_family_signatures(result["familyId"])
+    assert [s["name"] for s in signatures] == ["Léa Martin", "Anne Martin"]
+    # 1re personne mineure : elle ne peut pas etre le parent d'un autre mineur
+    with pytest.raises(RegistrationError, match="ne peut pas être une personne mineure"):
+        register(trials, [people[0], person("Tom", "Martin", 10)], parent_signatures=[("Anne Martin", PARENT_SIGNATURE)])
 
 
 def test_register_twice_returns_existing_same_token(trials):
@@ -241,7 +286,7 @@ def test_register_twice_returns_existing_same_token(trials):
     [again] = register(trials, [person("HUGO", "Blanc")], email="Hugo@Example.com")
     assert again["status"] == "existing" and again["token"] == first["token"]
     # meme demande : Hugo deja inscrit, Léo nouveau
-    results = register(trials, [person(), person("Léo", "Blanc", 8)], parent_name="Anne Blanc", parental_consent=True)
+    results = register(trials, [person(), person("Léo", "Blanc", 9)])
     assert [r["status"] for r in results] == ["existing", "created"]
     assert results[1]["token"] != first["token"]
 
@@ -259,18 +304,17 @@ def test_register_completes_manual_student(trials):
         ([person(first_name="")], {}, "prénom"),
         ([person()], {"email": ""}, "e-mail"),
         ([person()], {"email": "pas-un-mail"}, "e-mail"),
-        ([person(minor=True)], {}, "âge"),
-        ([person(age=2)], {}, "Âge invalide"),
-        ([person(age="douze")], {}, "Âge invalide"),
-        ([person(age=25)], {}, "moins de 18 ans"),
+        ([person(age=12, parent_is_first=False)], {}, "prénom et le nom du parent"),
+        ([person(minor=True, parent_first_name="A", parent_last_name="B")], {}, "âge"),
+        ([person(age=8, parent_first_name="A", parent_last_name="B")], {}, "entre 9 et 17 ans"),
+        ([person(age=18, parent_first_name="A", parent_last_name="B")], {}, "entre 9 et 17 ans"),
+        ([person(age="douze", parent_first_name="A", parent_last_name="B")], {}, "Âge invalide"),
         ([person(certificate=None)], {}, "certificat médical"),
         ([person(waiver_accepted=False)], {}, "décharge"),
         ([person(), person("Léa", certificate=None)], {}, r"certificat médical \(personne 2\)"),
-        ([person(), person("Léa", waiver_accepted=False)], {}, r"décharge de responsabilité \(personne 2\)"),
+        ([person(), person("Léa", age=12, waiver_accepted=False)], {}, r"décharge de responsabilité \(personne 2\)"),
         ([person(), person("hugo", "BLANC")], {}, "deux fois"),
         ([person()] * 4, {}, "de 1 à 3"),
-        ([person(age=12)], {}, "parent"),
-        ([person(age=12)], {"parent_name": "Paul Blanc"}, "autorisation parentale"),
     ],
 )
 def test_register_validation(trials, people, overrides, message):
@@ -279,11 +323,9 @@ def test_register_validation(trials, people, overrides, message):
     assert trials.list_students() == []
 
 
-def test_register_signature_required_and_adult_parent_ignored(trials):
-    with pytest.raises(RegistrationError, match="Signature"):
+def test_register_first_signature_required(trials):
+    with pytest.raises(RegistrationError, match="Merci de faire signer Hugo Blanc"):
         register(trials, signature=b"pas une image")
-    [result] = register(trials, parent_name="X")
-    assert result["student"]["parentName"] is None and not result["student"]["parentalConsent"]
 
 
 def test_certificate_photo_converted_and_deleted_with_student(trials):
@@ -293,6 +335,8 @@ def test_certificate_photo_converted_and_deleted_with_student(trials):
     assert Image.open(path).size == (2000, 667)
     trials.delete_student(result["student"]["id"])
     assert not path.exists()
+    # plus aucun eleve de la demande : ses signatures sont supprimees aussi
+    assert trials.get_family_signatures(result["familyId"]) == []
 
 
 def test_certificate_pdf_kept_and_garbage_refused(trials):
@@ -303,20 +347,22 @@ def test_certificate_pdf_kept_and_garbage_refused(trials):
         register(trials, [person("Léo", certificate=("x.doc", b"n'importe quoi"))])
 
 
-def test_confirmation_email_one_qr_per_person(trials):
+def test_confirmation_email(trials):
     trials.mailer = FakeMailer()
-    results = register(trials, [person(), person("Léo", "Blanc", 8)], parent_name="Anne Blanc", parental_consent=True)
+    mother = {"parent_is_first": False, "parent_first_name": "Anne", "parent_last_name": "Durand"}
+    results = register(
+        trials, [person(), person("Léo", "Blanc", 9, **mother)], parent_signatures=[("Anne Durand", PARENT_SIGNATURE)]
+    )
     assert trials.send_confirmation(results) is True
     [(to_email, subject, html, inline_images)] = trials.mailer.sent
     assert to_email == "hugo@example.com" and "cours d'essai" in subject
     assert "Hugo Blanc et Léo Blanc" in html
     assert 'src="cid:qrcode-0"' in html and 'src="cid:qrcode-1"' in html
-    assert all(png.startswith(b"\x89PNG") for png in inline_images.values()) and len(inline_images) == 3
-    # recapitulatif des donnees saisies + certificats en pieces jointes
-    assert "Informations renseignées par Hugo Blanc" in html and "8 ans (mineur)" in html and "Anne Blanc" in html
-    assert 'src="cid:signature"' in html and "Signée le" in html
-    assert inline_images["signature"] == png_bytes()
-    assert "Autorisation parentale : donnée" in trials.mailer.text
+    # recapitulatif, signatures de la 1re personne et du parent exterieur
+    assert "Informations renseignées par Hugo Blanc" in html and "9 ans (mineur)" in html
+    assert "Signature de Hugo Blanc" in html and "Signature de Anne Durand, représentant légal de Léo Blanc" in html
+    assert inline_images["signature-0"] == SIGNATURE and inline_images["signature-1"] == PARENT_SIGNATURE
+    assert len(inline_images) == 4
     assert trials.mailer.text.count("Décharge de responsabilité : acceptée par Hugo Blanc") == 2
     assert [(name, mime) for name, _, mime in trials.mailer.attachments] == [
         ("certificat-Hugo-Blanc.pdf", "application/pdf"),
@@ -374,12 +420,13 @@ def test_public_routes(trials):
     TrialsPublicReceiver(client=trials, app=app)
     client = TestClient(app)
     assert client.get("/public/trials/info").json()["termsVersion"]
-    signature = "data:image/png;base64," + base64.b64encode(png_bytes()).decode()
+    as_data_url = lambda png: "data:image/png;base64," + base64.b64encode(png).decode()  # noqa: E731
     data = {
-        "email": "martin@example.com", "parentName": "Paul Martin", "parentalConsent": "true",
-        "signature": signature,
-        "firstName0": "Léa", "lastName0": "Martin", "minor0": "true", "age0": "12", "waiverAccepted0": "true",
-        "firstName1": "Tom", "lastName1": "Martin", "minor1": "false", "age1": "", "waiverAccepted1": "true",
+        "email": "martin@example.com", "signature": as_data_url(SIGNATURE),
+        "firstName0": "Paul", "lastName0": "Martin", "minor0": "false", "waiverAccepted0": "true",
+        "firstName1": "Léa", "lastName1": "Martin", "minor1": "true", "age1": "12", "waiverAccepted1": "true",
+        "parentIsFirst1": "false", "parentFirstName1": "Anne", "parentLastName1": "Durand",
+        "parentSignatureName0": "Anne Durand", "parentSignature0": as_data_url(PARENT_SIGNATURE),
     }
     files = {
         "certificate0": ("c0.pdf", b"%PDF-1.4", "application/pdf"),
@@ -392,12 +439,14 @@ def test_public_routes(trials):
     body = created.json()
     assert body["emailSent"] and [p["status"] for p in body["people"]] == ["created", "created"]
     assert base64.b64decode(body["people"][1]["qrPng"]).startswith(b"\x89PNG")
+    students = trials.list_students()
+    assert {s["parentName"] for s in students} == {None, "Anne Durand"}
     again = client.post("/public/trials/register", data=data, files=files).json()
     assert [p["status"] for p in again["people"]] == ["existing", "existing"]
     assert "qrPng" not in again["people"][0] and again["emailSent"]
     assert len(trials.mailer.sent) == 2
-    incomplete = client.post("/public/trials/register", data={**data, "waiverAccepted1": "false"}, files=files)
-    assert incomplete.status_code == 422 and "décharge" in incomplete.json()["detail"]
+    unsigned = client.post("/public/trials/register", data={**data, "parentSignature0": ""}, files=files)
+    assert unsigned.status_code == 422 and "Anne Durand" in unsigned.json()["detail"]
     bot = client.post("/public/trials/register", data={**data, "firstName0": "Bot", "website": "spam"}, files=files)
     assert bot.json() == {"people": [], "emailSent": False} and len(trials.list_students()) == 2
 

@@ -10,10 +10,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // code par personne.
 const MAX_PEOPLE = 3
 
-// Textes du serveur (voir backend trials/content.py) : {eleve} et {club}
-// remplaces par le ou les noms des personnes et le nom du club.
-function fill(text, names, club) {
-  return text.replaceAll('{eleve}', names || "l'élève").replaceAll('{club}', club)
+// Textes du serveur (voir backend trials/content.py) : {eleve}, {parent} et
+// {club} remplaces par le ou les noms des eleves, le parent et le club.
+function fill(text, names, club, parent = '') {
+  return text.replaceAll('{eleve}', names || "l'élève").replaceAll('{club}', club).replaceAll('{parent}', parent)
 }
 
 // ["Léa Martin", "Tom Martin"] -> "Léa Martin et Tom Martin".
@@ -22,15 +22,27 @@ function joinNames(names) {
 }
 
 let nextPersonKey = 0
-function emptyPerson() {
+function emptyPerson(lastName = '') {
   nextPersonKey += 1
-  return { key: nextPersonKey, firstName: '', lastName: '', minor: false, age: '', certificate: null, waiverAccepted: false }
+  return {
+    key: nextPersonKey,
+    firstName: '',
+    lastName,
+    minor: false,
+    // Parent d'un mineur : la 1re personne inscrite, sauf case cochee (alors
+    // son prenom et son nom sont demandes). Toujours quelqu'un d'autre pour
+    // la 1re personne elle-meme.
+    parentIsFirst: true,
+    parentFirstName: '',
+    parentLastName: '',
+    age: '',
+    certificate: null,
+    waiverAccepted: false,
+  }
 }
 
 const EMPTY_FORM = {
   email: '',
-  parentName: '',
-  parentalConsent: false,
   website: '',
 }
 
@@ -148,29 +160,36 @@ export default function EssaiPage() {
   )
 }
 
-// Ordre voulu par le club : 1re personne (prenom, nom, e-mail, age si
-// mineur, certificat, decharge), puis eventuellement jusqu'a 2 membres de la
-// meme famille (prenom, age si mineur, certificat, decharge -- nom et e-mail
-// repris de la 1re personne), puis le parent si un mineur est inscrit, puis
-// la signature (une seule pour toute la demande).
+// Ordre voulu par le club, pour chaque personne : prenom, nom, "mineur",
+// (mineur : parent ou representant legal), e-mail (1re personne seulement,
+// recopie pour les autres), (mineur : age), certificat, decharge. Puis le
+// bouton d'ajout d'une personne de la meme famille, et a la fin les
+// signatures : la 1re personne, et chaque representant legal exterieur (sa
+// signature vaut autorisation parentale).
 function RegistrationForm({ info, onDone }) {
   const [people, setPeople] = useState(() => [emptyPerson()])
   const [form, setForm] = useState(EMPTY_FORM)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
-  const padRef = useRef(null)
+  // Pads de signature montes, par cle ("first", "parent-0", "parent-1"...).
+  const pads = useRef({})
 
-  const lastName = people[0].lastName
-  const fullName = (p) => `${p.firstName} ${lastName}`.trim()
-  const minors = people.filter((p) => p.minor)
-  const anyMinor = minors.length > 0
-
-  function update(key) {
-    return (e) => {
-      const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value
-      setForm((prev) => ({ ...prev, [key]: value }))
-    }
-  }
+  const fullName = (p) => `${p.firstName} ${p.lastName}`.trim()
+  const firstName = fullName(people[0]) || 'la 1re personne'
+  const parentIsFirst = (p, i) => i > 0 && p.parentIsFirst
+  const parentName = (p, i) =>
+    parentIsFirst(p, i) ? fullName(people[0]) : `${p.parentFirstName} ${p.parentLastName}`.trim()
+  // Enfants dont la 1re personne est le parent, et representants legaux
+  // exterieurs (un seul par nom, meme pour 2 enfants).
+  const childrenOfFirst = people.filter((p, i) => p.minor && parentIsFirst(p, i))
+  const externalParents = []
+  people.forEach((p, i) => {
+    if (!p.minor || parentIsFirst(p, i)) return
+    const name = parentName(p, i)
+    const existing = externalParents.find((parent) => parent.name.toLowerCase() === name.toLowerCase())
+    if (existing) existing.children.push(p)
+    else externalParents.push({ name, children: [p] })
+  })
 
   function updatePerson(index, key) {
     return (e) => {
@@ -188,28 +207,31 @@ function RegistrationForm({ info, onDone }) {
     setError(null)
     const missing = people.findIndex((p) => !p.certificate)
     if (missing !== -1) {
-      return setError(
-        people.length > 1
-          ? `Merci de joindre le certificat médical de ${people[missing].firstName || `la personne ${missing + 1}`}`
-          : 'Merci de joindre le certificat médical'
-      )
+      return setError(`Merci de joindre le certificat médical de ${fullName(people[missing]) || 'chaque personne'}`)
     }
-    if (padRef.current.isEmpty()) return setError('Merci de signer dans le cadre prévu')
+    if (pads.current.first?.isEmpty()) return setError(`Merci de faire signer ${firstName}`)
+    const unsigned = externalParents.find((parent, k) => pads.current[`parent-${k}`]?.isEmpty())
+    if (unsigned) return setError(`Merci de faire signer ${unsigned.name || 'le parent ou représentant légal'}`)
     const body = new FormData()
+    body.append('email', form.email)
     people.forEach((p, i) => {
       body.append(`firstName${i}`, p.firstName)
-      body.append(`lastName${i}`, lastName)
+      body.append(`lastName${i}`, p.lastName)
       body.append(`minor${i}`, p.minor)
       body.append(`age${i}`, p.minor ? p.age : '')
+      body.append(`parentIsFirst${i}`, p.minor && parentIsFirst(p, i))
+      body.append(`parentFirstName${i}`, p.minor && !parentIsFirst(p, i) ? p.parentFirstName : '')
+      body.append(`parentLastName${i}`, p.minor && !parentIsFirst(p, i) ? p.parentLastName : '')
       body.append(`waiverAccepted${i}`, p.waiverAccepted)
       body.append(`certificate${i}`, p.certificate)
     })
-    body.append('email', form.email)
-    body.append('parentName', anyMinor ? form.parentName : '')
-    body.append('parentalConsent', anyMinor && form.parentalConsent)
+    body.append('signature', pads.current.first.toDataUrl())
+    externalParents.forEach((parent, k) => {
+      body.append(`parentSignatureName${k}`, parent.name)
+      body.append(`parentSignature${k}`, pads.current[`parent-${k}`].toDataUrl())
+    })
     body.append('website', form.website)
     body.append('termsVersion', info.termsVersion)
-    body.append('signature', padRef.current.toDataUrl())
     setPending(true)
     try {
       const response = await fetch(`${API_URL}/public/trials/register`, { method: 'POST', body })
@@ -230,7 +252,7 @@ function RegistrationForm({ info, onDone }) {
     <form className="essai-form" onSubmit={submit}>
       {people.map((p, i) => (
         <fieldset key={p.key}>
-          <legend>{i === 0 ? 'La personne à inscrire' : `Membre de la famille ${i + 1}`}</legend>
+          <legend>{i === 0 ? 'La personne à inscrire' : `Personne ${i + 1} (même famille)`}</legend>
           <label>
             Prénom
             <input
@@ -240,37 +262,74 @@ function RegistrationForm({ info, onDone }) {
               autoComplete={i === 0 ? 'given-name' : 'off'}
             />
           </label>
-          {i === 0 && (
-            <>
-              <label>
-                Nom
-                <input value={p.lastName} onChange={updatePerson(i, 'lastName')} required autoComplete="family-name" />
-              </label>
-              <label>
-                E-mail
-                <input
-                  type="email"
-                  inputMode="email"
-                  value={form.email}
-                  onChange={update('email')}
-                  required
-                  autoComplete="email"
-                />
-                <small>Le QR code vous sera envoyé à cette adresse (celui de chaque membre de la famille aussi).</small>
-              </label>
-            </>
-          )}
+          <label>
+            Nom
+            <input
+              value={p.lastName}
+              onChange={updatePerson(i, 'lastName')}
+              required
+              autoComplete={i === 0 ? 'family-name' : 'off'}
+            />
+          </label>
           <label className="essai-check">
             <input type="checkbox" checked={p.minor} onChange={updatePerson(i, 'minor')} />
-            <span>{i === 0 ? 'Cette personne est mineure' : 'Mineur(e)'}</span>
+            <span>Cette personne est mineure</span>
           </label>
+
+          {p.minor && (
+            <div className="essai-subgroup">
+              <span className="essai-subgroup-title">Parent ou représentant légal</span>
+              {i > 0 && (
+                <label className="essai-check">
+                  <input
+                    type="checkbox"
+                    checked={!p.parentIsFirst}
+                    onChange={(e) =>
+                      setPeople((prev) => prev.map((q, j) => (j === i ? { ...q, parentIsFirst: !e.target.checked } : q)))
+                    }
+                  />
+                  <span>Le parent ou représentant légal n'est pas {firstName}</span>
+                </label>
+              )}
+              {parentIsFirst(p, i) ? (
+                <p className="essai-hint">{firstName}</p>
+              ) : (
+                <>
+                  <label>
+                    Prénom du parent
+                    <input value={p.parentFirstName} onChange={updatePerson(i, 'parentFirstName')} required />
+                  </label>
+                  <label>
+                    Nom du parent
+                    <input value={p.parentLastName} onChange={updatePerson(i, 'parentLastName')} required />
+                  </label>
+                </>
+              )}
+            </div>
+          )}
+
+          {i === 0 && (
+            <label>
+              E-mail
+              <input
+                type="email"
+                inputMode="email"
+                value={form.email}
+                onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))}
+                required
+                autoComplete="email"
+              />
+              <small>Le QR code vous sera envoyé à cette adresse.</small>
+            </label>
+          )}
+
           {p.minor && (
             <label>
               Âge
               <input
                 type="number"
                 inputMode="numeric"
-                min="3"
+                min="9"
                 max="17"
                 value={p.age}
                 onChange={updatePerson(i, 'age')}
@@ -279,6 +338,7 @@ function RegistrationForm({ info, onDone }) {
               />
             </label>
           )}
+
           <div className="essai-label">
             Certificat médical
             <small>{info.medicalCertificateHint}</small>
@@ -297,6 +357,7 @@ function RegistrationForm({ info, onDone }) {
               </button>
             )}
           </div>
+
           <label className="essai-check">
             <input type="checkbox" checked={p.waiverAccepted} onChange={updatePerson(i, 'waiverAccepted')} required />
             <span>
@@ -304,13 +365,14 @@ function RegistrationForm({ info, onDone }) {
               {fill(info.waiver, fullName(p), info.club)}
             </span>
           </label>
+
           {i > 0 && (
             <button
               type="button"
               className="essai-link essai-remove-person"
               onClick={() => setPeople((prev) => prev.filter((_, j) => j !== i))}
             >
-              Retirer ce membre de la famille
+              Retirer cette personne
             </button>
           )}
         </fieldset>
@@ -320,29 +382,37 @@ function RegistrationForm({ info, onDone }) {
         <button
           type="button"
           className="essai-add-person"
-          onClick={() => setPeople((prev) => [...prev, emptyPerson()])}
+          onClick={() => setPeople((prev) => [...prev, emptyPerson(prev[0].lastName)])}
         >
-          + Ajouter un membre de la même famille
+          + Ajouter une personne de la même famille
+          <small>(celle-ci aura le même mail, sinon faire une autre demande)</small>
         </button>
       )}
 
-      {anyMinor && (
-        <fieldset>
-          <legend>Parent ou représentant légal</legend>
-          <label>
-            Nom et prénom
-            <input value={form.parentName} onChange={update('parentName')} required autoComplete="name" />
-          </label>
-          <label className="essai-check">
-            <input type="checkbox" checked={form.parentalConsent} onChange={update('parentalConsent')} required />
-            <span>{fill(info.parentalConsent, joinNames(minors.map(fullName).filter(Boolean)), info.club)}</span>
-          </label>
-        </fieldset>
-      )}
-
       <fieldset>
-        <legend>{anyMinor ? 'Signature du parent ou représentant légal' : 'Signature'}</legend>
-        <SignatureField padRef={padRef} />
+        <legend>{externalParents.length > 0 ? 'Signatures' : 'Signature'}</legend>
+        <div className="essai-signature-block">
+          <span className="essai-subgroup-title">Signature de {firstName}</span>
+          {childrenOfFirst.length > 0 && (
+            <p className="essai-hint">
+              {fill(info.parentalConsent, joinNames(childrenOfFirst.map(fullName)), info.club, fullName(people[0]))}
+            </p>
+          )}
+          <SignatureField pads={pads} name="first" />
+        </div>
+        {externalParents.map((parent, k) => (
+          // Cle = numero (pas le nom) : corriger le nom du parent ne doit pas
+          // effacer sa signature.
+          <div key={k} className="essai-signature-block">
+            <span className="essai-subgroup-title">
+              Signature de {parent.name || 'du parent ou représentant légal'}
+            </span>
+            <p className="essai-hint">
+              {fill(info.parentalConsent, joinNames(parent.children.map(fullName)), info.club, parent.name)}
+            </p>
+            <SignatureField pads={pads} name={`parent-${k}`} />
+          </div>
+        ))}
       </fieldset>
 
       {/* Piege a robots : invisible pour un humain, rempli par les robots
@@ -354,7 +424,7 @@ function RegistrationForm({ info, onDone }) {
         autoComplete="off"
         aria-hidden="true"
         value={form.website}
-        onChange={update('website')}
+        onChange={(e) => setForm((prev) => ({ ...prev, website: e.target.value }))}
       />
 
       {error && <p className="essai-error">{error}</p>}
@@ -368,8 +438,9 @@ function RegistrationForm({ info, onDone }) {
 
 // Signature au doigt (ou a la souris) : bibliotheque signature_pad, qui gere
 // le tactile sur Android comme sur iPhone. Le canvas est redimensionne a la
-// largeur de l'ecran (et a la densite de pixels) sans perdre le trace.
-function SignatureField({ padRef }) {
+// largeur de l'ecran (et a la densite de pixels) sans perdre le trace. Le
+// pad est enregistre dans pads.current[name] (isEmpty, toDataUrl).
+function SignatureField({ pads, name }) {
   const canvasRef = useRef(null)
   const signaturePad = useRef(null)
   const [empty, setEmpty] = useState(true)
@@ -379,7 +450,8 @@ function SignatureField({ padRef }) {
     const pad = new SignaturePad(canvas, { penColor: '#111', backgroundColor: 'rgb(255,255,255)' })
     signaturePad.current = pad
     pad.addEventListener('endStroke', () => setEmpty(pad.isEmpty()))
-    padRef.current = {
+    const registry = pads.current
+    registry[name] = {
       isEmpty: () => pad.isEmpty(),
       toDataUrl: () => pad.toDataURL('image/png'),
     }
@@ -398,8 +470,9 @@ function SignatureField({ padRef }) {
     return () => {
       window.removeEventListener('resize', resize)
       pad.off()
+      delete registry[name]
     }
-  }, [padRef])
+  }, [pads, name])
 
   function clear() {
     signaturePad.current.clear()
