@@ -179,7 +179,7 @@ export function TrialsTable() {
   const [students, setStudents] = useState(null)
   const [error, setError] = useState(null)
   const [pendingId, setPendingId] = useState(null)
-  // null : pas de fenetre ; {} : ajout ; {student} : modification.
+  // Eleve dont la fiche est ouverte (modification), null sinon.
   const [editing, setEditing] = useState(null)
   // Fenetre du scanner (ouverte si non null) : {result} une fois un QR code
   // verifie, {} pendant le scan.
@@ -224,6 +224,16 @@ export function TrialsTable() {
 
   useEffect(() => {
     refetch()
+  }, [refetch])
+
+  // Retour dans l'appli apres une inscription faite dans un autre onglet
+  // (bouton "Ajouter un eleve") : la liste se met a jour d'elle-meme.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') refetch()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [refetch])
 
   function replaceStudent(updated) {
@@ -326,7 +336,7 @@ export function TrialsTable() {
                       <td className="trial-name-cell">
                         {/* Clic sur le nom : fiche complete (modification,
                             correction des dates, suppression). */}
-                        <button className="trial-name" onClick={() => setEditing({ student: s })}>
+                        <button className="trial-name" onClick={() => setEditing(s)}>
                           {s.firstName} {s.lastName}
                         </button>
                       </td>
@@ -380,26 +390,28 @@ export function TrialsTable() {
       <button className="trial-scan-button" onClick={() => setScan({})}>
         QR code
       </button>
-      {/* Exceptionnel : normalement l'eleve s'inscrit lui-meme en ligne. */}
-      <button className="trial-add-student-button" onClick={() => setEditing({})}>
+      {/* Meme formulaire que l'inscription en ligne (majeur/mineur, parent,
+          certificat, decharge, signatures, QR code et mail), ouvert dans un
+          nouvel onglet : a remplir avec l'eleve, par exemple sur place. */}
+      <a
+        className="trial-add-student-button"
+        href={`${import.meta.env.BASE_URL}essai.html`}
+        target="_blank"
+        rel="noreferrer"
+      >
         Ajouter un élève
-      </button>
+      </a>
 
       {scan && <ScanDialog result={scan.result} onResult={showCheckin} onRestart={() => setScan({})} onClose={() => setScan(null)} />}
 
       {editing && (
         <StudentDialog
-          student={editing.student}
-          family={
-            editing.student?.familyId
-              ? students.filter((s) => s.familyId === editing.student.familyId && s.id !== editing.student.id)
-              : []
-          }
+          student={editing}
+          family={editing.familyId ? students.filter((s) => s.familyId === editing.familyId && s.id !== editing.id) : []}
           onClose={() => setEditing(null)}
           onSaved={(saved) => {
             setEditing(null)
-            if (editing.student) replaceStudent(saved)
-            else setStudents((prev) => [saved, ...(prev ?? [])])
+            replaceStudent(saved)
           }}
           onDeleted={(id) => {
             setEditing(null)
@@ -411,17 +423,16 @@ export function TrialsTable() {
   )
 }
 
-// Fenetre d'ajout (student absent) ou de modification d'un eleve. <dialog>
+// Fiche d'un eleve : modification, correction des dates de cours,
+// suppression (l'ajout passe par le formulaire d'inscription). <dialog>
 // natif : fond assombri, touche Echap et accessibilite geres par le
 // navigateur (Android comme iPhone).
 function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
   const dialogRef = useRef(null)
   const [form, setForm] = useState(() =>
-    student
-      ? Object.fromEntries(Object.keys(EMPTY_FORM).map((key) => [key, student[key] ?? '']))
-      : EMPTY_FORM
+    Object.fromEntries(Object.keys(EMPTY_FORM).map((key) => [key, student[key] ?? '']))
   )
-  const [courseDates, setCourseDates] = useState(() => student?.courses.map((c) => c.date ?? '') ?? [])
+  const [courseDates, setCourseDates] = useState(() => student.courses.map((c) => c.date ?? ''))
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
 
@@ -438,17 +449,12 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
     setPending(true)
     setError(null)
     try {
-      let saved
-      if (!student) {
-        saved = await sendJson('/trials/students', 'POST', formToBody(form))
-      } else {
-        saved = await sendJson(`/trials/students/${student.id}`, 'PATCH', formToBody(form))
-        for (const [i, course] of student.courses.entries()) {
-          if ((course.date ?? '') !== courseDates[i]) {
-            saved = await sendJson(`/trials/students/${student.id}/courses/${course.number}`, 'PUT', {
-              date: courseDates[i] || null,
-            })
-          }
+      let saved = await sendJson(`/trials/students/${student.id}`, 'PATCH', formToBody(form))
+      for (const [i, course] of student.courses.entries()) {
+        if ((course.date ?? '') !== courseDates[i]) {
+          saved = await sendJson(`/trials/students/${student.id}/courses/${course.number}`, 'PUT', {
+            date: courseDates[i] || null,
+          })
         }
       }
       onSaved(saved)
@@ -474,12 +480,9 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
   return (
     <dialog ref={dialogRef} className="trial-dialog" onClose={onClose}>
       <form onSubmit={save}>
-        <h3>{student ? `${student.firstName} ${student.lastName}` : 'Ajouter un élève'}</h3>
-        {!student && (
-          <p className="profile-hint">
-            Exceptionnel : normalement l'élève s'inscrit lui-même sur la page d'essai et reçoit son QR code.
-          </p>
-        )}
+        <h3>
+          {student.firstName} {student.lastName}
+        </h3>
 
         <div className="trial-form-grid">
           <label>
@@ -514,7 +517,7 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
             Parent (si mineur)
             <input value={form.parentName} onChange={update('parentName')} autoComplete="off" />
           </label>
-          {student?.courses.map((course, i) => (
+          {student.courses.map((course, i) => (
             <label key={course.number}>
               {course.number === 1 ? '1er' : '2e'} cours{course.mode === 'qr' ? ' (QR code)' : ''}
               <span className="trial-course-input">
@@ -541,18 +544,16 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
           </label>
         </div>
 
-        {student && (
-          <p className="profile-hint">
-            {student.source === 'web' ? 'Inscrit en ligne' : 'Ajouté à la main'} le {timestampFr(student.createdAt)}
-            {student.qrGenerated ? ' · QR code généré' : ' · pas de QR code'}
-          </p>
-        )}
+        <p className="profile-hint">
+          {student.source === 'web' ? 'Inscrit en ligne' : 'Ajouté à la main'} le {timestampFr(student.createdAt)}
+          {student.qrGenerated ? ' · QR code généré' : ' · pas de QR code'}
+        </p>
         {family.length > 0 && (
           <p className="profile-hint">
             Même demande que : {family.map((s) => `${s.firstName} ${s.lastName}`).join(', ')}
           </p>
         )}
-        {(student?.hasSignature || student?.hasMedicalCertificate) && (
+        {(student.hasSignature || student.hasMedicalCertificate) && (
           <p className="trial-documents">
             {student.hasSignature && (
               <a href={`${API_URL}/trials/students/${student.id}/signature`} target="_blank" rel="noreferrer">
@@ -570,11 +571,9 @@ function StudentDialog({ student, family, onClose, onSaved, onDeleted }) {
         {error && <p className="error">{error}</p>}
 
         <div className="trial-dialog-actions">
-          {student && (
-            <button type="button" className="trial-delete" onClick={remove} disabled={pending}>
-              Supprimer
-            </button>
-          )}
+          <button type="button" className="trial-delete" onClick={remove} disabled={pending}>
+            Supprimer
+          </button>
           <button type="button" onClick={() => dialogRef.current.close()} disabled={pending}>
             Annuler
           </button>

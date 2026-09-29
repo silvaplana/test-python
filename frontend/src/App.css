@@ -1318,7 +1318,10 @@ td button + .ffst-role-picker,
 
 .trial-add-student-button {
   display: block;
+  box-sizing: border-box;
   width: 100%;
+  text-align: center;
+  text-decoration: none;
   margin-top: 0.6rem;
   padding: 0.7rem 1rem;
   border: 1px solid var(--border);
