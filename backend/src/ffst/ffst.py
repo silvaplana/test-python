@@ -28,6 +28,7 @@ import html
 import os
 import re
 import threading
+import unicodedata
 import xml.etree.ElementTree as ET
 
 import httpx
@@ -104,6 +105,21 @@ FFST_FONCTIONS = [
 # hypothese la plus probable a defaut d'autre info, a corriger sur le
 # portail FFST si elle est fausse pour l'adherent concerne.
 COMMUNE_NAISSANCE_PAR_DEFAUT = "La Ciotat"
+
+
+def normaliser_ville(ville: str) -> str:
+    """Ville HelloAsso -> ville acceptee par le formulaire FFST, qui refuse
+    une ville dont le premier caractere n'est pas une lettre majuscule
+    ("La ville est incorrecte, son premier caractere n'est pas une lettre de
+    l'alphabet" : vecu avec "laciotat", saisie telle quelle par un adherent).
+    Premiere lettre mise en majuscule, sans accent (par precaution, "Élancourt"
+    -> "Elancourt") ; le reste est garde tel quel."""
+    ville = (ville or "").strip()
+    if not ville:
+        return ville
+    premiere = unicodedata.normalize("NFD", ville[0])
+    premiere = "".join(c for c in premiere if not unicodedata.combining(c)).upper()
+    return premiere + ville[1:]
 
 
 class Ffst:
@@ -479,6 +495,7 @@ class Ffst:
             )
         if fonction not in FFST_FONCTIONS:
             raise RuntimeError(f"Fonction FFST inconnue : {fonction!r} (voir FFST_FONCTIONS)")
+        city = normaliser_ville(city)
 
         with self._lock, sync_playwright() as playwright:
             browser = playwright.chromium.launch()
