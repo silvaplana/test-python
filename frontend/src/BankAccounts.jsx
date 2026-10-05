@@ -1,25 +1,7 @@
-import { useCallback, useEffect, useState } from 'react'
-import { BalanceChart, balanceSeries } from './BalanceChart.jsx'
+import { useEffect, useState } from 'react'
+import { BankHistory } from './BankHistory.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-
-// Operations demandees au serveur (les plus recentes, maximum accepte) :
-// toutes s'affichent, dans une fenetre de 10 lignes qui defile (voir
-// .operations-scroll).
-const OPERATIONS_FETCHED = 1000
-
-const HIDDEN_OPERATIONS_KEY = 'bankaccounts-hidden-operations'
-function readHiddenOperations() {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(HIDDEN_OPERATIONS_KEY) ?? '[]'))
-  } catch {
-    return new Set()
-  }
-}
-
-function euros(amount) {
-  return `${amount.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-}
 
 function dateFr(isoDate) {
   const [year, month, day] = isoDate.split('-')
@@ -37,7 +19,6 @@ async function callApi(path, options) {
   return response.json()
 }
 
-const getJson = (path) => callApi(path)
 
 // Retour de la banque : apres l'autorisation, elle redirige vers l'URL de
 // l'appli avec ?code=...&state=... (ou ?error=... si refuse). Lu UNE fois au
@@ -71,31 +52,16 @@ function processBankCallback() {
   return callbackPromise
 }
 
-// Onglet Finances/Comptes : solde et dernieres operations des comptes de
-// l'association (compte courant + Livret bleu). Meme charte que
-// HelloAsso/Adherents (section-header, table-wrapper). Reserve au mot de
-// passe "comptes" (voir Auth.jsx / App.jsx) ; le backend refuse (403) sinon.
-export function BankAccounts() {
-  const [accounts, setAccounts] = useState(null)
+// Onglet Finances/Comptes : etat des comptes de l'association (compte
+// courant + Livret Bleu), lu dans la base (voir BankHistory.jsx) et complete
+// des dernieres operations de la banque a chaque ouverture. Ici : la
+// connexion bancaire (autorisation chez la banque, a renouveler). Reserve au
+// mot de passe "comptes" (voir Auth.jsx / App.jsx) ; le backend refuse (403)
+// sinon.
+export function BankAccounts({ active }) {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
   const [connecting, setConnecting] = useState(false)
-  // Tableaux d'operations replies (par nom de compte), memorises sur cet appareil :
-  // laisse la place aux graphiques.
-  const [hiddenOperations, setHiddenOperations] = useState(readHiddenOperations)
-
-  function toggleOperations(name) {
-    setHiddenOperations((current) => {
-      const next = new Set(current)
-      if (!next.delete(name)) next.add(name)
-      try {
-        localStorage.setItem(HIDDEN_OPERATIONS_KEY, JSON.stringify([...next]))
-      } catch {
-        // Stockage indisponible : le choix ne sera juste pas retenu.
-      }
-      return next
-    })
-  }
 
   // Envoie l'utilisateur s'autoriser chez sa banque (retour sur l'appli :
   // voir bankCallback). Sert a la 1ere connexion comme au renouvellement.
@@ -110,128 +76,46 @@ export function BankAccounts() {
     }
   }
 
-  // refresh : ignore le cache serveur (bouton "Rafraichir" ; le chargement
-  // initial le reutilise, pour menager le quota d'acces de la banque).
-  const load = useCallback(async (refresh = false) => {
-    const refreshParam = refresh ? 'refresh=true' : ''
-    try {
+  useEffect(() => {
+    ;(async () => {
       try {
         await processBankCallback()
       } catch (err) {
         setError(err.message)
       }
-      const currentStatus = await getJson('/bankaccounts/status')
-      setStatus(currentStatus)
-      if (!currentStatus.connected) {
-        setAccounts([])
-        return
+      try {
+        setStatus(await callApi('/bankaccounts/status'))
+      } catch (err) {
+        setError(err.message)
       }
-      const list = await getJson(`/bankaccounts/accounts?${refreshParam}`)
-      // Un appel par compte (les operations ne sont pas incluses dans la
-      // liste des comptes) : en parallele, pour ne pas additionner les
-      // latences.
-      const withOperations = await Promise.all(
-        list.map(async (account) => {
-          const operations = await getJson(
-            `/bankaccounts/accounts/${encodeURIComponent(account.id)}/transactions?limit=${OPERATIONS_FETCHED}&${refreshParam}`
-          )
-          return { ...account, operations, series: balanceSeries(operations, account.balance) }
-        })
-      )
-      setAccounts(withOperations)
-    } catch (err) {
-      setError(err.message)
-      // Session expiree entre-temps : repasse sur l'ecran de connexion.
-      if (err.status === 409) setStatus((s) => (s ? { ...s, connected: false } : s))
-    }
+    })()
   }, [])
-
-  useEffect(() => {
-    load()
-  }, [load])
 
   return (
     <section>
       <div className="section-header">
         <h2>Comptes</h2>
-        <button onClick={() => load(true)}>Rafraîchir</button>
       </div>
 
       {error && <p className="error">{error}</p>}
-      {!accounts && !error && (
-        <p className="loading-label">
-          Chargement
-          <span className="loading-dots">
-            <span>.</span>
-            <span>.</span>
-            <span>.</span>
-          </span>
-        </p>
-      )}
+
+      {/* La synchronisation avec la banque attend le retour eventuel de
+          l'autorisation (status charge) : sinon elle partirait avant que la
+          nouvelle session bancaire existe. */}
+      <BankHistory active={active} syncReady={status !== null} />
 
       {status?.mode === 'live' && !status.connected && (
         <div className="account-card">
           <h3>Connexion à la banque</h3>
           <p>
-            Pour afficher les comptes, autorise l'accès en lecture seule chez {status.bank}. Tu seras redirigé vers
-            ta banque, puis ramené ici.
+            Pour ajouter automatiquement les dernières opérations, autorise l'accès en lecture seule chez{' '}
+            {status.bank}. Tu seras redirigé vers ta banque, puis ramené ici.
           </p>
           <button onClick={connect} disabled={connecting}>
             {connecting ? 'Redirection…' : 'Connecter la banque'}
           </button>
         </div>
       )}
-
-      {accounts?.some((a) => a.simulated) && (
-        <p className="warning">Données de démonstration : aucune connexion bancaire pour l'instant.</p>
-      )}
-
-      {accounts?.map((account) => (
-        <div key={account.id} className="account-card">
-          <div className="account-card-header">
-            <div>
-              <h3>{account.name}</h3>
-              <span className="account-iban">{account.iban}</span>
-            </div>
-            <span className="account-balance">{account.balance == null ? '—' : euros(account.balance)}</span>
-          </div>
-
-          <BalanceChart series={account.series} />
-
-          <button
-            className="account-toggle"
-            aria-expanded={!hiddenOperations.has(account.name)}
-            onClick={() => toggleOperations(account.name)}
-          >
-            <span aria-hidden="true">{hiddenOperations.has(account.name) ? '▸' : '▾'}</span> Opérations (
-            {account.operations.length})
-          </button>
-
-          <div className="table-wrapper operations-scroll" hidden={hiddenOperations.has(account.name)}>
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Libellé</th>
-                  <th className="amount-cell">Montant</th>
-                </tr>
-              </thead>
-              <tbody>
-                {account.operations.map((op, i) => (
-                  <tr key={i}>
-                    <td>{dateFr(op.date)}</td>
-                    <td>{op.label}</td>
-                    <td className={`amount-cell ${op.amount < 0 ? 'unpaid-amount' : 'success-state'}`}>
-                      {op.amount > 0 ? '+' : ''}
-                      {euros(op.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
 
       {status?.mode === 'live' && status.connected && (
         <p className="account-connection">

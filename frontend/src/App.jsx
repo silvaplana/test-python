@@ -1,12 +1,14 @@
 import './App.css'
 import { AuthGate, useAuth } from './Auth.jsx'
 import { BankAccounts, hasBankCallback } from './BankAccounts.jsx'
+import { requestStatementImport } from './BankHistory.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import { Profile } from './Profile.jsx'
 import { TrialsTable, hasTrialCheckin } from './Trials.jsx'
 import Navigation from './Navigation.jsx'
+import { Toasts } from './Toast.jsx'
 
 // Contenu de l'appli, monte seulement une fois authentifie (dans AuthGate) :
 // c'est ici que useAuth() est disponible pour connaitre le niveau d'acces.
@@ -60,7 +62,15 @@ function AppContent() {
             // "Comptes" (donnees bancaires) : uniquement avec le mot de
             // passe "comptes" -- masque sinon (confort d'affichage, le
             // backend refuse de toute facon avec un 403).
-            ...(canViewAccounts ? [{ label: 'Comptes', content: () => <BankAccounts /> }] : []),
+            ...(canViewAccounts
+              ? [
+                  {
+                    label: 'Comptes',
+                    content: (active) => <BankAccounts active={active} />,
+                    menu: [{ label: 'Importer relevés', onSelect: requestStatementImport }],
+                  },
+                ]
+              : []),
           ],
         },
         {
@@ -79,6 +89,7 @@ function App() {
       <AuthGate>
         <AppContent />
       </AuthGate>
+      <Toasts />
     </div>
   )
 }

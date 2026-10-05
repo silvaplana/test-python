@@ -78,6 +78,48 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX trial_signatures_family ON trial_signatures (family_id);
     """,
+    # 4 : historique des comptes bancaires lu dans les releves PDF (voir
+    # bankstatements/). Une seule table d'operations pour tous les comptes
+    # (colonne account_id) : total, tableau et graphique communs = simple tri
+    # par date. Montants en centimes (entiers, signes : < 0 = debit).
+    # transfer_id : operation jumelle dans l'autre compte quand c'est un
+    # virement entre les comptes du club (ne change pas le total).
+    # source : "releve" (lue dans un releve PDF, statement_id renseigne) ou
+    # "banque" (recuperee par la connexion bancaire apres le dernier releve,
+    # provisoire : remplacee par le releve quand il est importe).
+    """
+    CREATE TABLE bank_accounts (
+        id INTEGER PRIMARY KEY,
+        number TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL
+    );
+    CREATE TABLE bank_statements (
+        id INTEGER PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES bank_accounts (id),
+        start_date TEXT NOT NULL,
+        start_balance INTEGER NOT NULL,
+        end_date TEXT NOT NULL,
+        end_balance INTEGER NOT NULL,
+        file_name TEXT NOT NULL,
+        imported_at TEXT NOT NULL,
+        UNIQUE (account_id, start_date, end_date)
+    );
+    CREATE TABLE bank_operations (
+        id INTEGER PRIMARY KEY,
+        account_id INTEGER NOT NULL REFERENCES bank_accounts (id),
+        statement_id INTEGER REFERENCES bank_statements (id) ON DELETE CASCADE,
+        source TEXT NOT NULL DEFAULT 'releve',
+        position INTEGER NOT NULL,
+        date TEXT NOT NULL,
+        value_date TEXT NOT NULL,
+        label TEXT NOT NULL,
+        details TEXT NOT NULL DEFAULT '',
+        amount INTEGER NOT NULL,
+        transfer_id INTEGER REFERENCES bank_operations (id) ON DELETE SET NULL
+    );
+    CREATE INDEX bank_operations_date ON bank_operations (date);
+    """,
 ]
 
 

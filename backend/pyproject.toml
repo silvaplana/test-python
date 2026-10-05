@@ -29,6 +29,8 @@ dependencies = [
     "segno",
     # Photos HEIC (iPhone) du certificat medical, converties en JPEG (trials).
     "pillow-heif",
+    # Archives 7z de releves bancaires (voir bankstatements).
+    "py7zr",
 ]
 
 [project.optional-dependencies]

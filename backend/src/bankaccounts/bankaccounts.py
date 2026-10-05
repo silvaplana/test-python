@@ -298,6 +298,21 @@ class BankAccounts:
         # `limit`) : limit ne change que le decoupage final.
         return self._cached(f"transactions:{account_id}", refresh, fetch)[:limit]
 
+    def get_recent_operations(self, refresh: bool = False) -> list[dict]:
+        """Operations recentes de chaque compte affiche, avec son IBAN complet
+        (pour les rapprocher des comptes de l'historique, voir
+        bankstatements.sync_live) : [{"iban", "operations"}]. Mode demo :
+        aucune (donnees inventees, a ne pas melanger aux vraies)."""
+        if self.client is None:
+            return []
+        session = self._active_session()
+        if session is None:
+            raise BankNotConnectedError("Banque non connectée")
+        return [
+            {"iban": account["iban"], "operations": self.get_transactions(account["uid"], 1000, refresh)}
+            for account, _ in self._visible_accounts(session)
+        ]
+
     def _to_operation(self, transaction: dict) -> dict:
         amount = float(transaction["transaction_amount"]["amount"])
         debit = transaction.get("credit_debit_indicator") == "DBIT"
