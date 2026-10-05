@@ -1770,3 +1770,78 @@ td button + .ffst-role-picker,
 .trials-table th:first-child {
   background: var(--code-bg);
 }
+
+/* Historique des comptes lu dans les releves (voir BankHistory.jsx) :
+   choix de la vue (comptes ensemble / un seul), detail du libelle en
+   petit, virements internes en retrait, periodes couvertes et depot. */
+.history-views {
+  margin-bottom: 1rem;
+}
+
+.history-details {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text);
+}
+
+.history-transfer td {
+  color: var(--text);
+  font-style: italic;
+}
+
+.history-balance {
+  color: var(--text);
+}
+
+.history-total {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.history-table th,
+.history-table td {
+  padding-inline: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.history-table td:nth-child(2) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 10rem;
+}
+
+.history-statements {
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.history-statements h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.95rem;
+  color: var(--text-h);
+}
+
+.history-statements p {
+  margin: 0 0 0.3rem;
+}
+
+.history-import {
+  display: inline-block;
+  margin-top: 0.6rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.history-import:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.history-report {
+  margin-top: 0.6rem;
+}

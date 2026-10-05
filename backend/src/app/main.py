@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth import AuthReceiver, require_accounts_auth, require_auth
 from bankaccounts import BankAccounts, BankAccountsReceiver, EnableBankingClient
+from bankstatements import BankStatements, BankStatementsReceiver
 from database import Database
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
@@ -199,6 +200,12 @@ bank_accounts_client = BankAccounts(
     display=bank_accounts_display,
 )
 bank_accounts_receiver = BankAccountsReceiver(client=bank_accounts_client, app=accounts_router)
+
+# Historique des comptes lu dans les releves PDF deposes dans l'onglet
+# (/bankstatements/...) : meme protection que les comptes ci-dessus. Les
+# operations sont stockees dans la base SQLite, les PDF ne sont pas gardes.
+bank_statements_client = BankStatements(db=database)
+bank_statements_receiver = BankStatementsReceiver(client=bank_statements_client, app=accounts_router)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant

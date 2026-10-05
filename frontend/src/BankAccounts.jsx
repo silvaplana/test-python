@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { BalanceChart, balanceSeries } from './BalanceChart.jsx'
+import { BankHistory } from './BankHistory.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -154,6 +155,14 @@ export function BankAccounts() {
     <section>
       <div className="section-header">
         <h2>Comptes</h2>
+      </div>
+
+      {/* Historique complet, lu dans les releves PDF (voir BankHistory.jsx). */}
+      <BankHistory />
+
+      {/* Ci-dessous : connexion bancaire directe (90 derniers jours). */}
+      <div className="section-header">
+        <h2>Connexion bancaire</h2>
         <button onClick={() => load(true)}>Rafraîchir</button>
       </div>
 
