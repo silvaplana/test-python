@@ -116,7 +116,7 @@ MIGRATIONS: list[str] = [
         label TEXT NOT NULL,
         details TEXT NOT NULL DEFAULT '',
         amount INTEGER NOT NULL,
-        transfer_id INTEGER REFERENCES bank_operations (id)
+        transfer_id INTEGER REFERENCES bank_operations (id) ON DELETE SET NULL
     );
     CREATE INDEX bank_operations_date ON bank_operations (date);
     """,

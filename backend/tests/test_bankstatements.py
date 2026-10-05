@@ -218,6 +218,49 @@ def test_sync_live(statements):
     assert not rows[0]["provisional"]
 
 
+IBAN_LIVRET = "FR76 1027 8089 7200 0204 6160 222"
+
+# Virement interne du 05/09/2024, vu par la connexion bancaire dans chaque compte.
+LIVE_TRANSFER = [
+    {"iban": IBAN_COURANT, "operations": [{"date": "2024-09-05", "label": "VIR LIVRET BLEU", "amount": -300.0}]},
+    {"iban": IBAN_LIVRET, "operations": [{"date": "2024-09-05", "label": "VIR C/C EUROCOMPTE", "amount": 300.0}]},
+]
+
+
+def september(account, start_balance, amount, label):
+    return make_statement(account, ("31/08/2024" if account == COURANT else "31/07/2024", start_balance), [("05/09/2024", label, amount, [])], "30/09/2024")
+
+
+def test_sync_twice_with_provisional_internal_transfer(statements):
+    """Les 2 operations provisoires d'un virement interne sont reliees entre
+    elles : les remplacer a la synchro suivante ne doit pas echouer (cle
+    etrangere transfer_id), et le virement doit rester relie."""
+    statements.import_files(history())
+    assert len(statements.sync_live(LIVE_TRANSFER)["added"]) == 2
+    assert statements.sync_live(LIVE_TRANSFER) == {"added": []}
+    ledger = statements.get_ledger()
+    assert ledger["rows"][0]["transfer"] == {"from": "Compte courant", "to": "Livret Bleu"}
+    assert ledger["total"] == 4422.61  # virement interne : total inchange
+
+
+@pytest.mark.parametrize("first_imported", [COURANT, LIVRET])
+def test_statement_replaces_provisional_internal_transfer(statements, first_imported):
+    """Le releve d'un des 2 comptes remplace son operation provisoire alors
+    que sa jumelle (provisoire) est dans l'autre compte, puis le releve de
+    l'autre compte fait de meme : le virement reste une seule ligne."""
+    statements.import_files(history())
+    statements.sync_live(LIVE_TRANSFER)
+    courant = ("c3.pdf", september(COURANT, 92261, -30000, "VIR LIVRET BLEU"))
+    livret = ("l2.pdf", september(LIVRET, 350000, 30000, "VIR C/C EUROCOMPTE"))
+    for statement in (courant, livret) if first_imported == COURANT else (livret, courant):
+        report = statements.import_files([statement])
+        assert len(report["imported"]) == 1 and not report["errors"]
+        ledger = statements.get_ledger()
+        assert ledger["rows"][0]["transfer"] == {"from": "Compte courant", "to": "Livret Bleu"}
+        assert ledger["total"] == 4422.61
+    assert not any(r["provisional"] for r in statements.get_ledger()["rows"])
+
+
 def test_sync_route_never_fails(statements):
     app = FastAPI()
 

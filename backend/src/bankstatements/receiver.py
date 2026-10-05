@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 from fastapi import APIRouter, FastAPI, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 
 from .bankstatements import BankAccountNotFoundError, BankStatements
 
@@ -34,7 +35,11 @@ class BankStatementsReceiver:
         """Endpoint REST POST /bankstatements/import (multipart, champ
         "files" repete). Releves PDF ou zip de releves ; retourne le compte
         rendu (importes / deja presents / erreurs)."""
-        return self.client.import_files([(f.filename or "releve.pdf", await f.read()) for f in files])
+        uploaded = [(f.filename or "releve.pdf", await f.read()) for f in files]
+        # Lecture des PDF dans un thread : plusieurs secondes pour une
+        # archive de releves, pendant lesquelles le serveur doit rester
+        # disponible pour les autres requetes.
+        return await run_in_threadpool(self.client.import_files, uploaded)
 
     def getLedger(self, account: int | None = None) -> dict:
         """Endpoint REST GET /bankstatements/ledger[?account=id]. Historique

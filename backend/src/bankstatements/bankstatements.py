@@ -138,10 +138,7 @@ class BankStatements:
                 return False
             # Operations provisoires de la connexion bancaire couvertes par
             # ce releve : remplacees par celles du releve.
-            connection.execute(
-                "DELETE FROM bank_operations WHERE account_id = ? AND source = 'banque' AND date <= ?",
-                (account_id, statement.end_date),
-            )
+            self._delete_provisional(connection, account_id, "date <= ?", statement.end_date)
             connection.executemany(
                 """INSERT INTO bank_operations
                    (account_id, statement_id, position, date, value_date, label, details, amount)
@@ -191,10 +188,7 @@ class BankStatements:
                         (account["id"], since),
                     )
                 ]
-                connection.execute(
-                    "DELETE FROM bank_operations WHERE account_id = ? AND source = 'banque' AND date >= ?",
-                    (account["id"], since),
-                )
+                self._delete_provisional(connection, account["id"], "date >= ?", since)
                 for position, op in enumerate(fetched):
                     amount = round(op["amount"] * 100)
                     connection.execute(
@@ -208,9 +202,24 @@ class BankStatements:
                         previous.remove(key)
                     else:
                         added.append({"date": op["date"], "label": op["label"], "amount": amount / 100, "account": account["name"]})
-        if added:
-            self._link_transfers()
+        # Toujours : les operations provisoires viennent d'etre recreees, donc
+        # un virement interne deja connu doit etre relie de nouveau.
+        self._link_transfers()
         return {"added": added}
+
+    @staticmethod
+    def _delete_provisional(connection, account_id: int, condition: str, value: str) -> None:
+        """Supprime les operations provisoires (source "banque") d'un compte
+        verifiant `condition` sur la date. L'operation jumelle d'un virement
+        interne (dans l'autre compte) est d'abord detachee : sinon la base
+        refuse la suppression (cle etrangere transfer_id). Elle sera reliee a
+        l'operation qui remplace la provisoire (voir _link_transfers)."""
+        selection = f"account_id = ? AND source = 'banque' AND {condition}"
+        connection.execute(
+            f"UPDATE bank_operations SET transfer_id = NULL WHERE transfer_id IN (SELECT id FROM bank_operations WHERE {selection})",
+            (account_id, value),
+        )
+        connection.execute(f"DELETE FROM bank_operations WHERE {selection}", (account_id, value))
 
     def _link_transfers(self) -> None:
         """Relie les virements entre comptes du club pas encore relies : un
@@ -305,7 +314,12 @@ class BankStatements:
                 if balance is None and aid in first and first[aid]["start_date"] <= op["date"]:
                     balances[aid] = first[aid]["start_balance"]
             for affected in (op, twin) if twin is not None else (op,):
-                balances[affected["account_id"]] += affected["amount"]
+                aid = affected["account_id"]
+                # Jumelle d'un virement datee quelques jours apres : son compte
+                # peut ne pas etre encore entre dans le total a cette date.
+                if balances[aid] is None and aid in first:
+                    balances[aid] = first[aid]["start_balance"]
+                balances[aid] += affected["amount"]
             known = all(b is not None for b in balances.values())
             transfer = {"from": names[op["account_id"]], "to": names[twin["account_id"]]} if twin is not None else None
             row = {
