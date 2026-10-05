@@ -1771,11 +1771,19 @@ td button + .ffst-role-picker,
   background: var(--code-bg);
 }
 
-/* Historique des comptes lu dans les releves (voir BankHistory.jsx) :
-   choix de la vue (comptes ensemble / un seul), detail du libelle en
-   petit, virements internes en retrait, periodes couvertes et depot. */
-.history-views {
+/* Historique des comptes (voir BankHistory.jsx) : filtres (comptes,
+   graphique/tableau), detail du libelle en petit, virements internes en
+   retrait, periodes couvertes par les releves. */
+.history-toolbar {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
   margin-bottom: 1rem;
+}
+
+.history-more {
+  height: 1px;
 }
 
 .history-details {
@@ -1815,33 +1823,121 @@ td button + .ffst-role-picker,
   font-size: 0.85rem;
 }
 
-.history-statements h4 {
-  margin: 0 0 0.4rem;
-  font-size: 0.95rem;
-  color: var(--text-h);
-}
 
 .history-statements p {
   margin: 0 0 0.3rem;
 }
 
-.history-import {
-  display: inline-block;
-  margin-top: 0.6rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--code-bg);
+
+
+
+/* Menu ⋮ en haut a droite de l'appli (voir AppMenu.jsx). */
+.app-content {
+  position: relative;
+}
+
+.app-menu {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.5rem;
+  z-index: 20;
+}
+
+.app-menu-button {
+  width: 2.2rem;
+  height: 2.2rem;
+  border: 1px solid transparent;
+  border-radius: 50%;
+  background: none;
   color: var(--text-h);
-  font-weight: 600;
+  font-size: 1.4rem;
+  line-height: 1;
   cursor: pointer;
 }
 
-.history-import:hover {
-  border-color: var(--accent-border);
+.app-menu-button:hover,
+.app-menu-button[aria-expanded='true'] {
+  border-color: var(--border);
+  background: var(--code-bg);
+}
+
+.app-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.3rem);
+  min-width: 13rem;
+  padding: 0.3rem 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.app-menu-list button {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 1rem;
+  border: none;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-menu-list button:hover {
   background: var(--accent-bg);
 }
 
-.history-report {
-  margin-top: 0.6rem;
+.app-menu-empty {
+  display: block;
+  padding: 0.55rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+/* Messages temporaires en bas de l'ecran (voir Toast.jsx), au-dessus de la
+   barre d'outils du bas sur mobile. */
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 4.5rem;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.toast {
+  padding: 0.6rem 1rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font-size: 0.9rem;
+  box-shadow: var(--shadow);
+  animation: toast-in 0.2s ease-out;
+}
+
+.toast-warning {
+  border-color: #f87171;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@media (min-width: 641px) {
+  .toasts {
+    bottom: 1.5rem;
+  }
 }

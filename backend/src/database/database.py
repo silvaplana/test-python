@@ -84,6 +84,9 @@ MIGRATIONS: list[str] = [
     # par date. Montants en centimes (entiers, signes : < 0 = debit).
     # transfer_id : operation jumelle dans l'autre compte quand c'est un
     # virement entre les comptes du club (ne change pas le total).
+    # source : "releve" (lue dans un releve PDF, statement_id renseigne) ou
+    # "banque" (recuperee par la connexion bancaire apres le dernier releve,
+    # provisoire : remplacee par le releve quand il est importe).
     """
     CREATE TABLE bank_accounts (
         id INTEGER PRIMARY KEY,
@@ -105,7 +108,8 @@ MIGRATIONS: list[str] = [
     CREATE TABLE bank_operations (
         id INTEGER PRIMARY KEY,
         account_id INTEGER NOT NULL REFERENCES bank_accounts (id),
-        statement_id INTEGER NOT NULL REFERENCES bank_statements (id) ON DELETE CASCADE,
+        statement_id INTEGER REFERENCES bank_statements (id) ON DELETE CASCADE,
+        source TEXT NOT NULL DEFAULT 'releve',
         position INTEGER NOT NULL,
         date TEXT NOT NULL,
         value_date TEXT NOT NULL,

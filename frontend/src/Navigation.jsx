@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AppMenu } from './AppMenu.jsx'
 
 // Navigation en 2 niveaux :
 // - 1er niveau (choix de la section : HelloAsso, FFST, Bilan financier) :
@@ -62,6 +63,8 @@ function Navigation({ header, sections, initialSection = 0, initialTool = 0 }) {
       </nav>
 
       <div className="app-content">
+        {/* Menu ⋮ (voir AppMenu.jsx) : entrees propres a l'outil affiche. */}
+        <AppMenu items={sections[activeSection].tools[activeTool]?.menu} />
         {header}
 
         {/* alwaysShowTabs : barre de sous-onglets meme avec un seul outil (ex:

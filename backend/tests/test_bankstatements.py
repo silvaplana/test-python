@@ -161,3 +161,69 @@ def test_routes(statements):
     assert len(client.post("/bankstatements/import", files=files).json()["imported"]) == 3
     assert client.get("/bankstatements/ledger").json()["total"] == 4422.61
     assert client.get("/bankstatements/ledger?account=99").status_code == 404
+
+
+def test_import_7z_and_tar(statements, tmp_path):
+    import tarfile
+
+    import py7zr
+
+    first, second, livret = history()
+    seven = tmp_path / "a.7z"
+    with py7zr.SevenZipFile(seven, "w") as archive:
+        archive.writestr(first[1], first[0])
+    tar = io.BytesIO()
+    with tarfile.open(fileobj=tar, mode="w:gz") as archive:
+        for name, data in (second, livret):
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+    report = statements.import_files([("a.7z", seven.read_bytes()), ("b.tar.gz", tar.getvalue())])
+    assert sorted(i["file"] for i in report["imported"]) == ["c1.pdf", "c2.pdf", "l1.pdf"]
+
+
+IBAN_COURANT = "FR76 1027 8089 7200 0204 6160 122"
+
+
+def test_sync_live(statements):
+    statements.import_files(history())  # compte courant releve jusqu'au 31/08/2024
+    live = [
+        {
+            "iban": IBAN_COURANT,
+            "operations": [
+                {"date": "2024-09-03", "label": "CB INTERSPORT", "amount": -42.5},
+                {"date": "2024-08-30", "label": "deja dans le releve", "amount": -1.0},
+            ],
+        },
+        {"iban": "FR76 9999", "operations": [{"date": "2024-09-03", "label": "autre banque", "amount": 5.0}]},
+    ]
+    added = statements.sync_live(live)["added"]
+    assert [(a["label"], a["amount"], a["account"]) for a in added] == [("CB INTERSPORT", -42.5, "Compte courant")]
+    ledger = statements.get_ledger()
+    assert ledger["rows"][0]["label"] == "CB INTERSPORT" and ledger["rows"][0]["provisional"]
+    assert ledger["total"] == 4380.11
+    assert ledger["accounts"][0]["asOf"] == "2024-09-03"
+
+    # 2e ouverture de l'onglet : rien de nouveau, rien en double.
+    live[0]["operations"].insert(0, {"date": "2024-09-04", "label": "VIR HELLOASSO", "amount": 100.0})
+    assert [a["label"] for a in statements.sync_live(live)["added"]] == ["VIR HELLOASSO"]
+    assert len(statements.get_ledger()["rows"]) == 5
+
+    # Le releve de septembre remplace les operations provisoires.
+    statements.import_files(
+        [("c3.pdf", make_statement(COURANT, ("31/08/2024", 92261), [("03/09/2024", "CB INTERSPORT", -4250, [])], "30/09/2024"))]
+    )
+    rows = statements.get_ledger()["rows"]
+    assert [r["label"] for r in rows][:2] == ["CB INTERSPORT", "VIR SALAIRE"]
+    assert not rows[0]["provisional"]
+
+
+def test_sync_route_never_fails(statements):
+    app = FastAPI()
+
+    def broken():
+        raise RuntimeError("Banque non connectée")
+
+    BankStatementsReceiver(client=statements, app=app, live_operations=broken)
+    assert TestClient(app).post("/bankstatements/sync").json() == {"added": [], "error": "Banque non connectée"}
+

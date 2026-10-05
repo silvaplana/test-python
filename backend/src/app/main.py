@@ -204,8 +204,15 @@ bank_accounts_receiver = BankAccountsReceiver(client=bank_accounts_client, app=a
 # Historique des comptes lu dans les releves PDF deposes dans l'onglet
 # (/bankstatements/...) : meme protection que les comptes ci-dessus. Les
 # operations sont stockees dans la base SQLite, les PDF ne sont pas gardes.
+# Lecture des PDF en Python (texte du PDF), sans IA : gratuit et exact.
 bank_statements_client = BankStatements(db=database)
-bank_statements_receiver = BankStatementsReceiver(client=bank_statements_client, app=accounts_router)
+bank_statements_receiver = BankStatementsReceiver(
+    client=bank_statements_client,
+    app=accounts_router,
+    # Operations recentes lues a la banque, ajoutees a l'historique a
+    # chaque ouverture de l'onglet (voir BankStatements.sync_live).
+    live_operations=bank_accounts_client.get_recent_operations,
+)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant
