@@ -2981,3 +2981,30 @@ td button + .ffst-role-picker,
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Zone "Réglages de l'IA" d'un calcul (voir AiSettings.jsx) : prompt, modele
+   et cout, repliables. */
+.reports-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.reports-settings-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 0.9rem;
+}
+
+.reports-settings .forecasts-collapse {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.reports-settings-body {
+  padding-bottom: 0.4rem;
+}

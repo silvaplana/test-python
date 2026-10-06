@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AiSettings } from './AiSettings.jsx'
 import { showToast } from './Toast.jsx'
 
 // Finances > Assemblées générales : base du PowerPoint de l'AG d'une saison
@@ -252,6 +253,8 @@ function TrashIcon() {
 // Panneau d'un calcul : creation (assemblyId null) ou modification.
 function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
   const [assembly, setAssembly] = useState(null)
+  // Zone "Réglages de l'IA" depliee : retenu en base, par calcul.
+  const [settingsOpen, setSettingsOpen] = useState(true)
   const [form, setForm] = useState({ name: `AG ${season.name}`, state: 'brouillon', prompt: '', model: options.defaultModel })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
@@ -263,6 +266,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
   const load = useCallback(async () => {
     const data = await callApi(`/general-assemblies/${assemblyId}`)
     setAssembly(data)
+    setSettingsOpen(data.settingsOpen ?? true)
     return data
   }, [assemblyId])
 
@@ -299,6 +303,16 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
     }, POLL_MS)
     return () => clearInterval(timer)
   }, [running, load])
+
+  // Plie ou deplie les reglages de l'IA, et le retient pour ce calcul.
+  function toggleSettings() {
+    const open = !settingsOpen
+    setSettingsOpen(open)
+    if (assemblyId != null)
+      sendJson(`/general-assemblies/${assemblyId}/settings`, 'PUT', { open }).catch(() => {
+        // Non retenu (reseau...) : sans consequence pour l'affichage en cours.
+      })
+  }
 
   function update(key) {
     return (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
@@ -428,19 +442,6 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             ))}
           </select>
         </label>
-        <label className="trial-form-wide">
-          Prompt donné à l'IA
-          <textarea
-            rows={4}
-            value={form.prompt}
-            onChange={update('prompt')}
-            placeholder="Ex : la cotisation reste à 300 €, l'AG a lieu le 04/07, mets en avant la hausse des licenciés."
-          />
-          <span className="reports-hint">
-            S'ajoute aux consignes fixes : partir du PPT modèle, garder sa mise en page, écrire les diapos du trésorier avec les
-            chiffres du bilan, mettre les années à jour et marquer « À compléter » ce qui n'est pas connu.
-          </span>
-        </label>
         <div className="trial-form-wide ag-model">
           <span>PPT modèle</span>
           <b>
@@ -473,6 +474,24 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             calcul. Il est copié dans ce calcul.
           </span>
         </div>
+        <AiSettings
+          open={settingsOpen}
+          onToggle={toggleSettings}
+          summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${aiCost(assembly?.aiCost ?? 0)}`}
+        >
+        <label className="trial-form-wide">
+          Prompt donné à l'IA
+          <textarea
+            rows={4}
+            value={form.prompt}
+            onChange={update('prompt')}
+            placeholder="Ex : la cotisation reste à 300 €, l'AG a lieu le 04/07, mets en avant la hausse des licenciés."
+          />
+          <span className="reports-hint">
+            S'ajoute aux consignes fixes : partir du PPT modèle, garder sa mise en page, écrire les diapos du trésorier avec les
+            chiffres du bilan, mettre les années à jour et marquer « À compléter » ce qui n'est pas connu.
+          </span>
+        </label>
         <label>
           Modèle d'IA
           <select value={form.model} onChange={update('model')}>
@@ -487,6 +506,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
           <span>Coût IA cumulé</span>
           <b>{aiCost(assembly?.aiCost ?? 0)}</b>
         </div>
+        </AiSettings>
       </div>
 
       {error && <p className="error">{error}</p>}

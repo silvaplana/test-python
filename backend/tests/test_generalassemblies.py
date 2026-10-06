@@ -344,3 +344,16 @@ def test_outline_skips_empty_zones(tmp_path):
     zones = outline(path)[1]["zones"]
     assert [z["role"] for z in zones] == ["titre", "texte"]
     assert zones[1]["paragraphes"][1] == {"niveau": 1, "texte": "Cotisation : 300 €"}
+
+
+def test_settings_open_is_kept(setup):
+    """La zone "Réglages de l'IA" pliee ou depliee est retenue par calcul."""
+    client, *_ = setup
+    app = FastAPI()
+    GeneralAssembliesReceiver(client=client, app=app)
+    http = TestClient(app)
+    created = http.post("/general-assemblies", json={"seasonId": 2, "name": "AG"}).json()
+    assert created["settingsOpen"] is True
+    assert http.put(f"/general-assemblies/{created['id']}/settings", json={"open": False}).json() == {"settingsOpen": False}
+    assert http.get(f"/general-assemblies/{created['id']}").json()["settingsOpen"] is False
+    assert http.put("/general-assemblies/999/settings", json={"open": True}).status_code == 404

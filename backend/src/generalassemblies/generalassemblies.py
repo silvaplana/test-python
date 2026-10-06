@@ -140,7 +140,20 @@ class GeneralAssemblies:
             "prompt": row["prompt"],
             "result": json.loads(row["result"]) if row["result"] else None,
             "files": self.files(assembly_id),
+            # Zone "Réglages de l'IA" depliee dans l'ecran.
+            "settingsOpen": bool(row["settings_open"]),
         }
+
+    def set_settings_open(self, assembly_id: int, is_open: bool) -> dict:
+        """Retient si la zone "Réglages de l'IA" est depliee dans l'ecran
+        (simple reglage d'affichage : la date de modification ne change pas)."""
+        with self.db.connect() as connection:
+            updated = connection.execute(
+                "UPDATE general_assemblies SET settings_open = ? WHERE id = ?", (1 if is_open else 0, assembly_id)
+            ).rowcount
+        if updated == 0:
+            raise AssemblyNotFoundError(assembly_id)
+        return {"settingsOpen": bool(is_open)}
 
     def files(self, assembly_id: int) -> dict:
         """Les 3 PPT du calcul : {"modele", "genere", "modifie"}, chacun

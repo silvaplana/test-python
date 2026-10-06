@@ -249,3 +249,13 @@ def test_counts_per_season(db, seasons):
     reports.create({"seasonId": first, "name": "B"})
     reports.create({"seasonId": second, "name": "C"})
     assert reports.counts() == {first: 2, second: 1}
+
+
+def test_settings_open_is_kept(db, seasons):
+    """La zone "Réglages de l'IA" pliee ou depliee est retenue par bilan."""
+    reports = make_reports(db, seasons, FakeAnalyst({}))
+    created = reports.create({"seasonId": season_id(seasons, "2025-2026"), "name": "A"})
+    assert reports.get(created["id"])["settingsOpen"] is True
+    assert reports.set_settings_open(created["id"], False) == {"settingsOpen": False}
+    again = reports.get(created["id"])
+    assert again["settingsOpen"] is False and again["updatedAt"] == created["updatedAt"]

@@ -235,6 +235,12 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE forecasts ADD COLUMN explanation_open INTEGER NOT NULL DEFAULT 1;
     """,
+    # 11 : bilans et assemblees generales, zone "Réglages de l'IA" (prompt,
+    # modele, cout) depliee (1) ou repliee (0) dans l'ecran -- par calcul.
+    """
+    ALTER TABLE financial_reports ADD COLUMN settings_open INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE general_assemblies ADD COLUMN settings_open INTEGER NOT NULL DEFAULT 1;
+    """,
 ]
 
 

@@ -18,6 +18,13 @@ class ReportRequest(BaseModel):
     model: str | None = None
 
 
+class SettingsRequest(BaseModel):
+    """Corps de PUT /financial-reports/{id}/settings : zone "Réglages de l'IA"
+    depliee (true) ou repliee (false)."""
+
+    open: bool
+
+
 class RunRequest(BaseModel):
     """Corps de POST /financial-reports/{id}/run : prompt et modele du
     calcul (enregistres dans le bilan)."""
@@ -45,6 +52,7 @@ class FinancialReportsReceiver:
         self.app.put("/financial-reports/{report_id}")(self.updateReport)
         self.app.delete("/financial-reports/{report_id}")(self.deleteReport)
         self.app.post("/financial-reports/{report_id}/run")(self.runReport)
+        self.app.put("/financial-reports/{report_id}/settings")(self.setSettingsOpen)
         self.app.get("/financial-reports/{report_id}/download")(self.downloadReport)
 
     def listReports(self, seasonId: int | None = None) -> dict:
@@ -93,6 +101,14 @@ class FinancialReportsReceiver:
             return self.client.run(report_id, request.model_dump())
         except ReportError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ReportNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Bilan inconnu") from exc
+
+    def setSettingsOpen(self, report_id: int, request: SettingsRequest) -> dict:
+        """Endpoint REST PUT /financial-reports/{id}/settings : retient si la
+        zone "Réglages de l'IA" est depliee."""
+        try:
+            return self.client.set_settings_open(report_id, request.open)
         except ReportNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Bilan inconnu") from exc
 

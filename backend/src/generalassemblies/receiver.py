@@ -21,6 +21,13 @@ class AssemblyRequest(BaseModel):
     model: str | None = None
 
 
+class SettingsRequest(BaseModel):
+    """Corps de PUT /general-assemblies/{id}/settings : zone "Réglages de l'IA"
+    depliee (true) ou repliee (false)."""
+
+    open: bool
+
+
 class RunRequest(BaseModel):
     """Corps de POST /general-assemblies/{id}/run."""
 
@@ -59,6 +66,7 @@ class GeneralAssembliesReceiver:
         self.app.put("/general-assemblies/{assembly_id}")(self.updateAssembly)
         self.app.delete("/general-assemblies/{assembly_id}")(self.deleteAssembly)
         self.app.post("/general-assemblies/{assembly_id}/run")(self.runAssembly)
+        self.app.put("/general-assemblies/{assembly_id}/settings")(self.setSettingsOpen)
         self.app.post("/general-assemblies/{assembly_id}/upload")(self.uploadModified)
         self.app.post("/general-assemblies/{assembly_id}/model")(self.uploadModel)
         self.app.put("/general-assemblies/{assembly_id}/model")(self.copyModel)
@@ -101,6 +109,11 @@ class GeneralAssembliesReceiver:
         """Endpoint REST POST /general-assemblies/{id}/run : lance le calcul
         du PPT en arriere-plan, voir GeneralAssemblies.run."""
         return self._call(self.client.run, assembly_id, request.model_dump())
+
+    def setSettingsOpen(self, assembly_id: int, request: SettingsRequest) -> dict:
+        """Endpoint REST PUT /general-assemblies/{id}/settings : retient si la
+        zone "Réglages de l'IA" est depliee."""
+        return self._call(self.client.set_settings_open, assembly_id, request.open)
 
     async def uploadModified(self, assembly_id: int, file: UploadFile) -> dict:
         """Endpoint REST POST /general-assemblies/{id}/upload : PPT modifie

@@ -93,7 +93,24 @@ class FinancialReports:
 
     def get(self, report_id: int) -> dict:
         row = self._row(report_id)
-        return {**self._summary(row), "prompt": row["prompt"], "result": json.loads(row["result"]) if row["result"] else None}
+        return {
+            **self._summary(row),
+            "prompt": row["prompt"],
+            "result": json.loads(row["result"]) if row["result"] else None,
+            # Zone "Réglages de l'IA" depliee dans l'ecran.
+            "settingsOpen": bool(row["settings_open"]),
+        }
+
+    def set_settings_open(self, report_id: int, is_open: bool) -> dict:
+        """Retient si la zone "Réglages de l'IA" est depliee dans l'ecran
+        (simple reglage d'affichage : la date de modification ne change pas)."""
+        with self.db.connect() as connection:
+            updated = connection.execute(
+                "UPDATE financial_reports SET settings_open = ? WHERE id = ?", (1 if is_open else 0, report_id)
+            ).rowcount
+        if updated == 0:
+            raise ReportNotFoundError(report_id)
+        return {"settingsOpen": bool(is_open)}
 
     def _row(self, report_id: int):
         with self.db.connect() as connection:
