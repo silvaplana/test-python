@@ -1998,23 +1998,6 @@ td button + .ffst-role-picker,
   cursor: pointer;
 }
 
-/* Legende en cases a cocher (onglet Comptes, periode "Saisons"). */
-.seasons-legend label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  min-height: 36px;
-  padding: 0.3rem 0.5rem;
-  cursor: pointer;
-}
-
-.seasons-legend input[type='checkbox'] {
-  width: 1.05rem;
-  height: 1.05rem;
-  margin: 0;
-  accent-color: var(--accent);
-}
-
 .seasons-legend .seasons-legend-off {
   opacity: 0.45;
   text-decoration: line-through;

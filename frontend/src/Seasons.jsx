@@ -353,9 +353,8 @@ const CHART_HEIGHT = 260
 //   de la legende la masque ou la reaffiche ;
 // - Selectionnee : la saison choisie seule.
 // Sert aussi a l'onglet Comptes (periode "Saisons", voir BankHistory.jsx) :
-// hiddenKey : ou retenir les saisons masquees ; checkboxes : legende en
-// cases a cocher.
-export function CurveChart({ data, selected, mode, hiddenKey = HIDDEN_KEY, checkboxes = false }) {
+// hiddenKey : ou retenir les saisons masquees.
+export function CurveChart({ data, selected, mode, hiddenKey = HIDDEN_KEY }) {
   const [ref, width] = useWidth()
   const narrow = width < 480
   const margin = { top: 26, right: 12, bottom: 28, left: narrow ? 46 : 66 }
@@ -429,14 +428,6 @@ export function CurveChart({ data, selected, mode, hiddenKey = HIDDEN_KEY, check
       {legend.map((line) => {
         const off = hidden.has(line.key)
         const classes = [line.key === selected.id && 'seasons-legend-selected', off && 'seasons-legend-off']
-        if (checkboxes)
-          return (
-            <label key={line.key} className={line.key === selected.id ? 'seasons-legend-selected' : undefined}>
-              <input type="checkbox" checked={!off} onChange={() => toggle(line.key)} />
-              <i style={{ background: line.color }} />
-              {line.label}
-            </label>
-          )
         return (
           <button
             key={line.key}

@@ -142,7 +142,8 @@ function cumulativeSeries(rows) {
 
 // Periode "Saisons" du graphique : la courbe affichee (comptes et categories
 // choisis) decoupee par saison, les saisons superposees sur le meme axe du
-// 1er juillet au 30 juin. Sous le graphique, une case a cocher par saison.
+// 1er juillet au 30 juin. Sous le graphique, un clic sur une saison de la
+// legende la masque ou la reaffiche, comme dans l'onglet Saisons.
 function SeasonsOverlay({ series, seasonsData }) {
   if (!seasonsData) return <p className="balance-chart-empty">Chargement des saisons…</p>
   const seasons = seasonsData.seasons
@@ -154,7 +155,7 @@ function SeasonsOverlay({ series, seasonsData }) {
     series: series.filter((p) => p.v != null).map((p) => ({ date: new Date(p.t).toISOString().slice(0, 10), total: p.v })),
   }
   const current = seasons.find((s) => s.current) ?? seasons[seasons.length - 1]
-  return <CurveChart data={data} selected={current} mode="overlay" hiddenKey="bankhistory-seasons-hidden" checkboxes />
+  return <CurveChart data={data} selected={current} mode="overlay" hiddenKey="bankhistory-seasons-hidden" />
 }
 
 // Etat des comptes du club, lu dans la base (voir backend bankstatements/) :
