@@ -120,6 +120,24 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX bank_operations_date ON bank_operations (date);
     """,
+    # 5 : saisons du club (voir seasons/), ex "2026-2027" du 01/07/2026 au
+    # 30/06/2027. Soldes de fin de saison en centimes : NULL = calcule depuis
+    # l'historique des comptes (bankstatements), sinon saisi a la main.
+    # ai_cost : cout cumule de l'API d'IA sur la saison, en centimes.
+    """
+    CREATE TABLE seasons (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        start_date TEXT NOT NULL,
+        end_date TEXT NOT NULL,
+        licences INTEGER,
+        checking_balance INTEGER,
+        savings_balance INTEGER,
+        ai_cost INTEGER,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    """,
 ]
 
 

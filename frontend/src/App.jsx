@@ -5,8 +5,9 @@ import { requestStatementImport } from './BankHistory.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
-import { FinancialReports, Forecast, GeneralAssemblies, Seasons } from './Finances.jsx'
+import { FinancialReports, Forecast, GeneralAssemblies } from './Finances.jsx'
 import { Profile } from './Profile.jsx'
+import { Seasons } from './Seasons.jsx'
 import { TrialsTable, hasTrialCheckin } from './Trials.jsx'
 import Navigation from './Navigation.jsx'
 import { Toasts } from './Toast.jsx'
@@ -68,11 +69,13 @@ function AppContent() {
                     content: (active) => <BankAccounts active={active} />,
                     menu: [{ label: 'Importer relevés', onSelect: requestStatementImport }],
                   },
+                  // Saisons (voir Seasons.jsx) : affiche les soldes des
+                  // comptes, meme mot de passe que Comptes.
+                  { label: 'Saisons', content: (active) => <Seasons active={active} /> },
                 ]
               : []),
             // A venir (voir Finances.jsx) : pour l'instant des ecrans "En
             // cours de dev".
-            { label: 'Saisons', content: () => <Seasons /> },
             { label: 'Bilan financier', shortLabel: 'Bilan', content: () => <FinancialReports /> },
             { label: 'Assemblées générales', shortLabel: 'AG', content: () => <GeneralAssemblies /> },
             { label: 'Prévisionnel', content: () => <Forecast /> },
