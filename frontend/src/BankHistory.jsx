@@ -144,18 +144,53 @@ function cumulativeSeries(rows) {
 // choisis) decoupee par saison, les saisons superposees sur le meme axe du
 // 1er juillet au 30 juin. Sous le graphique, un clic sur une saison de la
 // legende la masque ou la reaffiche, comme dans l'onglet Saisons.
-function SeasonsOverlay({ series, seasonsData }) {
+// Cumul des operations retenues, remis a zero au debut de chaque saison (une
+// valeur par jour d'operation). Un ensemble de depenses (total negatif) est
+// compte en positif, pour que la courbe monte avec ce qui est depense.
+function seasonalCumul(rows, seasons) {
+  const amount = (row) => (row.transfer ? 0 : row.amount)
+  const spending = rows.reduce((sum, row) => sum + amount(row), 0) < 0
+  const oldestFirst = [...rows].sort((a, b) => a.date.localeCompare(b.date))
+  const byDate = new Map()
+  for (const season of seasons) {
+    let sum = 0
+    byDate.set(season.startDate, 0)
+    for (const row of oldestFirst) {
+      if (row.date < season.startDate || row.date > season.endDate) continue
+      sum += spending ? -amount(row) : amount(row)
+      byDate.set(row.date, Math.round(sum * 100) / 100)
+    }
+  }
+  const series = [...byDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, total]) => ({ date, total }))
+  return { series, spending }
+}
+
+function SeasonsOverlay({ series, rows, filtering, seasonsData }) {
   if (!seasonsData) return <p className="balance-chart-empty">Chargement des saisons…</p>
   const seasons = seasonsData.seasons
   if (seasons.length === 0)
     return <p className="balance-chart-empty">Aucune saison : crée-les d'abord dans l'onglet Saisons.</p>
+  // Sans filtre : le solde. Avec un filtre : le cumul des operations
+  // retenues depuis le debut de chaque saison (pas depuis le 1er releve).
+  const cumul = filtering ? seasonalCumul(rows, seasons) : null
   const data = {
     seasons,
     today: seasonsData.today,
-    series: series.filter((p) => p.v != null).map((p) => ({ date: new Date(p.t).toISOString().slice(0, 10), total: p.v })),
+    series: cumul
+      ? cumul.series
+      : series.filter((p) => p.v != null).map((p) => ({ date: new Date(p.t).toISOString().slice(0, 10), total: p.v })),
   }
   const current = seasons.find((s) => s.current) ?? seasons[seasons.length - 1]
-  return <CurveChart data={data} selected={current} mode="overlay" hiddenKey="bankhistory-seasons-hidden" />
+  return (
+    <>
+      {cumul && (
+        <p className="history-chart-note">
+          {cumul.spending ? 'Dépenses cumulées' : 'Recettes cumulées'} depuis le début de chaque saison
+        </p>
+      )}
+      <CurveChart data={data} selected={current} mode="overlay" hiddenKey="bankhistory-seasons-hidden" />
+    </>
+  )
 }
 
 // Etat des comptes du club, lu dans la base (voir backend bankstatements/) :
@@ -482,7 +517,10 @@ export function BankHistory({ active, syncReady }) {
               <BalanceChart
                 series={series}
                 showPercent={!filtering}
-                extraRange={{ label: 'Saisons', content: <SeasonsOverlay series={series} seasonsData={seasonsData} /> }}
+                extraRange={{
+                  label: 'Saisons',
+                  content: <SeasonsOverlay series={series} rows={rows} filtering={filtering} seasonsData={seasonsData} />,
+                }}
               />
             </>
           ) : (
