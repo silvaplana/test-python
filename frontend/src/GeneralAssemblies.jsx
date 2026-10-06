@@ -6,7 +6,7 @@ import { showToast } from './Toast.jsx'
 // (liste des calculs par saison, etats, panneau prompt / modele / cout) ;
 // chaque calcul garde 3 PPT (voir KINDS) : le modele choisi (fichier de
 // l'ordinateur ou PPT d'un autre calcul), celui produit par l'IA et celui
-// modifie par le tresorier. "Executer le calcul" fait ecrire les diapos du
+// modifie par le tresorier. "Produire le PPT par IA" fait ecrire les diapos du
 // tresorier par l'IA a partir du bilan de la saison, en arriere-plan :
 // l'ecran relit le calcul jusqu'a la fin.
 
@@ -521,7 +521,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
           Enregistrer
         </button>
         <button className="reports-run" onClick={() => submit(true)} disabled={pending || running || !form.name.trim()}>
-          {running ? 'Calcul en cours…' : 'Exécuter le calcul'}
+          {running ? 'Production en cours…' : 'Produire le PPT par IA'}
         </button>
       </div>
 
@@ -544,7 +544,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             <p>{modelLabel(assembly.model)} prépare le PPT… (jusqu'à quelques minutes)</p>
           </div>
         ) : !shownFile ? (
-          <p className="reports-placeholder">Pas encore de PPT : choisis un PPT modèle, puis lance « Exécuter le calcul ».</p>
+          <p className="reports-placeholder">Pas encore de PPT : choisis un PPT modèle, puis lance « Produire le PPT par IA ».</p>
         ) : (
           <>
             <div className="seasons-segmented" role="group" aria-label="PPT affiché">
