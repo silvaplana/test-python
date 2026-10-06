@@ -2118,77 +2118,37 @@ td button + .ffst-role-picker,
   text-align: center;
 }
 
-/* Chiffres de la saison : le solde domine, licencies et cout IA en retrait. */
-.seasons-summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1rem 2.5rem;
-  padding: 1rem 1.1rem;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--code-bg);
+.seasons-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
-.seasons-balance {
+.seasons-figure {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--code-bg);
 }
 
-.seasons-summary-label,
-.seasons-facts dt {
-  font-size: 0.8rem;
-}
-
-.seasons-balance-value {
-  color: var(--text-h);
-  font-size: 2rem;
-  font-weight: 650;
-  line-height: 1.2;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.seasons-balance-note {
+.seasons-figure-label,
+.seasons-figure-sub {
   font-size: 0.75rem;
 }
 
-.seasons-delta {
-  margin-top: 0.5rem;
-  font-size: 0.85rem;
-  font-variant-numeric: tabular-nums;
-}
-
-.seasons-delta b {
-  font-weight: 600;
-}
-
-.seasons-facts {
-  display: flex;
-  gap: 2.5rem;
-  margin: 0;
-}
-
-.seasons-facts div {
-  display: flex;
-  flex-direction: column;
-}
-
-.seasons-facts dd {
-  margin: 0;
+.seasons-figure-value {
   color: var(--text-h);
-  font-size: 1.15rem;
+  font-size: 1.3rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.seasons-facts small {
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 400;
+.seasons-figure-value.seasons-negative {
+  color: #fdba74;
 }
 
 .seasons-chart-card {
@@ -2341,25 +2301,18 @@ td button + .ffst-role-picker,
   outline-offset: -2px;
 }
 
-/* Telephone : le "+" seul, les chiffres l'un sous l'autre. */
+/* Telephone : le "+" seul, les chiffres en 2 x 2. */
 @media (max-width: 640px) {
   .seasons-wide-only {
     display: none;
   }
 
-  .seasons-summary {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.9rem;
+  .seasons-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .seasons-facts {
-    padding-top: 0.8rem;
-    border-top: 1px solid var(--border);
-  }
-
-  .seasons-facts div {
-    flex: 1;
+  .seasons-figure-value {
+    font-size: 1.1rem;
   }
 
   .seasons-chart-card {

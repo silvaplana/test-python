@@ -21,8 +21,6 @@ const METRICS = [
 
 const ACCENT = '#c084fc'
 const AI = '#5eead4'
-const GREEN = '#4ade80'
-const RED = '#f87171'
 // Mode "Superposées" : une couleur par saison, dans l'ordre des saisons (la
 // plus ancienne en premier). Une saison garde sa couleur quelle que soit la
 // saison choisie ou masquee ; la saison choisie a un trait plus epais.
@@ -299,63 +297,48 @@ export function Seasons({ active }) {
   )
 }
 
-// Chiffres cles de la saison choisie : le solde d'abord, sa variation depuis
-// la saison precedente juste dessous, puis licencies et cout de l'IA.
+// Chiffres cles de la saison choisie.
 function SeasonFigures({ season, previous }) {
   const balance = season.balance
-  const before = previous?.balance.total
-  const delta = balance.total != null && before != null ? balance.total - before : null
-  const percent = delta != null && before !== 0 ? (delta / Math.abs(before)) * 100 : null
+  const delta =
+    balance.total != null && previous?.balance.total != null ? balance.total - previous.balance.total : null
   // Solde calcule d'une saison passee dont la fin n'est pas couverte par
   // les releves : date du dernier mouvement connu.
-  const balanceNote =
-    balance.total == null
-      ? 'Pas de relevé à cette date'
-      : !balance.auto
-        ? 'Compte courant + Livret Bleu, saisi à la main'
-        : !season.current && balance.asOf && balance.asOf < season.endDate
-          ? `Compte courant + Livret Bleu, au ${dateFr(balance.asOf)}`
-          : 'Compte courant + Livret Bleu'
-  const licencesDelta =
-    season.licences != null && previous?.licences != null ? season.licences - previous.licences : null
+  const balanceNote = !balance.auto
+    ? 'saisi'
+    : !season.current && balance.asOf && balance.asOf < season.endDate
+      ? `au ${dateFr(balance.asOf)}`
+      : null
   return (
-    <div className="seasons-summary">
-      <div className="seasons-balance">
-        <span className="seasons-summary-label">{season.current ? 'Solde à ce jour' : 'Solde en fin de saison'}</span>
-        <span className="seasons-balance-value">{balance.total != null ? euros(balance.total) : '—'}</span>
-        <span className="seasons-balance-note">{balanceNote}</span>
-        {delta != null && Math.round(delta * 100) === 0 && (
-          <span className="seasons-delta">Inchangé depuis fin {previous.name}</span>
-        )}
-        {delta != null && Math.round(delta * 100) !== 0 && (
-          <span className="seasons-delta">
-            <b style={{ color: delta >= 0 ? GREEN : RED }}>
-              {delta >= 0 ? '▲' : '▼'} {signed(delta)}
-              {percent != null && ` (${delta >= 0 ? '+' : '−'}${Math.abs(percent).toFixed(1).replace('.', ',')} %)`}
-            </b>{' '}
-            depuis fin {previous.name}
-          </span>
-        )}
+    <div className="seasons-figures">
+      <div className="seasons-figure">
+        <span className="seasons-figure-label">Licenciés</span>
+        <span className="seasons-figure-value">{season.licences ?? '—'}</span>
+        <span className="seasons-figure-sub">{season.current ? 'repris de FFST' : ' '}</span>
       </div>
-      <dl className="seasons-facts">
-        <div>
-          <dt>Licenciés</dt>
-          <dd>
-            {season.licences ?? '—'}
-            {licencesDelta != null && licencesDelta !== 0 && (
-              <small>
-                {' '}
-                {licencesDelta > 0 ? '+' : '−'}
-                {Math.abs(licencesDelta)}
-              </small>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Coût IA</dt>
-          <dd>{season.aiCost != null ? euros(season.aiCost) : '—'}</dd>
-        </div>
-      </dl>
+      <div className="seasons-figure">
+        <span className="seasons-figure-label">{season.current ? 'Solde à ce jour' : 'Solde fin de saison'}</span>
+        <span className="seasons-figure-value">{balance.total != null ? euros(balance.total) : '—'}</span>
+        <span className="seasons-figure-sub">
+          {balance.total != null
+            ? `courant + Livret Bleu${balanceNote ? ` · ${balanceNote}` : ''}`
+            : 'pas de relevé à cette date'}
+        </span>
+      </div>
+      <div className="seasons-figure">
+        <span className="seasons-figure-label">Variation</span>
+        <span className={`seasons-figure-value${delta != null && delta < 0 ? ' seasons-negative' : ''}`}>
+          {delta != null ? signed(delta) : '—'}
+        </span>
+        <span className="seasons-figure-sub">
+          {previous ? `depuis fin ${previous.name}` : 'pas de saison précédente'}
+        </span>
+      </div>
+      <div className="seasons-figure">
+        <span className="seasons-figure-label">Coût IA</span>
+        <span className="seasons-figure-value">{season.aiCost != null ? euros(season.aiCost) : '—'}</span>
+        <span className="seasons-figure-sub">cumul sur la saison</span>
+      </div>
     </div>
   )
 }
