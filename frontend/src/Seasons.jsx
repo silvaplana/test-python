@@ -224,11 +224,6 @@ export function Seasons({ active }) {
             ))}
           </select>
         </label>
-        {selected && (
-          <span className="seasons-range">
-            {dateFr(selected.startDate)} – {dateFr(selected.endDate)}
-          </span>
-        )}
         <div className="seasons-actions">
           <button className="seasons-primary" onClick={() => setDialog('create')}>
             + Nouvelle<span className="seasons-wide-only"> saison</span>

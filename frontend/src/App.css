@@ -2075,10 +2075,6 @@ td button + .ffst-role-picker,
   font-size: 16px;
 }
 
-.seasons-range {
-  font-size: 0.85rem;
-}
-
 .seasons-actions {
   display: flex;
   gap: 0.5rem;
