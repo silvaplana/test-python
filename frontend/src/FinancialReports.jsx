@@ -421,10 +421,10 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
           )}
           <div className="reports-downloads">
             <button onClick={() => download('xlsx')} disabled={!result || running}>
-              Excel
+              Télécharger Excel
             </button>
             <button onClick={() => download('pdf')} disabled={!result || running}>
-              PDF
+              Télécharger PDF
             </button>
           </div>
         </div>
