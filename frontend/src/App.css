@@ -2052,20 +2052,14 @@ td button + .ffst-role-picker,
 
 .seasons-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.6rem 1rem;
+  align-items: stretch;
+  gap: 0.5rem;
 }
 
-.seasons-picker {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  font-size: 0.85rem;
-}
-
-.seasons-picker select {
-  min-width: 10rem;
+.seasons-toolbar select {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 22rem;
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2075,13 +2069,10 @@ td button + .ffst-role-picker,
   font-size: 16px;
 }
 
-.seasons-actions {
-  display: flex;
-  gap: 0.5rem;
-  margin-left: auto;
-}
-
-.seasons-actions button {
+.seasons-toolbar button {
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
   padding: 0.5rem 0.9rem;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2093,22 +2084,30 @@ td button + .ffst-role-picker,
   transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.seasons-actions button:hover:not(:disabled) {
+.seasons-toolbar button:hover:not(:disabled) {
   border-color: var(--accent-border);
   background: var(--accent-bg);
 }
 
-.seasons-actions button:disabled {
+.seasons-toolbar button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
 
-.seasons-actions .seasons-primary {
+.seasons-toolbar .seasons-primary {
   border-color: var(--accent-border);
   background: var(--accent-bg);
 }
 
-.seasons-actions .seasons-danger {
+.seasons-toolbar :focus-visible,
+.seasons-legend button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Fiche d'une saison : "Supprimer la saison" a l'ecart des autres boutons. */
+.trial-dialog-actions .seasons-delete {
+  margin-right: auto;
   color: #f87171;
 }
 
@@ -2119,37 +2118,77 @@ td button + .ffst-role-picker,
   text-align: center;
 }
 
-.seasons-figures {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
-.seasons-figure {
+/* Chiffres de la saison : le solde domine, licencies et cout IA en retrait. */
+.seasons-summary {
   display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding: 0.75rem 0.9rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 2.5rem;
+  padding: 1rem 1.1rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   background: var(--code-bg);
 }
 
-.seasons-figure-label,
-.seasons-figure-sub {
+.seasons-balance {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.seasons-summary-label,
+.seasons-facts dt {
+  font-size: 0.8rem;
+}
+
+.seasons-balance-value {
+  color: var(--text-h);
+  font-size: 2rem;
+  font-weight: 650;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.seasons-balance-note {
   font-size: 0.75rem;
 }
 
-.seasons-figure-value {
+.seasons-delta {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.seasons-delta b {
+  font-weight: 600;
+}
+
+.seasons-facts {
+  display: flex;
+  gap: 2.5rem;
+  margin: 0;
+}
+
+.seasons-facts div {
+  display: flex;
+  flex-direction: column;
+}
+
+.seasons-facts dd {
+  margin: 0;
   color: var(--text-h);
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.seasons-figure-value.seasons-negative {
-  color: #fdba74;
+.seasons-facts small {
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 
 .seasons-chart-card {
@@ -2164,14 +2203,6 @@ td button + .ffst-role-picker,
 
 .seasons-chart-filters {
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-}
-
-.seasons-chart-modes {
-  justify-content: center;
 }
 
 .seasons-chart-filters .filter-chips {
@@ -2179,17 +2210,51 @@ td button + .ffst-role-picker,
   max-width: 100%;
 }
 
-.seasons-chart-filters .filter-chip:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
 .seasons-chart {
+  position: relative;
   width: 100%;
 }
 
+/* Le doigt lit les valeurs en glissant de gauche a droite ; de haut en bas,
+   la page defile normalement. */
 .seasons-chart svg {
   display: block;
+  touch-action: pan-y;
+}
+
+.seasons-chart-dot {
+  stroke: var(--code-bg);
+  stroke-width: 2;
+}
+
+.seasons-tooltip-date {
+  margin-bottom: 0.15rem;
+}
+
+.seasons-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.seasons-tooltip-row b {
+  color: var(--text-h);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.seasons-tooltip-row span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.seasons-tooltip-row i,
+.seasons-legend i {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
 }
 
 .seasons-axis-strong {
@@ -2203,31 +2268,21 @@ td button + .ffst-role-picker,
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.3rem 1rem;
+  gap: 0 0.4rem;
+  margin: 0;
   font-size: 0.8rem;
 }
 
-.seasons-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.seasons-legend i {
-  width: 12px;
-  height: 4px;
-  border-radius: 2px;
-}
-
-/* Superposees : chaque saison de la legende est un bouton qui la masque ou
-   la reaffiche. */
+/* Superposees : chaque saison de la legende est un bouton (sans cadre, pour
+   ne pas le confondre avec les autres choix) qui la masque ou la reaffiche. */
 .seasons-legend button {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
-  padding: 0.3rem 0.65rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0.3rem 0.5rem;
+  border: 0;
+  border-radius: 6px;
   background: none;
   color: inherit;
   font: inherit;
@@ -2244,49 +2299,79 @@ td button + .ffst-role-picker,
   font-weight: 600;
 }
 
-/* Telephone : choix de la saison sur toute la largeur, 3 boutons cote a
-   cote dessous, chiffres en 2 x 2, filtres en 2 rangees qui defilent. */
+/* Etalees / Superposees / Selectionnee : un seul bouton a trois segments. */
+.seasons-segmented {
+  display: inline-flex;
+  align-self: center;
+  max-width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.seasons-segmented button {
+  min-height: 40px;
+  padding: 0.4rem 0.9rem;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.seasons-segmented button:first-child {
+  border-left: 0;
+}
+
+.seasons-segmented button[aria-pressed='true'] {
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.seasons-segmented button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.seasons-segmented button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Telephone : le "+" seul, les chiffres l'un sous l'autre. */
 @media (max-width: 640px) {
-  .seasons-picker {
-    flex: 1 1 100%;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.25rem;
-  }
-
-  .seasons-picker select {
-    min-width: 0;
-  }
-
-  .seasons-actions {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    flex: 1 1 100%;
-    margin-left: 0;
-  }
-
-  .seasons-actions button {
-    min-height: 44px;
-    padding-inline: 0.4rem;
-  }
-
   .seasons-wide-only {
     display: none;
   }
 
-  .seasons-figures {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .seasons-summary {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.9rem;
   }
 
-  .seasons-figure-value {
-    font-size: 1.1rem;
+  .seasons-facts {
+    padding-top: 0.8rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .seasons-facts div {
+    flex: 1;
   }
 
   .seasons-chart-card {
     padding: 0.75rem 0.6rem;
   }
 
-  .seasons-chart-filters {
-    flex-direction: column;
+  .seasons-segmented {
+    align-self: stretch;
+  }
+
+  .seasons-segmented button {
+    flex: 1;
+    padding-inline: 0.3rem;
   }
 }

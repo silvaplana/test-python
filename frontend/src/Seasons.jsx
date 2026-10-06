@@ -21,9 +21,15 @@ const METRICS = [
 
 const ACCENT = '#c084fc'
 const AI = '#5eead4'
-// Mode "Superposées" : la saison choisie en violet, les autres dans ces
-// couleurs.
-const OVERLAY_COLORS = ['#fdba74', '#5eead4', '#93c5fd', '#f9a8d4', '#fde047']
+const GREEN = '#4ade80'
+const RED = '#f87171'
+// Mode "Superposées" : une couleur par saison, dans l'ordre des saisons (la
+// plus ancienne en premier). Une saison garde sa couleur quelle que soit la
+// saison choisie ou masquee ; la saison choisie a un trait plus epais.
+// Couleurs voisines verifiees distinctes sur fond sombre, y compris pour
+// les daltoniens.
+const SEASON_COLORS = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#9085e9']
+const DAY_MS = 86_400_000
 
 function readSetting(key, fallback) {
   try {
@@ -77,6 +83,8 @@ function dateFr(isoDate) {
 }
 
 const ts = (isoDate) => Date.parse(`${isoDate}T00:00:00Z`)
+const dayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', timeZone: 'UTC' })
+const dayMonthYear = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
 const monthShort = new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' })
 const monthYear = new Intl.DateTimeFormat('fr-FR', { month: 'short', year: 'numeric', timeZone: 'UTC' })
 
@@ -186,6 +194,7 @@ export function Seasons({ active }) {
       return
     try {
       await callApi(`/seasons/${selected.id}`, { method: 'DELETE' })
+      setDialog(null)
       setSelectedId(null)
       showToast(`Saison ${selected.name} supprimée`)
       load()
@@ -208,33 +217,26 @@ export function Seasons({ active }) {
   return (
     <section className="seasons">
       <div className="seasons-toolbar">
-        <label className="seasons-picker">
-          <span>Saison</span>
-          <select
-            value={selected?.id ?? ''}
-            onChange={(e) => setSelectedId(Number(e.target.value))}
-            disabled={seasons.length === 0}
-          >
-            {seasons.length === 0 && <option value="">Aucune saison</option>}
-            {[...seasons].reverse().map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-                {s.current ? ' (en cours)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div className="seasons-actions">
-          <button className="seasons-primary" onClick={() => setDialog('create')}>
-            + Nouvelle<span className="seasons-wide-only"> saison</span>
-          </button>
-          <button onClick={() => setDialog('edit')} disabled={!selected}>
-            Modifier
-          </button>
-          <button className="seasons-danger" onClick={remove} disabled={!selected}>
-            Supprimer
-          </button>
-        </div>
+        <select
+          aria-label="Saison"
+          value={selected?.id ?? ''}
+          onChange={(e) => setSelectedId(Number(e.target.value))}
+          disabled={seasons.length === 0}
+        >
+          {seasons.length === 0 && <option value="">Aucune saison</option>}
+          {[...seasons].reverse().map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+              {s.current ? ' (en cours)' : ''}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => setDialog('edit')} disabled={!selected}>
+          Modifier
+        </button>
+        <button className="seasons-primary" onClick={() => setDialog('create')} aria-label="Nouvelle saison">
+          +<span className="seasons-wide-only"> Nouvelle saison</span>
+        </button>
       </div>
 
       {seasons.length === 0 ? (
@@ -267,24 +269,18 @@ export function Seasons({ active }) {
               <BarsChart seasons={seasons} selected={selected} mode={effectiveMode} metric={metric} />
             )}
             {/* Sous le graphique : quelles saisons afficher (au-dessus : quelle donnee). */}
-            <div className="seasons-chart-filters seasons-chart-modes">
-              <div className="filter-chips" role="group" aria-label="Affichage des saisons">
-                {MODES.map((m) => {
-                  const disabled = m.id === 'overlay' && !curve
-                  return (
-                    <button
-                      key={m.id}
-                      className={m.id === effectiveMode ? 'filter-chip filter-chip-active' : 'filter-chip'}
-                      aria-pressed={m.id === effectiveMode}
-                      disabled={disabled}
-                      title={disabled ? 'Seulement pour « Compte détaillé »' : undefined}
-                      onClick={() => chooseMode(m.id)}
-                    >
-                      {m.label}
-                    </button>
-                  )
-                })}
-              </div>
+            <div className="seasons-segmented" role="group" aria-label="Affichage des saisons">
+              {MODES.map((m) => (
+                <button
+                  key={m.id}
+                  aria-pressed={m.id === effectiveMode}
+                  // Superposer des barres n'a pas de sens.
+                  disabled={m.id === 'overlay' && !curve}
+                  onClick={() => chooseMode(m.id)}
+                >
+                  {m.label}
+                </button>
+              ))}
             </div>
           </div>
         </>
@@ -296,54 +292,70 @@ export function Seasons({ active }) {
           defaults={newSeasonDefaults(seasons, data.today)}
           onClose={() => setDialog(null)}
           onSaved={saved}
+          onDelete={remove}
         />
       )}
     </section>
   )
 }
 
-// Chiffres cles de la saison choisie.
+// Chiffres cles de la saison choisie : le solde d'abord, sa variation depuis
+// la saison precedente juste dessous, puis licencies et cout de l'IA.
 function SeasonFigures({ season, previous }) {
   const balance = season.balance
-  const delta =
-    balance.total != null && previous?.balance.total != null ? balance.total - previous.balance.total : null
+  const before = previous?.balance.total
+  const delta = balance.total != null && before != null ? balance.total - before : null
+  const percent = delta != null && before !== 0 ? (delta / Math.abs(before)) * 100 : null
   // Solde calcule d'une saison passee dont la fin n'est pas couverte par
   // les releves : date du dernier mouvement connu.
-  const balanceNote = !balance.auto
-    ? 'saisi'
-    : !season.current && balance.asOf && balance.asOf < season.endDate
-      ? `au ${dateFr(balance.asOf)}`
-      : null
+  const balanceNote =
+    balance.total == null
+      ? 'Pas de relevé à cette date'
+      : !balance.auto
+        ? 'Compte courant + Livret Bleu, saisi à la main'
+        : !season.current && balance.asOf && balance.asOf < season.endDate
+          ? `Compte courant + Livret Bleu, au ${dateFr(balance.asOf)}`
+          : 'Compte courant + Livret Bleu'
+  const licencesDelta =
+    season.licences != null && previous?.licences != null ? season.licences - previous.licences : null
   return (
-    <div className="seasons-figures">
-      <div className="seasons-figure">
-        <span className="seasons-figure-label">Licenciés</span>
-        <span className="seasons-figure-value">{season.licences ?? '—'}</span>
-        <span className="seasons-figure-sub">{season.current ? 'repris de FFST' : ' '}</span>
+    <div className="seasons-summary">
+      <div className="seasons-balance">
+        <span className="seasons-summary-label">{season.current ? 'Solde à ce jour' : 'Solde en fin de saison'}</span>
+        <span className="seasons-balance-value">{balance.total != null ? euros(balance.total) : '—'}</span>
+        <span className="seasons-balance-note">{balanceNote}</span>
+        {delta != null && Math.round(delta * 100) === 0 && (
+          <span className="seasons-delta">Inchangé depuis fin {previous.name}</span>
+        )}
+        {delta != null && Math.round(delta * 100) !== 0 && (
+          <span className="seasons-delta">
+            <b style={{ color: delta >= 0 ? GREEN : RED }}>
+              {delta >= 0 ? '▲' : '▼'} {signed(delta)}
+              {percent != null && ` (${delta >= 0 ? '+' : '−'}${Math.abs(percent).toFixed(1).replace('.', ',')} %)`}
+            </b>{' '}
+            depuis fin {previous.name}
+          </span>
+        )}
       </div>
-      <div className="seasons-figure">
-        <span className="seasons-figure-label">{season.current ? 'Solde à ce jour' : 'Solde fin de saison'}</span>
-        <span className="seasons-figure-value">{balance.total != null ? euros(balance.total) : '—'}</span>
-        <span className="seasons-figure-sub">
-          {balance.total != null
-            ? `courant + Livret Bleu${balanceNote ? ` · ${balanceNote}` : ''}`
-            : 'pas de relevé à cette date'}
-        </span>
-      </div>
-      <div className="seasons-figure">
-        <span className="seasons-figure-label">Variation</span>
-        <span className={`seasons-figure-value${delta != null && delta < 0 ? ' seasons-negative' : ''}`}>
-          {delta != null ? signed(delta) : '—'}
-        </span>
-        <span className="seasons-figure-sub">
-          {previous ? `depuis fin ${previous.name}` : 'pas de saison précédente'}
-        </span>
-      </div>
-      <div className="seasons-figure">
-        <span className="seasons-figure-label">Coût IA</span>
-        <span className="seasons-figure-value">{season.aiCost != null ? euros(season.aiCost) : '—'}</span>
-        <span className="seasons-figure-sub">cumul sur la saison</span>
-      </div>
+      <dl className="seasons-facts">
+        <div>
+          <dt>Licenciés</dt>
+          <dd>
+            {season.licences ?? '—'}
+            {licencesDelta != null && licencesDelta !== 0 && (
+              <small>
+                {' '}
+                {licencesDelta > 0 ? '+' : '−'}
+                {Math.abs(licencesDelta)}
+              </small>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Coût IA</dt>
+          <dd>{season.aiCost != null ? euros(season.aiCost) : '—'}</dd>
+        </div>
+      </dl>
     </div>
   )
 }
@@ -370,6 +382,8 @@ function CurveChart({ data, selected, mode }) {
   // Superposees : saisons masquees d'un clic dans la legende (choix retenu
   // sur cet appareil).
   const [hidden, setHidden] = useState(readHidden)
+  // Position horizontale du doigt ou de la souris sur le graphique (px).
+  const [pointerX, setPointerX] = useState(null)
   function toggle(id) {
     const next = new Set(hidden)
     if (!next.delete(id)) next.add(id)
@@ -416,8 +430,8 @@ function CurveChart({ data, selected, mode }) {
     legend = shown.map((s) => ({
       key: s.id,
       label: s.name,
-      color: s.id === selected.id ? ACCENT : OVERLAY_COLORS[shown.indexOf(s) % OVERLAY_COLORS.length],
-      width: s.id === selected.id ? 2.6 : 1.6,
+      color: mode === 'selected' ? ACCENT : SEASON_COLORS[seasons.indexOf(s) % SEASON_COLORS.length],
+      width: s.id === selected.id ? 2.6 : 2,
       points: seasonPoints(s),
       x0: ts(s.startDate),
       x1: ts(s.endDate),
@@ -476,6 +490,33 @@ function CurveChart({ data, selected, mode }) {
       .join(' ')
   }
 
+  // Sous le doigt : une ligne verticale et, pour chaque courbe affichee, le
+  // solde a cette date (meme position dans la saison en "Superposées").
+  const fraction = pointerX == null ? null : Math.min(1, Math.max(0, (pointerX - margin.left) / innerW))
+  const cursorX = fraction == null ? null : margin.left + fraction * innerW
+  const dayAt = (line) => Math.round((line.x0 + fraction * (line.x1 - line.x0)) / DAY_MS) * DAY_MS
+  const readout =
+    fraction == null
+      ? []
+      : lines.flatMap((line) => {
+          const t = dayAt(line)
+          if (line.points.length === 0) return []
+          if (t < line.points[0].t || t > line.points[line.points.length - 1].t) return []
+          let v = line.points[0].v
+          for (const p of line.points) {
+            if (p.t > t) break
+            v = p.v
+          }
+          return [{ line, t, v }]
+        })
+  const readoutDate =
+    readout.length === 0
+      ? null
+      : mode === 'overlay'
+        ? dayMonth.format(dayAt({ x0: ts(selected.startDate), x1: ts(selected.endDate) }))
+        : dayMonthYear.format(readout[0].t)
+  const track = (e) => setPointerX(e.clientX - e.currentTarget.getBoundingClientRect().left)
+
   // Axe horizontal : dates de la saison (Selectionnee) ou mois de la saison
   // choisie (Superposees, toutes les saisons ramenees sur le meme axe).
   const reference = lines[lines.length - 1] ?? legend[0]
@@ -490,7 +531,16 @@ function CurveChart({ data, selected, mode }) {
 
   return (
     <div ref={ref} className="seasons-chart">
-      <svg width={width} height={CHART_HEIGHT} role="img" aria-label="Évolution du solde total par saison">
+      <svg
+        width={width}
+        height={CHART_HEIGHT}
+        role="img"
+        aria-label="Évolution du solde total par saison"
+        onPointerDown={track}
+        onPointerMove={track}
+        // Au doigt, la lecture reste affichee apres le toucher.
+        onPointerLeave={(e) => e.pointerType === 'mouse' && setPointerX(null)}
+      >
         {bands.map((b) => {
           const left = xOf(b, b.from)
           const right = xOf(b, b.to)
@@ -541,7 +591,36 @@ function CurveChart({ data, selected, mode }) {
             strokeLinejoin="round"
           />
         ))}
+        {readout.length > 0 && (
+          <line x1={cursorX} x2={cursorX} y1={margin.top} y2={margin.top + innerH} className="balance-chart-cursor" />
+        )}
+        {readout.map(({ line, v }) => (
+          <circle key={line.key} cx={cursorX} cy={y(v)} r="4.5" fill={line.color} className="seasons-chart-dot" />
+        ))}
       </svg>
+      {readout.length > 0 && (
+        <div
+          className="balance-chart-tooltip seasons-tooltip"
+          style={
+            cursorX > width / 2
+              ? { top: margin.top, right: width - cursorX + 12 }
+              : { top: margin.top, left: cursorX + 12 }
+          }
+        >
+          <div className="seasons-tooltip-date">{readoutDate}</div>
+          {readout.map(({ line, v }) => (
+            <div key={line.key} className="seasons-tooltip-row">
+              <b>{euros(v)}</b>
+              {mode === 'overlay' && (
+                <span>
+                  <i style={{ background: line.color }} />
+                  {line.label}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
       {legendButtons}
     </div>
   )
@@ -624,7 +703,7 @@ const toInput = (n) => (n == null ? '' : String(n).replace('.', ','))
 // Fiche d'une saison : creation (season null) ou modification. Le solde de
 // fin de saison laisse vide est calcule depuis les releves (valeur rappelee
 // en grise dans le champ).
-function SeasonDialog({ season, defaults, onClose, onSaved }) {
+function SeasonDialog({ season, defaults, onClose, onSaved, onDelete }) {
   const dialogRef = useRef(null)
   const manual = season && !season.balance.auto
   const [form, setForm] = useState(() =>
@@ -742,6 +821,11 @@ function SeasonDialog({ season, defaults, onClose, onSaved }) {
         {error && <p className="error">{error}</p>}
 
         <div className="trial-dialog-actions">
+          {season && (
+            <button type="button" className="seasons-delete" onClick={onDelete} disabled={pending}>
+              Supprimer la saison
+            </button>
+          )}
           <button type="button" onClick={() => dialogRef.current.close()} disabled={pending}>
             Annuler
           </button>
