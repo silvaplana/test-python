@@ -344,7 +344,8 @@ const CHART_HEIGHT = 260
 // chaque operation, en escalier (il ne change qu'aux operations).
 // - Etalees : toutes les saisons a la suite, chacune dans sa bande ;
 // - Superposees : une courbe par saison sur le meme axe (debut -> fin de
-//   saison), pour comparer les saisons entre elles ;
+//   saison), pour comparer les saisons entre elles ; un clic sur une saison
+//   de la legende la masque ou la reaffiche ;
 // - Selectionnee : la saison choisie seule.
 function CurveChart({ data, selected, mode }) {
   const [ref, width] = useWidth()
@@ -356,6 +357,14 @@ function CurveChart({ data, selected, mode }) {
   const today = ts(data.today)
   const lastKnown = series.length ? series[series.length - 1].t : today
   const seasons = data.seasons
+  // Superposees : saisons masquees d'un clic dans la legende.
+  const [hidden, setHidden] = useState(() => new Set())
+  const toggle = (id) =>
+    setHidden((previous) => {
+      const next = new Set(previous)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
 
   // Solde en fin de journee t (derniere operation ce jour-la ou avant).
   function valueAt(t) {
@@ -382,6 +391,7 @@ function CurveChart({ data, selected, mode }) {
   // lines : [{key, color, width, points, x0, x1}] ; x0/x1 : debut et fin de
   // l'axe horizontal pour cette courbe.
   let lines
+  let legend = []
   let bands = []
   if (mode === 'spread') {
     const x0 = Math.min(...[seasons[0] && ts(seasons[0].startDate), series[0]?.t].filter((v) => v != null))
@@ -392,7 +402,7 @@ function CurveChart({ data, selected, mode }) {
     bands = seasons.map((s) => ({ season: s, from: ts(s.startDate), to: ts(s.endDate), x0, x1 }))
   } else {
     const shown = mode === 'selected' ? [selected] : seasons
-    lines = shown.map((s) => ({
+    legend = shown.map((s) => ({
       key: s.id,
       label: s.name,
       color: s.id === selected.id ? ACCENT : OVERLAY_COLORS[shown.indexOf(s) % OVERLAY_COLORS.length],
@@ -401,13 +411,40 @@ function CurveChart({ data, selected, mode }) {
       x0: ts(s.startDate),
       x1: ts(s.endDate),
     }))
+    lines = mode === 'overlay' ? legend.filter((line) => !hidden.has(line.key)) : legend
   }
+  const legendButtons = mode === 'overlay' && (
+    <div className="seasons-legend">
+      {legend.map((line) => {
+        const off = hidden.has(line.key)
+        const classes = [line.key === selected.id && 'seasons-legend-selected', off && 'seasons-legend-off']
+        return (
+          <button
+            key={line.key}
+            type="button"
+            className={classes.filter(Boolean).join(' ') || undefined}
+            aria-pressed={!off}
+            title={off ? 'Afficher cette saison' : 'Masquer cette saison'}
+            onClick={() => toggle(line.key)}
+          >
+            <i style={{ background: line.color }} />
+            {line.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   const values = lines.flatMap((l) => l.points.map((p) => p.v))
   if (values.length === 0) {
     return (
-      <div ref={ref}>
-        <p className="balance-chart-empty">Pas encore d'opérations bancaires sur cette période (voir Comptes).</p>
+      <div ref={ref} className="seasons-chart">
+        <p className="balance-chart-empty">
+          {legend.length > 0 && lines.length === 0
+            ? "Toutes les saisons sont masquées : touchez une saison ci-dessous pour l'afficher."
+            : "Pas encore d'opérations bancaires sur cette période (voir Comptes)."}
+        </p>
+        {legendButtons}
       </div>
     )
   }
@@ -430,7 +467,7 @@ function CurveChart({ data, selected, mode }) {
 
   // Axe horizontal : dates de la saison (Selectionnee) ou mois de la saison
   // choisie (Superposees, toutes les saisons ramenees sur le meme axe).
-  const reference = lines[lines.length - 1]
+  const reference = lines[lines.length - 1] ?? legend[0]
   const xTicks =
     mode === 'spread'
       ? []
@@ -494,16 +531,7 @@ function CurveChart({ data, selected, mode }) {
           />
         ))}
       </svg>
-      {mode === 'overlay' && (
-        <div className="seasons-legend">
-          {lines.map((line) => (
-            <span key={line.key} className={line.key === selected.id ? 'seasons-legend-selected' : undefined}>
-              <i style={{ background: line.color }} />
-              {line.label}
-            </span>
-          ))}
-        </div>
-      )}
+      {legendButtons}
     </div>
   )
 }

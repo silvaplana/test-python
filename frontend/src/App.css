@@ -2219,6 +2219,26 @@ td button + .ffst-role-picker,
   border-radius: 2px;
 }
 
+/* Superposees : chaque saison de la legende est un bouton qui la masque ou
+   la reaffiche. */
+.seasons-legend button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.seasons-legend .seasons-legend-off {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
 .seasons-legend .seasons-legend-selected {
   color: var(--text-h);
   font-weight: 600;
