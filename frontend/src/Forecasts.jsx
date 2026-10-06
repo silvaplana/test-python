@@ -622,35 +622,37 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
   const lastKnown = series.length ? series[series.length - 1].t : start
   const afterStart = lastKnown > start ? realPoints(series, start, Math.min(lastKnown, ts(season.endDate))) : []
   const actualEnd = afterStart.length ? afterStart[afterStart.length - 1] : null
-  const reference = previous?.balance.total
+  // Solde du debut de la saison (la "ligne d'équilibre" du graphique) et
+  // resultat prevu de la saison : ce qu'elle aura gagne ou perdu.
+  const opening = result.data.soldeDebutSaison ?? null
+  const outcome = opening == null ? null : Math.round((end.solde - opening) * 100) / 100
 
   return (
     <div className="reports-result">
       <div className="seasons-figures">
         <div className="seasons-figure">
+          <span className="seasons-figure-label">Solde au {dateFr(season.startDate)}</span>
+          <span className="seasons-figure-value">{opening != null ? euros(opening) : '—'}</span>
+          <span className="seasons-figure-sub">début de saison</span>
+        </div>
+        <div className="seasons-figure">
           <span className="seasons-figure-label">Solde prévu au {dateFr(season.endDate)}</span>
           <span className="seasons-figure-value forecasts-end">{euros(end.solde)}</span>
-          {reference != null && (
-            <span className="seasons-figure-sub">
-              {end.solde >= reference ? '+' : '−'}
-              {eurosRound(Math.abs(end.solde - reference))} par rapport à la fin de {previous.name}
-            </span>
-          )}
+          <span className="seasons-figure-sub">
+            {actualEnd ? `réel : ${eurosRound(actualEnd.v)} le ${dateFr(new Date(actualEnd.t).toISOString())}` : 'fin de saison'}
+          </span>
+        </div>
+        <div className="seasons-figure">
+          <span className="seasons-figure-label">Résultat prévu au {dateFr(season.endDate)}</span>
+          <span className="seasons-figure-value" style={outcome == null ? undefined : { color: outcome >= 0 ? '#4ade80' : '#f87171' }}>
+            {outcome == null ? '—' : `${outcome >= 0 ? '+' : '−'}${euros(Math.abs(outcome))}`}
+          </span>
+          <span className="seasons-figure-sub">solde prévu moins solde de début de saison</span>
         </div>
         <div className="seasons-figure">
           <span className="seasons-figure-label">Point le plus bas prévu</span>
           <span className="seasons-figure-value">{eurosRound(low.solde)}</span>
           <span className="seasons-figure-sub">vers le {dateFr(low.date)}</span>
-        </div>
-        <div className="seasons-figure">
-          <span className="seasons-figure-label">Réel au départ</span>
-          <span className="seasons-figure-value">{eurosRound(result.data.soldeDepart)}</span>
-          <span className="seasons-figure-sub">le {dateFr(result.data.dateDepart)}</span>
-        </div>
-        <div className="seasons-figure">
-          <span className="seasons-figure-label">{actualEnd ? 'Réel à comparer' : 'Fin de ' + (previous?.name ?? 'saison précédente')}</span>
-          <span className="seasons-figure-value">{actualEnd ? eurosRound(actualEnd.v) : eurosRound(reference)}</span>
-          <span className="seasons-figure-sub">{actualEnd ? `le ${dateFr(new Date(actualEnd.t).toISOString())}` : 'courant + Livret Bleu'}</span>
         </div>
       </div>
       <ForecastChart
@@ -663,7 +665,7 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
         seasons={seasons}
         compare={compare}
         onToggle={toggle}
-        baseline={result.data.soldeDebutSaison ?? null}
+        baseline={opening}
       />
       <div className="reports-downloads forecasts-downloads">
         <button onClick={() => onDownload('png')}>Télécharger image</button>
