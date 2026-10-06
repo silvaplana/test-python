@@ -31,6 +31,8 @@ dependencies = [
     "pillow-heif",
     # Archives 7z de releves bancaires (voir bankstatements).
     "py7zr",
+    # PowerPoint des assemblees generales (voir generalassemblies).
+    "python-pptx",
 ]
 
 [project.optional-dependencies]
