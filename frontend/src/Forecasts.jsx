@@ -204,7 +204,8 @@ export function Forecasts({ active }) {
       ) : (
         <ul className="reports-list">
           {shown.map((f) => (
-            <li key={f.id}>
+            // Toute la carte ouvre le calcul, comme le crayon.
+            <li key={f.id} className="reports-item-open" onClick={() => setEditing(f.id)}>
               <div className="reports-item-main">
                 <span className="reports-item-name">{f.name}</span>
                 <span className="reports-item-meta">
@@ -230,7 +231,16 @@ export function Forecasts({ active }) {
               <button className="reports-icon" onClick={() => setEditing(f.id)} aria-label={`Modifier ${f.name}`} title="Modifier">
                 <PencilIcon />
               </button>
-              <button className="reports-icon reports-icon-danger" onClick={() => remove(f)} aria-label={`Supprimer ${f.name}`} title="Supprimer">
+              <button
+                className="reports-icon reports-icon-danger"
+                onClick={(e) => {
+                  // Ne pas ouvrir la carte en meme temps.
+                  e.stopPropagation()
+                  remove(f)
+                }}
+                aria-label={`Supprimer ${f.name}`}
+                title="Supprimer"
+              >
                 <TrashIcon />
               </button>
             </li>

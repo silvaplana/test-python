@@ -169,7 +169,8 @@ export function FinancialReports({ active }) {
       ) : (
         <ul className="reports-list">
           {shown.map((r) => (
-            <li key={r.id}>
+            // Toute la carte ouvre le calcul, comme le crayon.
+            <li key={r.id} className="reports-item-open" onClick={() => setEditing(r.id)}>
               <div className="reports-item-main">
                 <span className="reports-item-name">{r.name}</span>
                 <span className="reports-item-meta">
@@ -184,7 +185,16 @@ export function FinancialReports({ active }) {
               <button className="reports-icon" onClick={() => setEditing(r.id)} aria-label={`Modifier ${r.name}`} title="Modifier">
                 <PencilIcon />
               </button>
-              <button className="reports-icon reports-icon-danger" onClick={() => remove(r)} aria-label={`Supprimer ${r.name}`} title="Supprimer">
+              <button
+                className="reports-icon reports-icon-danger"
+                onClick={(e) => {
+                  // Ne pas ouvrir la carte en meme temps.
+                  e.stopPropagation()
+                  remove(r)
+                }}
+                aria-label={`Supprimer ${r.name}`}
+                title="Supprimer"
+              >
                 <TrashIcon />
               </button>
             </li>

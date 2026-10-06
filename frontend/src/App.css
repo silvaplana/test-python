@@ -2493,7 +2493,7 @@ td button + .ffst-role-picker,
    Reprend les classes reports-* du bilan financier ; propre a l'AG : les
    sources du calcul, l'apercu des diapos (vignettes 4:3) et la visionneuse. */
 
-/* Carte de calcul cliquable en entier (Assemblees generales). */
+/* Carte de calcul cliquable en entier (bilans, AG, previsionnels). */
 .reports-list .reports-item-open {
   cursor: pointer;
 }
