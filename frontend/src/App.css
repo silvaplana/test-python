@@ -2332,3 +2332,414 @@ td button + .ffst-role-picker,
     padding-inline: 0.3rem;
   }
 }
+
+/* ----- Finances > Bilan financier (FinancialReports.jsx) ----- */
+
+.reports {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+.reports-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reports-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.6rem 0.6rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--code-bg);
+}
+
+.reports-item-main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.reports-item-name {
+  color: var(--text-h);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reports-item-meta {
+  font-size: 0.8rem;
+}
+
+.reports-icon {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-h);
+  cursor: pointer;
+}
+
+.reports-icon:hover {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.reports-icon-danger {
+  color: #f87171;
+}
+
+.reports-badge {
+  display: inline-block;
+  margin-right: 0.45rem;
+  padding: 0.05rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.reports-badge-valide {
+  border-color: #60a5fa;
+  color: #93c5fd;
+}
+
+.reports-badge-officiel {
+  border-color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  color: #86efac;
+}
+
+.reports-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.reports-panel-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.reports-panel-header button,
+.reports-actions button,
+.reports-downloads button {
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.reports-panel-header button:hover:not(:disabled),
+.reports-actions button:hover:not(:disabled),
+.reports-downloads button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.reports-actions button:disabled,
+.reports-downloads button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reports-form textarea {
+  resize: vertical;
+}
+
+.reports-form-name {
+  grid-column: span 1;
+}
+
+.reports-hint {
+  font-size: 0.75rem;
+  font-weight: normal;
+}
+
+.reports-cost {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.reports-cost b {
+  color: var(--text-h);
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.reports-actions .reports-run {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+  font-weight: 600;
+}
+
+.reports-result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.reports-result-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+}
+
+.reports-result-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.reports-result-meta {
+  font-size: 0.8rem;
+}
+
+.reports-downloads {
+  display: flex;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.reports-placeholder,
+.reports-period {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.reports-running {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.reports-running p {
+  margin: 0;
+}
+
+.reports-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent) 0 0 / 40% 100% no-repeat, var(--border);
+  animation: reports-progress 1.4s linear infinite;
+}
+
+@keyframes reports-progress {
+  from {
+    background-position: -40% 0, 0 0;
+  }
+  to {
+    background-position: 140% 0, 0 0;
+  }
+}
+
+.reports-check {
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 10px;
+  background: rgba(96, 165, 250, 0.1);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.reports-check b {
+  color: #93c5fd;
+}
+
+.reports-check-alert {
+  border-color: rgba(251, 146, 60, 0.6);
+  background: rgba(251, 146, 60, 0.1);
+}
+
+.reports-check-alert b {
+  color: #fdba74;
+}
+
+.reports-issues {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.8rem;
+}
+
+.reports-good {
+  color: #93c5fd;
+}
+
+.reports-bad {
+  color: #fdba74;
+}
+
+.reports-subtitle {
+  margin: 0.3rem 0 0;
+  color: var(--text-h);
+  font-size: 1rem;
+}
+
+.reports-analysis {
+  margin: 0;
+  padding-left: 1.3rem;
+  line-height: 1.5;
+}
+
+.reports-analysis li + li {
+  margin-top: 0.3rem;
+}
+
+.reports-categories {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr));
+  gap: 1rem;
+  align-items: start;
+}
+
+.reports-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.reports-table th {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.reports-table td {
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.reports-table th:first-child,
+.reports-table td:first-child {
+  text-align: left;
+  white-space: normal;
+}
+
+.reports-total td {
+  border-top: 2px solid var(--border);
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.reports-ai-badge {
+  margin-left: 0.4rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.reports-narrow-prev {
+  display: none;
+}
+
+.reports-month-title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.reports-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.reports-month-table th {
+  white-space: normal;
+  min-width: 5.5rem;
+  vertical-align: bottom;
+}
+
+.reports-month-table th:first-child,
+.reports-month-table td:first-child {
+  position: sticky;
+  left: 0;
+  min-width: 4.5rem;
+  background: var(--bg);
+  white-space: nowrap;
+}
+
+/* Telephone : tableaux recettes/depenses l'un sous l'autre, saison
+   precedente sous le nom de la categorie, formulaire sur une colonne. */
+@media (max-width: 640px) {
+  .reports-wide-col {
+    display: none;
+  }
+
+  .reports-narrow-prev {
+    display: block;
+    font-size: 0.72rem;
+  }
+
+  .reports-table {
+    font-size: 0.8rem;
+  }
+
+  .reports-ai-badge {
+    display: block;
+    width: fit-content;
+    margin: 0.15rem 0 0;
+  }
+
+  .reports-table th,
+  .reports-table td {
+    padding: 0.4rem 0.3rem;
+  }
+
+  .reports-result {
+    padding: 0.75rem;
+  }
+
+  .reports-actions button {
+    flex: 1;
+  }
+
+  .reports-downloads {
+    margin-left: 0;
+  }
+
+  .reports-item-meta {
+    font-size: 0.75rem;
+  }
+}

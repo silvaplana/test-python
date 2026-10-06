@@ -1,5 +1,6 @@
-// Sous-onglets de Finances a venir (voir App.jsx) : Bilan financier,
-// Assemblees generales, Previsionnel (Saisons : voir Seasons.jsx). Pour
+// Sous-onglets de Finances a venir (voir App.jsx) : Assemblees generales,
+// Previsionnel (Saisons : voir Seasons.jsx, Bilan financier :
+// FinancialReports.jsx). Pour
 // l'instant un simple ecran d'attente par sous-onglet, qui rappelle a quoi
 // il servira.
 function InDevelopment({ title, children }) {
@@ -13,12 +14,6 @@ function InDevelopment({ title, children }) {
         <p>{children}</p>
       </div>
     </section>
-  )
-}
-
-export function FinancialReports() {
-  return (
-    <InDevelopment title="Bilan financier">L'espace où calculer et conserver les bilans financiers.</InDevelopment>
   )
 }
 
