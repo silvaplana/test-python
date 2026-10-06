@@ -239,3 +239,13 @@ def test_api_and_downloads(db, seasons):
     assert client.put(f"/financial-reports/{created['id']}", json={"name": "Bilan", "state": "nul"}).status_code == 400
     assert client.delete(f"/financial-reports/{created['id']}").json() == {"deleted": created["id"]}
     assert client.get(f"/financial-reports/{created['id']}").status_code == 404
+
+
+def test_counts_per_season(db, seasons):
+    """Nombre de bilans par saison, affiche dans le choix de la saison."""
+    reports = make_reports(db, seasons, FakeAnalyst({}))
+    first, second = season_id(seasons, "2024-2025"), season_id(seasons, "2025-2026")
+    reports.create({"seasonId": first, "name": "A"})
+    reports.create({"seasonId": first, "name": "B"})
+    reports.create({"seasonId": second, "name": "C"})
+    assert reports.counts() == {first: 2, second: 1}

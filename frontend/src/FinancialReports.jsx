@@ -137,6 +137,8 @@ export function FinancialReports({ active }) {
             <option key={s.id} value={s.id}>
               {s.name}
               {s.current ? ' (en cours)' : ''}
+              {/* Nombre de calculs de la saison (connu une fois la liste chargee). */}
+              {listing?.counts && ` : ${listing.counts[s.id] ?? 0} calcul${(listing.counts[s.id] ?? 0) > 1 ? 's' : ''}`}
             </option>
           ))}
         </select>

@@ -312,6 +312,7 @@ def test_api_upload_download_and_slides(setup, monkeypatch):
     assert bad.status_code == 400
     listing = http.get("/general-assemblies?seasonId=2").json()
     assert listing["templateUploaded"] is True
+    assert listing["counts"] == {"2": 1}
     assert [a["hasPpt"] for a in listing["assemblies"]] == [True]
     assert http.get(f"/general-assemblies/{created['id']}/files/inconnu/slides").status_code == 404
 

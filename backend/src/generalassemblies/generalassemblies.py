@@ -120,6 +120,12 @@ class GeneralAssemblies:
             **sources,
         }
 
+    def counts(self) -> dict[int, int]:
+        """Nombre de calculs d'AG par saison (affiche dans le choix de la saison)."""
+        with self.db.connect() as connection:
+            rows = connection.execute("SELECT season_id, COUNT(*) FROM general_assemblies GROUP BY season_id").fetchall()
+        return {row[0]: row[1] for row in rows}
+
     def list(self, season_id: int) -> list[dict]:
         with self.db.connect() as connection:
             rows = connection.execute(

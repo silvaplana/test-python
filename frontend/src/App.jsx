@@ -5,7 +5,6 @@ import { requestStatementImport } from './BankHistory.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
-import { FinancialBalance } from './FinancialBalance.jsx'
 import { FinancialReports } from './FinancialReports.jsx'
 import { Forecasts } from './Forecasts.jsx'
 import { GeneralAssemblies } from './GeneralAssemblies.jsx'
@@ -103,11 +102,18 @@ function AppContent() {
                   // meme mot de passe que Comptes.
                   { label: 'Prévisionnel', content: (active) => <Forecasts active={active} /> },
                 ]
-              : []),
-            // Ancien "Bilan financier" (analyse IA des releves deposes),
-            // remplace par l'historique de l'onglet Comptes : garde pour
-            // l'instant, sous le nom "Deprecated".
-            { label: 'Deprecated', content: () => <FinancialBalance /> },
+              : [
+                  // Sans le mot de passe "comptes" : rien a afficher.
+                  {
+                    label: 'Finances',
+                    content: () => (
+                      <p className="empty-state">
+                        Les finances sont réservées au mot de passe « comptes » : déconnecte-toi (onglet Profil), puis
+                        reconnecte-toi avec ce mot de passe.
+                      </p>
+                    ),
+                  },
+                ]),
           ],
         },
         {

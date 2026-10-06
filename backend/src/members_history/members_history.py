@@ -1,6 +1,6 @@
 """Historique des adherents (payeurs) du club, toutes saisons confondues.
 
-Contrairement aux autres modules (helloasso, ffst, financialbalance), ne
+Contrairement aux autres modules (helloasso, ffst, bankaccounts), ne
 parle a aucune API externe : lit un fichier xlsx statique, genere hors de
 ce backend (export manuel a partir des donnees HelloAsso de toutes les
 saisons passees) et embarque dans l'image Docker (voir

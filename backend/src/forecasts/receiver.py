@@ -68,8 +68,13 @@ class ForecastsReceiver:
 
     def listForecasts(self, seasonId: int | None = None) -> dict:
         """Endpoint REST GET /forecasts?seasonId= : previsionnels de la saison
-        (sans leur resultat), modeles et etats possibles."""
-        return {**self.client.models(), "forecasts": self.client.list(seasonId) if seasonId is not None else []}
+        (sans leur resultat), modeles et etats possibles, et nombre de
+        previsionnels de chaque saison (counts : {id de saison: nombre})."""
+        return {
+            **self.client.models(),
+            "counts": self.client.counts(),
+            "forecasts": self.client.list(seasonId) if seasonId is not None else [],
+        }
 
     def getForecast(self, forecast_id: int) -> dict:
         """Endpoint REST GET /forecasts/{id} : previsionnel complet, relu par

@@ -33,7 +33,7 @@ class PushNotifications:
     et sait envoyer une notification a tous les abonnes.
 
     Stockage en fichiers JSON (pas de base de donnees pour ce volume de
-    donnees, meme pattern que financialbalance) dans storage_dir, qui
+    donnees) dans storage_dir, qui
     doit pointer vers un repertoire persistant (volume Docker) sous peine
     de tout reoublier -- et donc renotifier tous les adherents existants
     -- a chaque redeploiement.

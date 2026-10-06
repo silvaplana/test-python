@@ -6,7 +6,7 @@ env/
 # Secrets locaux
 .env
 
-# Donnees sensibles uploadees (releves bancaires, voir financialbalance)
+# Donnees sensibles de l'appli en local (base, releves bancaires, PPT...)
 backend/data/
 
 # Cle privee Enable Banking (.pem, voir bankaccounts) -- ne JAMAIS commiter

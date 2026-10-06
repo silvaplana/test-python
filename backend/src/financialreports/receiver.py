@@ -49,8 +49,13 @@ class FinancialReportsReceiver:
 
     def listReports(self, seasonId: int | None = None) -> dict:
         """Endpoint REST GET /financial-reports?seasonId= : bilans de la
-        saison (sans leur resultat), modeles et etats possibles."""
-        return {**self.client.models(), "reports": self.client.list(seasonId) if seasonId is not None else []}
+        saison (sans leur resultat), modeles et etats possibles, et nombre de
+        bilans de chaque saison (counts : {id de saison: nombre})."""
+        return {
+            **self.client.models(),
+            "counts": self.client.counts(),
+            "reports": self.client.list(seasonId) if seasonId is not None else [],
+        }
 
     def getReport(self, report_id: int) -> dict:
         """Endpoint REST GET /financial-reports/{id} : bilan complet, relu par

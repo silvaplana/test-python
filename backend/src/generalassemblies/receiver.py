@@ -79,6 +79,8 @@ class GeneralAssembliesReceiver:
         saison, modeles, etats, bilan et PPT modele que prendrait un calcul."""
         return {
             **self.client.options(seasonId),
+            # Nombre de calculs de chaque saison ({id de saison: nombre}).
+            "counts": self.client.counts(),
             "assemblies": self.client.list(seasonId) if seasonId is not None else [],
         }
 

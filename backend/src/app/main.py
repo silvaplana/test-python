@@ -20,7 +20,6 @@ from bankaccounts import BankAccounts, BankAccountsReceiver, EnableBankingClient
 from bankstatements import BankStatements, BankStatementsReceiver
 from database import Database
 from ffst import Ffst, FfstReceiver
-from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from financialreports import FinancialReports, FinancialReportsReceiver
 from forecasts import Forecasts, ForecastsReceiver
 from generalassemblies import GeneralAssemblies, GeneralAssembliesReceiver
@@ -79,8 +78,8 @@ helloasso_client = HelloAsso(
     sandbox=os.environ.get("HELLOASSO_SANDBOX", "").lower() in ("1", "true", "yes"),
     # Cache disque des vignettes de photo d'adherent (voir
     # HelloAsso.get_photo_thumbnail) : doit pointer vers un repertoire
-    # persistant (volume Docker, meme necessite que
-    # financialbalance_client/notifications_client plus bas) sous peine
+    # persistant (volume Docker, meme necessite que notifications_client
+    # plus bas) sous peine
     # de re-telecharger+redimensionner la photo d'origine (jusqu'a
     # plusieurs Mo) de chaque adherent a chaque redeploiement.
     photo_cache_dir=os.environ.get("HELLOASSO_PHOTO_CACHE_DIR", "data/photos_cache"),
@@ -107,8 +106,8 @@ ffst_client = Ffst(
 ffst_receiver = FfstReceiver(client=ffst_client, app=protected_router)
 
 # Base de donnees SQLite de l'appli (voir database/database.py) : fichier
-# dans le volume Docker (/app/data), meme necessite de persistance que
-# financialbalance_client plus bas. Schema mis a jour au demarrage.
+# dans le volume Docker (/app/data), pour ne pas etre perdu a chaque
+# redeploiement. Schema mis a jour au demarrage.
 database = Database(os.environ.get("DATABASE_PATH", "data/sambo.db"))
 database.migrate()
 
@@ -141,15 +140,6 @@ trials_receiver = TrialsReceiver(client=trials_client, app=protected_router)
 # montees directement sur l'app, SANS mot de passe (comme /auth/login).
 trials_public_receiver = TrialsPublicReceiver(client=trials_client, app=app)
 
-# Monte les routes du bilan financier (/financialbalance/archives) sur la
-# meme app. storage_dir doit pointer vers un repertoire persistant (volume
-# Docker, voir docker-compose.yml) sous peine de perdre les archives
-# recues au prochain redeploiement.
-financialbalance_client = FinancialBalance(
-    storage_dir=os.environ.get("FINANCIALBALANCE_STORAGE_DIR", "data/bank_archives"),
-)
-financialbalance_receiver = FinancialBalanceReceiver(client=financialbalance_client, app=protected_router)
-
 # Monte les routes de l'historique des adherents (/members_history) sur la
 # meme app. Aucune config requise : lit un fichier xlsx embarque dans le
 # backend (voir members_history/members_history.py), pas une API externe.
@@ -158,7 +148,7 @@ members_history_receiver = MembersHistoryReceiver(client=members_history_client,
 
 # Monte les routes de notifications push (/notifications/...) sur la meme
 # app. storage_dir doit pointer vers un repertoire persistant (volume
-# Docker) : meme necessite que financialbalance_client ci-dessus, sous
+# Docker, voir docker-compose.yml), sous
 # peine de perdre tous les abonnements (et de renotifier tous les
 # adherents existants comme "nouveaux") a chaque redeploiement. Cles
 # VAPID generees une fois (voir README) et fixes pour la duree de vie du

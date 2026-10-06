@@ -166,6 +166,8 @@ export function GeneralAssemblies({ active }) {
             <option key={s.id} value={s.id}>
               {s.name}
               {s.current ? ' (en cours)' : ''}
+              {/* Nombre de calculs de la saison (connu une fois la liste chargee). */}
+              {listing?.counts && ` : ${listing.counts[s.id] ?? 0} calcul${(listing.counts[s.id] ?? 0) > 1 ? 's' : ''}`}
             </option>
           ))}
         </select>
@@ -198,7 +200,8 @@ export function GeneralAssemblies({ active }) {
       ) : (
         <ul className="reports-list">
           {shown.map((a) => (
-            <li key={a.id}>
+            // Toute la carte ouvre le calcul, comme le crayon.
+            <li key={a.id} className="reports-item-open" onClick={() => setEditing(a.id)}>
               <div className="reports-item-main">
                 <span className="reports-item-name">{a.name}</span>
                 <span className="reports-item-meta">
@@ -219,7 +222,16 @@ export function GeneralAssemblies({ active }) {
               <button className="reports-icon" onClick={() => setEditing(a.id)} aria-label={`Modifier ${a.name}`} title="Modifier">
                 <PencilIcon />
               </button>
-              <button className="reports-icon reports-icon-danger" onClick={() => remove(a)} aria-label={`Supprimer ${a.name}`} title="Supprimer">
+              <button
+                className="reports-icon reports-icon-danger"
+                onClick={(e) => {
+                  // Ne pas ouvrir la carte en meme temps.
+                  e.stopPropagation()
+                  remove(a)
+                }}
+                aria-label={`Supprimer ${a.name}`}
+                title="Supprimer"
+              >
                 <TrashIcon />
               </button>
             </li>

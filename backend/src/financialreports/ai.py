@@ -1,5 +1,4 @@
-"""Appel a l'IA (API Claude d'Anthropic, comme l'ancien bilan de l'onglet
-Deprecated, voir financialbalance/) pour un bilan financier.
+"""Appel a l'IA (API Claude d'Anthropic) pour un bilan financier.
 
 L'IA ne calcule rien : le tableau est calcule au centime par l'appli (voir
 report.py). Elle recoit les chiffres de la saison et des saisons
