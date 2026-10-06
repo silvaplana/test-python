@@ -224,6 +224,12 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX forecasts_season ON forecasts (season_id);
     """,
+    # 9 : provenance d'un PPT d'assemblee generale (voir generalassemblies/),
+    # affichee pour le PPT modele : fichier importe, copie du PPT d'un autre
+    # calcul, modele par defaut... NULL : inconnue (PPT d'avant).
+    """
+    ALTER TABLE general_assembly_versions ADD COLUMN source TEXT;
+    """,
 ]
 
 

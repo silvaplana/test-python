@@ -11,7 +11,7 @@ un par sorte :
 - "modifie" : le PPT retouche par le tresorier, renvoye dans l'appli.
 Un nouveau PPT remplace celui de la meme sorte. Ils sont enregistres dans la
 table general_assembly_versions (origin "modele", "genere" ou "envoye" ; la
-derniere ligne de chaque origin compte), fichiers
+derniere ligne de chaque origin compte ; source : d'ou vient le PPT), fichiers
 storage_dir/<id>/v<n>.pptx (volume Docker).
 
 Executer un calcul (voir run), en arriere-plan :
@@ -138,14 +138,20 @@ class GeneralAssemblies:
 
     def files(self, assembly_id: int) -> dict:
         """Les 3 PPT du calcul : {"modele", "genere", "modifie"}, chacun
-        {"kind", "filename", "createdAt"} ou None."""
+        {"kind", "filename", "source", "createdAt"} ou None. source : d'ou
+        vient le PPT, en clair (None si inconnu)."""
         with self.db.connect() as connection:
             rows = connection.execute(
                 "SELECT * FROM general_assembly_versions WHERE assembly_id = ? ORDER BY number", (assembly_id,)
             ).fetchall()
         latest = {row["origin"]: row for row in rows}
         return {
-            kind: {"kind": kind, "filename": latest[origin]["filename"], "createdAt": latest[origin]["created_at"]}
+            kind: {
+                "kind": kind,
+                "filename": latest[origin]["filename"],
+                "source": latest[origin]["source"],
+                "createdAt": latest[origin]["created_at"],
+            }
             if origin in latest
             else None
             for kind, origin in KINDS.items()
@@ -257,8 +263,9 @@ class GeneralAssemblies:
                     return self.storage / str(assembly_id) / f"v{row['number']}.pptx", row["filename"]
         raise AssemblyNotFoundError(assembly_id)
 
-    def _set_file(self, assembly_id: int, kind: str, source: Path | bytes, filename: str) -> None:
-        """Enregistre un PPT du calcul, a la place de celui de la meme sorte."""
+    def _set_file(self, assembly_id: int, kind: str, source: Path | bytes, filename: str, origin_text: str) -> None:
+        """Enregistre un PPT du calcul, a la place de celui de la meme sorte.
+        origin_text : d'ou il vient, en clair (affiche dans l'ecran)."""
         origin = KINDS[kind]
         folder = self.storage / str(assembly_id)
         folder.mkdir(parents=True, exist_ok=True)
@@ -285,9 +292,9 @@ class GeneralAssemblies:
                 "DELETE FROM general_assembly_versions WHERE assembly_id = ? AND origin = ?", (assembly_id, origin)
             )
             connection.execute(
-                """INSERT INTO general_assembly_versions (assembly_id, number, origin, filename, created_at)
-                   VALUES (?, ?, ?, ?, ?)""",
-                (assembly_id, number, origin, filename, _now()),
+                """INSERT INTO general_assembly_versions (assembly_id, number, origin, filename, source, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (assembly_id, number, origin, filename, origin_text, _now()),
             )
             connection.execute("UPDATE general_assemblies SET updated_at = ? WHERE id = ?", (_now(), assembly_id))
         # Fichiers et images des diapos des PPT remplaces.
@@ -312,7 +319,7 @@ class GeneralAssemblies:
         self._row(assembly_id)
         tmp = self.storage / str(assembly_id) / "envoi.tmp"
         self._check_pptx(content, tmp)
-        self._set_file(assembly_id, "modifie", tmp, filename or "ag.pptx")
+        self._set_file(assembly_id, "modifie", tmp, filename or "ag.pptx", "Importé de ton ordinateur")
         return self.get(assembly_id)
 
     def set_model(self, assembly_id: int, content: bytes, filename: str) -> dict:
@@ -320,7 +327,7 @@ class GeneralAssemblies:
         self._row(assembly_id)
         tmp = self.storage / str(assembly_id) / "modele.tmp"
         self._check_pptx(content, tmp)
-        self._set_file(assembly_id, "modele", tmp, filename or "modele.pptx")
+        self._set_file(assembly_id, "modele", tmp, filename or "modele.pptx", "Importé de ton ordinateur")
         return self.get(assembly_id)
 
     def copy_model(self, assembly_id: int, source_id: int | None, kind: str) -> dict:
@@ -331,7 +338,7 @@ class GeneralAssemblies:
         if kind == "general":
             if not self.template_path.exists():
                 raise AssemblyError("Il n'y a pas de modèle général")
-            path, filename = self.template_path, "Modèle général.pptx"
+            path, filename, origin_text = self.template_path, "Modèle général.pptx", "Copie du modèle général"
         else:
             if source_id is None or source_id == assembly_id or kind not in KINDS:
                 raise AssemblyError("Choisis un PPT d'un autre calcul")
@@ -339,7 +346,10 @@ class GeneralAssemblies:
                 path, filename = self.file_path(source_id, kind)
             except AssemblyNotFoundError as exc:
                 raise AssemblyError("Ce PPT n'existe plus") from exc
-        self._set_file(assembly_id, "modele", path.read_bytes(), filename)
+            source = self._row(source_id)
+            season = next((s["name"] for s in self.seasons() if s["id"] == source["season_id"]), "?")
+            origin_text = f"Copie du PPT {KIND_LABELS[kind]} du calcul « {source['name']} » ({season})"
+        self._set_file(assembly_id, "modele", path.read_bytes(), filename, origin_text)
         return self.get(assembly_id)
 
     def model_sources(self, exclude: int | None = None) -> list[dict]:
@@ -481,7 +491,13 @@ class GeneralAssemblies:
             template, template_info = self._model(assembly_id, season["id"])
             if template_info["kind"] != "own":
                 # Modele par defaut : il devient le modele du calcul.
-                self._set_file(assembly_id, "modele", template.read_bytes(), f"{template_info['name']}.pptx")
+                self._set_file(
+                    assembly_id,
+                    "modele",
+                    template.read_bytes(),
+                    f"{template_info['name']}.pptx",
+                    f"Pris par défaut, faute de modèle choisi : {template_info['name']}",
+                )
                 template, _ = self.file_path(assembly_id, "modele")
             data = self._ai_data(seasons, index, report, outline(template))
             draft: Draft = self.writer.write(row["model"], data, row["prompt"])
@@ -492,7 +508,13 @@ class GeneralAssemblies:
             warnings = check_amounts(
                 draft.zones, self._known_amounts(report["result"]) | self._prompt_amounts(row["prompt"])
             )
-            self._set_file(assembly_id, "genere", output, f"AG-{season['name']}-{row['name']}.pptx")
+            self._set_file(
+                assembly_id,
+                "genere",
+                output,
+                f"AG-{season['name']}-{row['name']}.pptx",
+                f"Produit par {MODELS[draft.model]['label']} à partir du PPT modèle",
+            )
             result = {
                 "report": {"id": report["id"], "name": report["name"], "state": report["state"]},
                 "template": template_info,

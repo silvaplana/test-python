@@ -473,9 +473,11 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             {files.modele
               ? files.modele.filename
               : options.template
-                ? `Par défaut : ${options.template.name}`
+                ? `Pas encore choisi. Par défaut : ${options.template.name}`
                 : "Aucun pour l'instant"}
           </b>
+          {/* D'ou vient le modele (inconnu pour un PPT d'avant cette information). */}
+          {files.modele?.source && <span className="ag-model-source">{files.modele.source}</span>}
           <div className="ag-model-actions">
             <PptxButton label="Choisir un fichier" onFile={uploadModel} disabled={pending || running || !form.name.trim()} />
             <select
@@ -564,6 +566,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             <div className="ag-shown-file">
               <span className="reports-period">
                 {shownFile.filename}, enregistré le {dateFr(shownFile.createdAt)} à {timeFr(shownFile.createdAt)}.
+                {shownFile.source && ` ${shownFile.source}.`}
               </span>
               <button onClick={download}>Télécharger</button>
             </div>

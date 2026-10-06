@@ -2765,6 +2765,10 @@ td button + .ffst-role-picker,
   overflow-wrap: anywhere;
 }
 
+.ag-model-source {
+  color: var(--text);
+}
+
 .ag-model-actions {
   display: flex;
   flex-wrap: wrap;

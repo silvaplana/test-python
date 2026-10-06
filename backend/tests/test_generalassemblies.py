@@ -176,6 +176,7 @@ def test_run_fills_the_template_with_the_official_report(setup):
     assert done["hasPpt"] is True
     # Le modele par defaut (modele general) est devenu le modele du calcul.
     assert [kind for kind, file in done["files"].items() if file] == ["modele", "genere"]
+    assert done["files"]["modele"]["source"] == "Pris par défaut, faute de modèle choisi : Modèle général"
     result = done["result"]
     assert result["report"]["name"] == "Bilan officiel"
     assert result["template"]["kind"] == "uploaded"
@@ -329,6 +330,8 @@ def test_api_upload_download_and_slides(setup, monkeypatch):
     assert sources[0]["label"] == "2025-2026, AG 2026 : PPT modifié"
     copied = http.put(f"/general-assemblies/{other['id']}/model", json={"sourceId": created["id"], "kind": "modifie"})
     assert copied.json()["files"]["modele"]["filename"] == "ma-version.pptx"
+    assert copied.json()["files"]["modele"]["source"] == "Copie du PPT modifié du calcul « AG 2026 » (2025-2026)"
+    assert sent["files"]["modele"]["source"] == "Importé de ton ordinateur"
     model = http.get(f"/general-assemblies/{other['id']}/download?kind=modele")
     assert texts(io.BytesIO(model.content))[1]["title"] == "Ma version"
     assert http.put(f"/general-assemblies/{other['id']}/model", json={"sourceId": other["id"], "kind": "modele"}).status_code == 400
