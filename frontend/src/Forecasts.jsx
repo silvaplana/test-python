@@ -438,9 +438,13 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
     replay(defaults)
   }
 
-  async function download(format) {
+  // seasonIds : saisons affichees dans le graphique pour comparer ; le fichier
+  // contient les memes.
+  async function download(format, seasonIds) {
     try {
-      const response = await fetch(`${API_URL}/forecasts/${forecastId}/download?format=${format}`, { credentials: 'include' })
+      const response = await fetch(`${API_URL}/forecasts/${forecastId}/download?format=${format}&seasons=${seasonIds.join(',')}`, {
+        credentials: 'include',
+      })
       if (!response.ok) throw new Error(`Téléchargement impossible (${response.status})`)
       const url = URL.createObjectURL(await response.blob())
       const link = document.createElement('a')
@@ -685,6 +689,8 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
     writeCompare(next)
   }
 
+  // Saisons reellement affichees pour comparer (reprises dans les fichiers).
+  const shownSeasons = others.filter((s) => compare.has(s.id)).map((s) => s.id)
   const points = result.points
   const end = points[points.length - 1]
   const series = seasonsData.series.map((p) => ({ t: ts(p.date), v: p.total }))
@@ -733,8 +739,8 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
         baseline={opening}
       />
       <div className="reports-downloads forecasts-downloads">
-        <button onClick={() => onDownload('png')}>Télécharger image</button>
-        <button onClick={() => onDownload('pdf')}>Télécharger PDF</button>
+        <button onClick={() => onDownload('png', shownSeasons)}>Télécharger image</button>
+        <button onClick={() => onDownload('pdf', shownSeasons)}>Télécharger PDF</button>
       </div>
       <p className="reports-hint">
         Saisons superposées du 1er juillet au 30 juin. Prévision : un point par semaine ; bouger un curseur la recalcule sans rappeler

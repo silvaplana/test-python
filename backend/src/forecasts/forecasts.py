@@ -346,8 +346,10 @@ class Forecasts:
             )
         return self.get(forecast_id)
 
-    def export(self, forecast_id: int, file_format: str) -> tuple[bytes, str, str]:
-        """Resultat en image (png) ou PDF : (contenu, type, nom du fichier)."""
+    def export(self, forecast_id: int, file_format: str, season_ids: list[int] | None = None) -> tuple[bytes, str, str]:
+        """Resultat en image (png) ou PDF : (contenu, type, nom du fichier).
+        season_ids : saisons superposees pour comparer, celles choisies a
+        l'ecran (None : la saison precedente)."""
         forecast = self.get(forecast_id)
         if forecast["result"] is None:
             raise ForecastError("Ce prévisionnel n'a pas encore été calculé")
@@ -355,9 +357,19 @@ class Forecasts:
             raise ForecastError("Format inconnu (png ou pdf)")
         seasons = self.seasons()
         index = next((i for i, s in enumerate(seasons) if s["id"] == forecast["seasonId"]), None)
-        previous = seasons[index - 1] if index else None
-        png = exports.to_png(exports.chart_svg(forecast, self.ledger(), previous))
+        earlier = seasons[:index] if index else []
+        if season_ids is None:
+            season_ids = [s["id"] for s in earlier[-1:]]
+        # Seules les saisons d'avant se comparent ; couleur selon le rang de
+        # la saison, comme a l'ecran.
+        compared = [
+            {**s, "color": exports.SEASON_COLORS[i % len(exports.SEASON_COLORS)]}
+            for i, s in enumerate(earlier)
+            if s["id"] in season_ids
+        ]
+        ledger = self.ledger()
         name = f"previsionnel-{forecast['result']['seasonName']}-{forecast['id']}.{file_format}"
         if file_format == "png":
-            return png, "image/png", name
-        return exports.to_pdf(forecast, png), "application/pdf", name
+            return exports.to_png(exports.chart_svg(forecast, ledger, compared)), "image/png", name
+        chart = exports.to_png(exports.chart_svg(forecast, ledger, compared, header=False))
+        return exports.to_pdf(forecast, chart), "application/pdf", name

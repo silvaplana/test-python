@@ -359,3 +359,33 @@ def test_explanation_open_is_kept(db, seasons):
     assert again["settingsOpen"] is True
     assert forecasts.set_settings_open(created["id"], False) == {"settingsOpen": False}
     assert forecasts.get(created["id"])["settingsOpen"] is False
+
+
+def test_export_keeps_only_chosen_seasons(db, seasons):
+    """Image et PDF : les saisons comparees sont celles choisies a l'ecran, et
+    le contenu se limite au titre, aux parametres, aux soldes et au graphique."""
+    from forecasts import exports
+
+    forecasts = make_forecasts(db, seasons, FakeCoder())
+    created = forecasts.create({"seasonId": season_id(seasons, "2026-2027"), "name": "Prévision"})
+    forecasts.run(created["id"], {})
+    forecast = forecasts.get(created["id"])
+    ledger = BankStatements(db).get_ledger()
+    previous = {"name": "2025-2026", "startDate": "2025-07-01", "endDate": "2026-06-30", "color": exports.SEASON_COLORS[0]}
+
+    with_previous = exports.chart_svg(forecast, ledger, [previous])
+    alone = exports.chart_svg(forecast, ledger, [])
+    assert ">2025-2026<" in with_previous and ">2025-2026<" not in alone
+    for text in ("Prévision — saison 2026-2027", "Solde au 01/07/2026", "Solde prévu au 30/06/2027", "Résultat prévu au 30/06/2027"):
+        assert text in alone
+    assert "Point le plus bas" not in alone and "formule" not in alone
+    # Graphique seul (PDF) : ni titre ni soldes dans l'image.
+    assert "Solde prévu" not in exports.chart_svg(forecast, ledger, [], header=False)
+
+    # Sans choix transmis : la saison precedente ; liste vide : aucune.
+    assert forecasts.export(created["id"], "png")[1] == "image/png"
+    pdf = forecasts.export(created["id"], "pdf", [])[0]
+    import pymupdf
+
+    text = pymupdf.open(stream=pdf, filetype="pdf")[0].get_text()
+    assert "Soldes et résultat" in text and "Formule Python" not in text and "Explication" not in text

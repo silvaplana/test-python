@@ -1,8 +1,11 @@
 """Telechargement du resultat d'un previsionnel : image (PNG) ou PDF.
 
-L'image : titre, chiffres cles et courbe du solde (reel puis prevu, et la
-saison precedente pour comparer), dessinee en SVG puis convertie par
-PyMuPDF. Le PDF reprend l'image, les curseurs, l'explication et la formule.
+Les deux contiennent la meme chose, et rien d'autre : le titre, les
+parametres choisis (position des curseurs), les soldes (debut de saison,
+prevu en fin de saison), le resultat prevu et le graphique -- reel puis
+prevu, avec les saisons choisies a l'ecran pour comparer. L'image est
+dessinee en SVG puis convertie par PyMuPDF ; le PDF a son texte en vrai
+texte et le graphique en image.
 """
 
 from __future__ import annotations
@@ -18,7 +21,13 @@ from . import data as forecast_data
 
 WIDTH, HEIGHT = 1000, 560
 CHART = {"left": 80, "right": 970, "top": 170, "bottom": 500}
-REAL, FORECAST, PREVIOUS, ACTUAL = "#7c3aed", "#ea7a1a", "#3987e5", "#b9a3e8"
+REAL, FORECAST, ACTUAL = "#7c3aed", "#ea7a1a", "#b9a3e8"
+# Couleur des saisons comparees, dans l'ordre des saisons : les memes qu'a
+# l'ecran (SEASON_COLORS de Seasons.jsx).
+SEASON_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9"]
+# Hauteur du haut de l'image (titre, parametres, soldes) au-dessus du graphique.
+HEADER = 150
+PARAMS_LINE = 118  # caracteres par ligne de parametres dans l'image
 BASELINE = "#9ca3af"  # ligne d'equilibre (solde du debut de la saison)
 MONTHS = ["juil.", "août", "sept.", "oct.", "nov.", "déc.", "janv.", "févr.", "mars", "avr.", "mai", "juin"]
 
@@ -44,16 +53,44 @@ def _value(param: dict, value: float) -> str:
     return f"{number} {param['unit']}".strip()
 
 
-def summary(forecast: dict) -> dict:
-    """Chiffres cles : solde prevu en fin de saison, point le plus bas."""
-    points = forecast["result"]["points"]
-    low = min(points, key=lambda p: p["solde"])
-    return {"end": points[-1], "low": low, "start": points[0]}
+def chosen_parameters(forecast: dict) -> list[tuple[str, str]]:
+    """Parametres choisis : (libelle, valeur) a la position des curseurs."""
+    params = forecast.get("params") or {}
+    return [(p["label"], _value(p, params.get(p["name"], p["default"]))) for p in forecast["result"]["parameters"]]
 
 
-def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
-    """Image du resultat (SVG). previous : saison precedente (fiche de
-    Seasons) a superposer, ou None."""
+def figures(forecast: dict) -> list[tuple[str, str]]:
+    """Soldes et resultat : (libelle, valeur) du debut de saison, du solde
+    prevu en fin de saison et du resultat prevu (leur difference)."""
+    data = forecast["result"]["data"]
+    end = forecast["result"]["points"][-1]["solde"]
+    opening = data.get("soldeDebutSaison")
+    outcome = None if opening is None else end - opening
+    return [
+        (f"Solde au {_fr(data['debutSaison'])}", _eur(opening)),
+        (f"Solde prévu au {_fr(data['finSaison'])}", _eur(end)),
+        (
+            f"Résultat prévu au {_fr(data['finSaison'])}",
+            "—" if outcome is None else ("+" if outcome >= 0 else "−") + _eur(abs(outcome)),
+        ),
+    ]
+
+
+def _wrap(parts: list[str], width: int) -> list[str]:
+    """Regroupe des morceaux de texte en lignes d'au plus `width` caracteres."""
+    lines: list[str] = []
+    for part in parts:
+        if lines and len(lines[-1]) + len(part) + 3 <= width:
+            lines[-1] += " ; " + part
+        else:
+            lines.append(part)
+    return lines
+
+
+def chart_svg(forecast: dict, ledger: dict, compared: list[dict], header: bool = True) -> str:
+    """Image du resultat (SVG). compared : saisons a superposer pour comparer
+    (fiches de Seasons, avec leur "color"). header=False : le graphique seul,
+    sans le titre, les parametres ni les soldes (pour le PDF)."""
     result = forecast["result"]
     data = result["data"]
     rows = forecast_data.history(ledger)
@@ -67,20 +104,21 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
     if real and real[-1]["date"] < start:
         real.append({"date": start, "solde": data["soldeDepart"]})
     after = forecast_data.realized(rows, start, season_end)[1:]  # reel apres le depart (test sur le passe)
-    prev = []
-    if previous is not None:
-        offset = x0 - _day(previous["startDate"])
-        points = forecast_data.realized(rows, previous["startDate"], previous["endDate"])
-        if points and points[-1]["date"] < previous["endDate"]:
-            points.append({"date": previous["endDate"], "solde": points[-1]["solde"]})
-        prev = [{"x": _day(p["date"]) + offset, "v": p["solde"]} for p in points]
+    # Saisons comparees, ramenees sur l'axe de la saison du previsionnel.
+    others = []
+    for season in compared:
+        offset = x0 - _day(season["startDate"])
+        points = forecast_data.realized(rows, season["startDate"], season["endDate"])
+        if points and points[-1]["date"] < season["endDate"]:
+            points.append({"date": season["endDate"], "solde": points[-1]["solde"]})
+        if points:
+            others.append((season, [{"x": _day(p["date"]) + offset, "v": p["solde"]} for p in points]))
     lines = {
         "real": [{"x": _day(p["date"]), "v": p["solde"]} for p in real],
         "after": [{"x": _day(start), "v": data["soldeDepart"]}] + [{"x": _day(p["date"]), "v": p["solde"]} for p in after] if after else [],
         "forecast": [{"x": _day(p["date"]), "v": p["solde"]} for p in result["points"]],
-        "prev": prev,
     }
-    values = [p["v"] for line in lines.values() for p in line if p["v"] is not None]
+    values = [p["v"] for line in [*lines.values(), *(points for _, points in others)] for p in line if p["v"] is not None]
     # Ligne d'equilibre : le solde du debut de la saison.
     baseline = data.get("soldeDebutSaison")
     if baseline is not None:
@@ -90,7 +128,14 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
     y_min, y_max = math.floor(low / step) * step, math.ceil(high / step) * step
     if y_min == y_max:
         y_max += step
-    c = CHART
+    # Haut de l'image : titre, parametres choisis (une ou plusieurs lignes),
+    # soldes et resultat. Le graphique descend d'autant.
+    e = html.escape
+    params_lines = _wrap([f"{label} : {value}" for label, value in chosen_parameters(forecast)], PARAMS_LINE) if header else []
+    top = (HEADER + 20 * max(0, len(params_lines) - 1)) if header else 20
+    shift = top - CHART["top"]
+    c = {**CHART, "top": CHART["top"] + shift, "bottom": CHART["bottom"] + shift}
+    height = HEIGHT + shift
 
     def x(day: int) -> float:
         return c["left"] + (day - x0) / (x1 - x0 or 1) * (c["right"] - c["left"])
@@ -130,24 +175,21 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
                     left = dash if on else gap
         return "".join(out)
 
-    figures = summary(forecast)
-    e = html.escape
     parts = [
-        f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{HEIGHT}" font-family="sans-serif">',
-        f'<rect width="{WIDTH}" height="{HEIGHT}" fill="#ffffff"/>',
-        f'<text x="40" y="44" font-size="24" font-weight="bold" fill="#1f2937">{e(forecast["name"])} — saison {e(result["seasonName"])}</text>',
-        f'<text x="40" y="72" font-size="14" fill="#6b7280">Solde courant + Livret Bleu. Départ le {_fr(start)} ({_eur(data["soldeDepart"])}), '
-        f'formule écrite par {e(result["modelLabel"])}.</text>',
-        f'<text x="40" y="112" font-size="14" fill="#6b7280">Solde prévu au {_fr(season_end)}</text>',
-        f'<text x="40" y="142" font-size="26" font-weight="bold" fill="{FORECAST}">{_eur(figures["end"]["solde"])}</text>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{height}" font-family="sans-serif">',
+        f'<rect width="{WIDTH}" height="{height}" fill="#ffffff"/>',
     ]
-    if data.get("soldeDebutSaison") is not None:
-        outcome = figures["end"]["solde"] - data["soldeDebutSaison"]
-        parts.append(f'<text x="330" y="112" font-size="14" fill="#6b7280">Résultat prévu au {_fr(season_end)}</text>')
-        parts.append(f'<text x="330" y="142" font-size="20" fill="#1f2937">{"+" if outcome >= 0 else "−"}{_eur(abs(outcome))}</text>')
-    if after:
-        parts.append(f'<text x="680" y="112" font-size="14" fill="#6b7280">Réel au {_fr(after[-1]["date"])}</text>')
-        parts.append(f'<text x="680" y="142" font-size="20" fill="#1f2937">{_eur(after[-1]["solde"])}</text>')
+    if header:
+        parts.append(
+            f'<text x="40" y="44" font-size="24" font-weight="bold" fill="#1f2937">{e(forecast["name"])} — saison {e(result["seasonName"])}</text>'
+        )
+        for i, line in enumerate(params_lines):
+            parts.append(f'<text x="40" y="{70 + 20 * i}" font-size="14" fill="#374151">{e(line)}</text>')
+        base = 70 + 20 * max(1, len(params_lines))
+        for i, (label, value) in enumerate(figures(forecast)):
+            color = FORECAST if i == 1 else "#1f2937"
+            parts.append(f'<text x="{40 + 310 * i}" y="{base + 14}" font-size="14" fill="#6b7280">{e(label)}</text>')
+            parts.append(f'<text x="{40 + 310 * i}" y="{base + 42}" font-size="22" font-weight="bold" fill="{color}">{e(value)}</text>')
     v = y_min
     while v <= y_max + 1e-6:
         parts.append(f'<line x1="{c["left"]}" y1="{y(v):.1f}" x2="{c["right"]}" y2="{y(v):.1f}" stroke="#e5e7eb" stroke-width="1"/>')
@@ -162,33 +204,30 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
         parts.append(
             f'<line x1="{c["left"]}" y1="{y(baseline):.1f}" x2="{c["right"]}" y2="{y(baseline):.1f}" stroke="{BASELINE}" stroke-width="1.5"/>'
         )
-    if prev:
-        parts.append(f'<polyline points="{steps(prev)}" fill="none" stroke="{PREVIOUS}" stroke-width="1.5"/>')
+    for season, points in others:
+        parts.append(f'<polyline points="{steps(points)}" fill="none" stroke="{season["color"]}" stroke-width="1.5"/>')
     if lines["after"]:
         parts.append(f'<polyline points="{steps(lines["after"])}" fill="none" stroke="{ACTUAL}" stroke-width="2"/>')
     if lines["real"]:
         parts.append(f'<polyline points="{steps(lines["real"])}" fill="none" stroke="{REAL}" stroke-width="3"/>')
     parts.append(dashes(lines["forecast"]))
     if baseline is not None:
-        # Par-dessus les courbes, sur un fond blanc pour rester lisible.
+        # Par-dessus les courbes, avec un lisere blanc pour rester lisible
+        # (trace d'abord en contour epais, puis en plein).
         text = f"ligne d'équilibre : {_eur(baseline, 0)}"
-        parts.append(
-            f'<rect x="{c["right"] - 7 * len(text) - 6}" y="{y(baseline) - 20:.1f}" width="{7 * len(text) + 6}" height="16" fill="#ffffff" opacity="0.85"/>'
-        )
-        parts.append(
-            f'<text x="{c["right"]}" y="{y(baseline) - 7:.1f}" font-size="12" fill="#4b5563" text-anchor="end">{text}</text>'
-        )
+        where = f'x="{c["right"]}" y="{y(baseline) - 7:.1f}" font-size="12" text-anchor="end"'
+        parts.append(f'<text {where} fill="#ffffff" stroke="#ffffff" stroke-width="4">{text}</text>')
+        parts.append(f'<text {where} fill="#4b5563">{text}</text>')
     legend = [(REAL, "réalisé"), (FORECAST, "prévision")]
     if lines["after"]:
         legend.append((ACTUAL, "réel après le départ"))
-    if previous is not None:
-        legend.append((PREVIOUS, previous["name"]))
+    legend += [(season["color"], season["name"]) for season, _ in others]
     if baseline is not None:
         legend.append((BASELINE, "ligne d'équilibre"))
     lx = c["left"]
     for color, label in legend:
-        parts.append(f'<line x1="{lx}" y1="{HEIGHT - 22}" x2="{lx + 22}" y2="{HEIGHT - 22}" stroke="{color}" stroke-width="3"/>')
-        parts.append(f'<text x="{lx + 30}" y="{HEIGHT - 17}" font-size="13" fill="#374151">{e(label)}</text>')
+        parts.append(f'<line x1="{lx}" y1="{height - 22}" x2="{lx + 22}" y2="{height - 22}" stroke="{color}" stroke-width="3"/>')
+        parts.append(f'<text x="{lx + 30}" y="{height - 17}" font-size="13" fill="#374151">{e(label)}</text>')
         lx += 60 + 8 * len(label)
     parts.append("</svg>")
     return "".join(parts)
@@ -214,30 +253,24 @@ h2 { font-size: 11.5pt; margin: 10pt 0 4pt; }
 table { border-collapse: collapse; }
 th { background: #ece6f6; text-align: left; padding: 2pt 6pt; }
 td { padding: 2pt 6pt; border-bottom: 1px solid #ddd; }
-td.num { text-align: right; }
+td.num { text-align: right; white-space: nowrap; }
 pre { font-family: monospace; font-size: 7.5pt; background: #f5f5f5; padding: 6pt; }
 .muted { color: #666; }
 """
 
 
 def to_pdf(forecast: dict, png: bytes) -> bytes:
+    """PDF : titre, parametres choisis, soldes et resultat, puis le
+    graphique (png : image du graphique seul)."""
     result = forecast["result"]
-    params = forecast["params"]
     e = html.escape
-    rows = "".join(
-        f"<tr><td>{e(p['label'])}</td><td class='num'>{e(_value(p, params.get(p['name'], p['default'])))}</td>"
-        f"<td class='num'>{e(_value(p, p['default']))}</td><td class='num'>{e(_value(p, p['min']))} à {e(_value(p, p['max']))}</td></tr>"
-        for p in result["parameters"]
-    )
+    params = "".join(f"<tr><td>{e(label)}</td><td class='num'>{e(value)}</td></tr>" for label, value in chosen_parameters(forecast))
+    amounts = "".join(f"<tr><td>{e(label)}</td><td class='num'>{e(value)}</td></tr>" for label, value in figures(forecast))
     body = (
-        f"<h1>Prévisionnel « {e(forecast['name'])} » — saison {e(result['seasonName'])}</h1>"
-        f"<p class='muted'>Calculé le {_fr(result['generatedAt'])} : formule écrite par {e(result['modelLabel'])}, "
-        f"exécutée par l'application.</p>"
-        "<img src='courbe.png' width='520'/>"
-        f"<h2>Paramètres</h2><table><tr><th>Paramètre</th><th>Valeur</th><th>Défaut</th><th>Bornes</th></tr>{rows}</table>"
-        f"<h2>Explication de l'IA</h2><p>{e(result['explanation'])}</p>"
-        f"<h2>Prompt</h2><p>{e(forecast['prompt'] or '(aucun)')}</p>"
-        f"<h2>Formule Python</h2><pre>{e(result['code'])}</pre>"
+        f"<h1>{e(forecast['name'])} — saison {e(result['seasonName'])}</h1>"
+        + (f"<h2>Paramètres choisis</h2><table>{params}</table>" if params else "")
+        + f"<h2>Soldes et résultat</h2><table>{amounts}</table>"
+        + "<h2>Graphique</h2><img src='courbe.png' width='520'/>"
     )
     archive = pymupdf.Archive()
     archive.add(png, "courbe.png")

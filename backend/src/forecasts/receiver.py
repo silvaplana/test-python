@@ -121,8 +121,14 @@ class ForecastsReceiver:
         "Réglages de l'IA" (prompt, modele, cout) est depliee."""
         return self._call(self.client.set_settings_open, forecast_id, request.open)
 
-    def downloadForecast(self, forecast_id: int, format: str = "png") -> Response:
-        """Endpoint REST GET /forecasts/{id}/download?format=png|pdf : resultat
-        en image ou en PDF."""
-        content, media_type, name = self._call(self.client.export, forecast_id, format)
+    def downloadForecast(self, forecast_id: int, format: str = "png", seasons: str | None = None) -> Response:
+        """Endpoint REST GET /forecasts/{id}/download?format=png|pdf&seasons=1,2 :
+        resultat en image ou en PDF. seasons : identifiants des saisons
+        superposees pour comparer (celles choisies a l'ecran ; vide : aucune ;
+        absent : la saison precedente)."""
+        try:
+            season_ids = None if seasons is None else [int(part) for part in seasons.split(",") if part.strip()]
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Saisons invalides") from exc
+        content, media_type, name = self._call(self.client.export, forecast_id, format, season_ids)
         return Response(content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="{name}"'})
