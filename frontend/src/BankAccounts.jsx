@@ -58,6 +58,14 @@ function processBankCallback() {
 // connexion bancaire (autorisation chez la banque, a renouveler). Reserve au
 // mot de passe "comptes" (voir Auth.jsx / App.jsx) ; le backend refuse (403)
 // sinon.
+// Jours avant l'expiration de l'autorisation de la banque a partir desquels
+// l'ecran propose de se reconnecter.
+const RECONNECT_WARNING_DAYS = 7
+
+function expiresSoon(validUntil) {
+  return Date.parse(validUntil) - Date.now() < RECONNECT_WARNING_DAYS * 24 * 3600 * 1000
+}
+
 export function BankAccounts({ active }) {
   const [status, setStatus] = useState(null)
   const [error, setError] = useState(null)
@@ -117,9 +125,12 @@ export function BankAccounts({ active }) {
         </div>
       )}
 
-      {status?.mode === 'live' && status.connected && (
+      {/* Connexion en place : rien a dire, sauf quand il va falloir se
+          reconnecter (autorisation de la banque bientot expiree). */}
+      {status?.mode === 'live' && status.connected && expiresSoon(status.validUntil) && (
         <p className="account-connection">
-          Connexion à {status.bank} valable jusqu'au {dateFr(status.validUntil.slice(0, 10))}.{' '}
+          La connexion à {status.bank} expire le {dateFr(status.validUntil.slice(0, 10))} : reconnecte-toi pour garder
+          les opérations à jour.{' '}
           <button onClick={connect} disabled={connecting}>
             {connecting ? 'Redirection…' : 'Reconnecter'}
           </button>
