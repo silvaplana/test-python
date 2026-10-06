@@ -186,7 +186,7 @@ export function Seasons({ active }) {
   async function remove() {
     if (
       !window.confirm(
-        `Supprimer la saison ${selected.name} ?\n\nSa fiche est effacée (dates, licenciés, solde, coût IA). Les opérations bancaires de cette période restent dans Comptes.`
+        `Supprimer la saison ${selected.name} ?\n\nSa fiche est effacée (dates, licenciés, solde, coût IA), ainsi que ses bilans financiers. Les opérations bancaires de cette période restent dans Comptes.`
       )
     )
       return

@@ -138,6 +138,31 @@ MIGRATIONS: list[str] = [
         updated_at TEXT NOT NULL
     );
     """,
+    # 6 : bilans financiers d'une saison (voir financialreports/). Plusieurs
+    # calculs par saison, chacun avec son etat (brouillon, valide, officiel :
+    # un seul officiel par saison), le prompt donne a l'IA, le dernier modele
+    # utilise et le cout cumule de l'IA en euros (REAL : quelques centimes par
+    # calcul). result : JSON du dernier calcul (tableau + analyse). status :
+    # "idle", "running" (calcul en cours, lance a run_started_at) ou "error".
+    # Supprimer la saison supprime ses bilans.
+    """
+    CREATE TABLE financial_reports (
+        id INTEGER PRIMARY KEY,
+        season_id INTEGER NOT NULL REFERENCES seasons (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'brouillon',
+        prompt TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL,
+        ai_cost REAL NOT NULL DEFAULT 0,
+        result TEXT,
+        status TEXT NOT NULL DEFAULT 'idle',
+        error TEXT,
+        run_started_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX financial_reports_season ON financial_reports (season_id);
+    """,
 ]
 
 

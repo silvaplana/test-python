@@ -8,10 +8,11 @@ modifiee et supprimee a la main. Ce qu'elle contient :
 - solde de fin de saison, compte courant + Livret Bleu cumules : calcule
   depuis l'historique des comptes (bankstatements) tant qu'il n'est pas
   saisi a la main ; pour la saison en cours, solde a ce jour ;
-- cout de l'IA : cout cumule de l'API sur la saison, saisi a la main.
+- cout de l'IA : cout cumule de l'API sur la saison, saisi a la main et
+  augmente a chaque calcul de bilan (voir financialreports).
 
-Supprimer une saison n'efface que sa fiche : les operations bancaires de la
-periode restent dans l'historique des comptes.
+Supprimer une saison efface sa fiche et ses bilans financiers : les
+operations bancaires de la periode restent dans l'historique des comptes.
 """
 
 from __future__ import annotations
@@ -165,6 +166,14 @@ class Seasons:
                 return None
             connection.execute("UPDATE seasons SET licences = ? WHERE id = ?", (count, row["id"]))
         return self._get(row["id"])
+
+    def add_ai_cost(self, season_id: int, euros: float) -> None:
+        """Ajoute le cout d'un appel a l'IA (ex : calcul d'un bilan, voir
+        financialreports) au cout IA cumule de la saison."""
+        with self.db.connect() as connection:
+            connection.execute(
+                "UPDATE seasons SET ai_cost = COALESCE(ai_cost, 0) + ? WHERE id = ?", (round(euros * 100), season_id)
+            )
 
     def _get(self, season_id: int) -> dict:
         season = next((s for s in self.get_seasons()["seasons"] if s["id"] == season_id), None)
