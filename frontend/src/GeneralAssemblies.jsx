@@ -133,16 +133,6 @@ export function GeneralAssemblies({ active }) {
     }
   }
 
-  async function uploadTemplate(file) {
-    try {
-      await sendFile('/general-assemblies/template', file)
-      showToast('Modèle général enregistré')
-      load()
-    } catch (err) {
-      showToast(err.message, 'warning')
-    }
-  }
-
   if (editing !== null && listing)
     return (
       <AssemblyPanel
@@ -175,8 +165,6 @@ export function GeneralAssemblies({ active }) {
           +<span className="seasons-wide-only"> Nouveau calcul</span>
         </button>
       </div>
-
-      {listing && <Sources options={listing} onTemplate={uploadTemplate} />}
 
       <div className="filter-chips" role="group" aria-label="État">
         {['all', ...Object.keys(STATE_LABELS)].map((state) => (
@@ -239,32 +227,6 @@ export function GeneralAssemblies({ active }) {
         </ul>
       )}
     </section>
-  )
-}
-
-// Bilan et PPT modele que prendrait un calcul pour la saison choisie.
-function Sources({ options, onTemplate }) {
-  return (
-    <div className={options.report ? 'ag-sources' : 'ag-sources ag-sources-alert'}>
-      <span>
-        Bilan utilisé :{' '}
-        {options.report ? (
-          <b>
-            {options.report.name} ({STATE_LABELS[options.report.state].toLowerCase()})
-          </b>
-        ) : (
-          <b>aucun bilan calculé pour cette saison, à faire d'abord dans Bilan financier</b>
-        )}
-      </span>
-      <span>
-        PPT modèle d'un calcul qui n'en a pas : <b>{options.template ? options.template.name : 'aucun'}</b>{' '}
-        <PptxButton
-          className="ag-link"
-          label={options.templateUploaded ? 'Changer le modèle général' : 'Envoyer un modèle général'}
-          onFile={onTemplate}
-        />
-      </span>
-    </div>
   )
 }
 

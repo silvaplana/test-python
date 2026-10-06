@@ -2493,27 +2493,6 @@ td button + .ffst-role-picker,
    Reprend les classes reports-* du bilan financier ; propre a l'AG : les
    sources du calcul, l'apercu des diapos (vignettes 4:3) et la visionneuse. */
 
-.ag-sources {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid rgba(96, 165, 250, 0.5);
-  border-radius: 10px;
-  background: rgba(96, 165, 250, 0.1);
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.ag-sources b {
-  color: var(--text-h);
-}
-
-.ag-sources-alert {
-  border-color: rgba(251, 146, 60, 0.6);
-  background: rgba(251, 146, 60, 0.1);
-}
-
 /* Carte de calcul cliquable en entier (Assemblees generales). */
 .reports-list .reports-item-open {
   cursor: pointer;
@@ -2597,16 +2576,6 @@ td button + .ffst-role-picker,
   color: var(--text-h);
   font: inherit;
   font-size: 0.85rem;
-  cursor: pointer;
-}
-
-.ag-link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  text-decoration: underline;
   cursor: pointer;
 }
 
