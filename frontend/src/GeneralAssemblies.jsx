@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AiSettings } from './AiSettings.jsx'
 import { showToast } from './Toast.jsx'
+import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 
 // Finances > Assemblées générales : base du PowerPoint de l'AG d'une saison
 // (voir backend/src/generalassemblies). Meme ecran que Bilan financier
@@ -83,13 +84,22 @@ export function GeneralAssemblies({ active }) {
   const [error, setError] = useState(null)
   // Panneau de calcul ouvert : null, "new" ou l'id du calcul.
   const [editing, setEditing] = useState(null)
+  // Lu au retour sur l'onglet (voir le chargement des saisons).
+  const editingRef = useRef(null)
+  editingRef.current = editing
 
   useEffect(() => {
     if (!active) return
     callApi('/seasons')
       .then((data) => {
         setSeasons(data.seasons)
-        setSeasonId((id) => id ?? (data.seasons.find((s) => s.current) ?? data.seasons[data.seasons.length - 1])?.id ?? null)
+        // Saison retenue (commune aux ecrans de Finances), sinon celle en
+        // cours. Pas pendant qu'un calcul est ouvert : il garde sa saison.
+        setSeasonId((id) =>
+          editingRef.current !== null && id != null
+            ? id
+            : (readSeasonChoice(data.seasons) ?? id ?? (data.seasons.find((s) => s.current) ?? data.seasons[data.seasons.length - 1])?.id ?? null)
+        )
       })
       .catch((err) => setError(err.message))
   }, [active])
@@ -152,7 +162,14 @@ export function GeneralAssemblies({ active }) {
   return (
     <section className="reports">
       <div className="seasons-toolbar">
-        <select aria-label="Saison" value={seasonId ?? ''} onChange={(e) => setSeasonId(Number(e.target.value))}>
+        <select
+          aria-label="Saison"
+          value={seasonId ?? ''}
+          onChange={(e) => {
+            setSeasonId(Number(e.target.value))
+            writeSeasonChoice(Number(e.target.value))
+          }}
+        >
           {[...seasons].reverse().map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}

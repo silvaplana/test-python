@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { niceTicks } from './BalanceChart.jsx'
 import { showToast } from './Toast.jsx'
+import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // Choix du graphique memorises sur cet appareil.
@@ -138,7 +139,10 @@ export function Seasons({ active }) {
 
   const load = useCallback(async () => {
     try {
-      setData(await callApi('/seasons'))
+      const loaded = await callApi('/seasons')
+      setData(loaded)
+      // Saison retenue sur l'appareil (peut avoir change dans un autre ecran).
+      setSelectedId((id) => readSeasonChoice(loaded.seasons) ?? id)
       setError(null)
     } catch (err) {
       setError(err.message)
@@ -169,8 +173,10 @@ export function Seasons({ active }) {
   if (!data) return <p>Chargement…</p>
 
   const seasons = data.seasons
-  // Saison affichee : celle choisie, sinon celle en cours, sinon la derniere.
-  const selected = seasons.find((s) => s.id === selectedId) ?? seasons.find((s) => s.current) ?? seasons[seasons.length - 1]
+  // Saison affichee : celle retenue sur l'appareil (commune aux ecrans de
+  // Finances), sinon celle en cours, sinon la derniere.
+  const selected =
+    seasons.find((s) => s.id === selectedId) ?? seasons.find((s) => s.current) ?? seasons[seasons.length - 1]
   const previous = selected ? seasons[seasons.indexOf(selected) - 1] : undefined
 
   function chooseMode(id) {
@@ -204,6 +210,7 @@ export function Seasons({ active }) {
   function saved(season) {
     setDialog(null)
     setSelectedId(season.id)
+    writeSeasonChoice(season.id)
     load()
   }
 
@@ -218,7 +225,10 @@ export function Seasons({ active }) {
         <select
           aria-label="Saison"
           value={selected?.id ?? ''}
-          onChange={(e) => setSelectedId(Number(e.target.value))}
+          onChange={(e) => {
+            setSelectedId(Number(e.target.value))
+            writeSeasonChoice(Number(e.target.value))
+          }}
           disabled={seasons.length === 0}
         >
           {seasons.length === 0 && <option value="">Aucune saison</option>}

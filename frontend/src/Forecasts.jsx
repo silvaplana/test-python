@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { niceTicks } from './BalanceChart.jsx'
+import { AiSettings } from './AiSettings.jsx'
 import { showToast } from './Toast.jsx'
+import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 
 // Finances > Prévisionnel : previsionnels d'une saison (voir
 // backend/src/forecasts). Chaque previsionnel a un nom, un etat, une date de
@@ -91,13 +93,22 @@ export function Forecasts({ active }) {
   const [error, setError] = useState(null)
   // Panneau ouvert : null, "new" ou l'id du previsionnel.
   const [editing, setEditing] = useState(null)
+  // Lu au retour sur l'onglet (voir le chargement des saisons).
+  const editingRef = useRef(null)
+  editingRef.current = editing
 
   useEffect(() => {
     if (!active) return
     callApi('/seasons')
       .then((data) => {
         setSeasonsData(data)
-        setSeasonId((id) => id ?? (data.seasons.find((s) => s.current) ?? data.seasons[data.seasons.length - 1])?.id ?? null)
+        // Saison retenue (commune aux ecrans de Finances), sinon celle en
+        // cours. Pas pendant qu'un calcul est ouvert : il garde sa saison.
+        setSeasonId((id) =>
+          editingRef.current !== null && id != null
+            ? id
+            : (readSeasonChoice(data.seasons) ?? id ?? (data.seasons.find((s) => s.current) ?? data.seasons[data.seasons.length - 1])?.id ?? null)
+        )
       })
       .catch((err) => setError(err.message))
   }, [active])
@@ -167,7 +178,14 @@ export function Forecasts({ active }) {
   return (
     <section className="reports">
       <div className="seasons-toolbar">
-        <select aria-label="Saison" value={seasonId ?? ''} onChange={(e) => setSeasonId(Number(e.target.value))}>
+        <select
+          aria-label="Saison"
+          value={seasonId ?? ''}
+          onChange={(e) => {
+            setSeasonId(Number(e.target.value))
+            writeSeasonChoice(Number(e.target.value))
+          }}
+        >
           {[...seasons].reverse().map((s) => (
             <option key={s.id} value={s.id}>
               {s.name}
@@ -290,6 +308,8 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
   // Zone "Explication du résultat de l'IA" depliee : retenu en base, par
   // previsionnel (voir toggleExplanation).
   const [explanationOpen, setExplanationOpen] = useState(true)
+  // Zone "Réglages de l'IA" depliee : retenu en base aussi.
+  const [settingsOpen, setSettingsOpen] = useState(true)
   // Position des curseurs a l'ecran (enregistree apres SLIDER_DELAY_MS).
   const [params, setParams] = useState({})
   const [replaying, setReplaying] = useState(false)
@@ -299,6 +319,7 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
     const data = await callApi(`/forecasts/${forecastId}`)
     setForecast(data)
     setExplanationOpen(data.explanationOpen ?? true)
+    setSettingsOpen(data.settingsOpen ?? true)
     return data
   }, [forecastId])
 
@@ -340,6 +361,16 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
     setExplanationOpen(open)
     if (forecastId != null)
       sendJson(`/forecasts/${forecastId}/explanation`, 'PUT', { open }).catch(() => {
+        // Non retenu (reseau...) : sans consequence pour l'affichage en cours.
+      })
+  }
+
+  // Plie ou deplie les reglages de l'IA, et le retient pour ce previsionnel.
+  function toggleSettings() {
+    const open = !settingsOpen
+    setSettingsOpen(open)
+    if (forecastId != null)
+      sendJson(`/forecasts/${forecastId}/settings`, 'PUT', { open }).catch(() => {
         // Non retenu (reseau...) : sans consequence pour l'affichage en cours.
       })
   }
@@ -478,6 +509,11 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
             ))}
           </select>
         </label>
+        <AiSettings
+          open={settingsOpen}
+          onToggle={toggleSettings}
+          summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${euros(forecast?.aiCost ?? 0)}`}
+        >
         <label className="trial-form-wide">
           Prompt donné à l'IA
           <textarea
@@ -507,6 +543,7 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
           <span>Coût IA cumulé</span>
           <b>{euros(forecast?.aiCost ?? 0)}</b>
         </div>
+        </AiSettings>
       </div>
 
       {error && <p className="error">{error}</p>}

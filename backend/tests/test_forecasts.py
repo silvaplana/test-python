@@ -355,3 +355,7 @@ def test_explanation_open_is_kept(db, seasons):
     assert again["explanationOpen"] is False and again["updatedAt"] == created["updatedAt"]
     with pytest.raises(ForecastNotFoundError):
         forecasts.set_explanation_open(9999, True)
+    # Meme chose pour la zone "Réglages de l'IA".
+    assert again["settingsOpen"] is True
+    assert forecasts.set_settings_open(created["id"], False) == {"settingsOpen": False}
+    assert forecasts.get(created["id"])["settingsOpen"] is False

@@ -241,6 +241,10 @@ MIGRATIONS: list[str] = [
     ALTER TABLE financial_reports ADD COLUMN settings_open INTEGER NOT NULL DEFAULT 1;
     ALTER TABLE general_assemblies ADD COLUMN settings_open INTEGER NOT NULL DEFAULT 1;
     """,
+    # 12 : previsionnels, meme zone "Réglages de l'IA" depliee ou repliee.
+    """
+    ALTER TABLE forecasts ADD COLUMN settings_open INTEGER NOT NULL DEFAULT 1;
+    """,
 ]
 
 
