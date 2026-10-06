@@ -253,23 +253,6 @@ export function Seasons({ active }) {
 
           <div className="seasons-chart-card">
             <div className="seasons-chart-filters">
-              <div className="filter-chips" role="group" aria-label="Affichage des saisons">
-                {MODES.map((m) => {
-                  const disabled = m.id === 'overlay' && !curve
-                  return (
-                    <button
-                      key={m.id}
-                      className={m.id === effectiveMode ? 'filter-chip filter-chip-active' : 'filter-chip'}
-                      aria-pressed={m.id === effectiveMode}
-                      disabled={disabled}
-                      title={disabled ? 'Seulement pour « Compte détaillé »' : undefined}
-                      onClick={() => chooseMode(m.id)}
-                    >
-                      {m.label}
-                    </button>
-                  )
-                })}
-              </div>
               <div className="filter-chips" role="group" aria-label="Donnée affichée">
                 {METRICS.map((m) => (
                   <button
@@ -288,6 +271,26 @@ export function Seasons({ active }) {
             ) : (
               <BarsChart seasons={seasons} selected={selected} mode={effectiveMode} metric={metric} />
             )}
+            {/* Sous le graphique : quelles saisons afficher (au-dessus : quelle donnee). */}
+            <div className="seasons-chart-filters seasons-chart-modes">
+              <div className="filter-chips" role="group" aria-label="Affichage des saisons">
+                {MODES.map((m) => {
+                  const disabled = m.id === 'overlay' && !curve
+                  return (
+                    <button
+                      key={m.id}
+                      className={m.id === effectiveMode ? 'filter-chip filter-chip-active' : 'filter-chip'}
+                      aria-pressed={m.id === effectiveMode}
+                      disabled={disabled}
+                      title={disabled ? 'Seulement pour « Compte détaillé »' : undefined}
+                      onClick={() => chooseMode(m.id)}
+                    >
+                      {m.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         </>
       )}

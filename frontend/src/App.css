@@ -2174,6 +2174,10 @@ td button + .ffst-role-picker,
   gap: 0.5rem 1rem;
 }
 
+.seasons-chart-modes {
+  justify-content: center;
+}
+
 .seasons-chart-filters .filter-chips {
   min-width: 0;
   max-width: 100%;
