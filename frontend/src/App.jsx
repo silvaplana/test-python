@@ -17,11 +17,10 @@ function AppContent() {
   return (
     <Navigation
       // Retour de la banque (voir BankAccounts.jsx) : ouvre directement
-      // Finances/Comptes (section 4, outil 2) ; QR code d'un eleve scanne
+      // Finances/Comptes (section 4, 1er outil) ; QR code d'un eleve scanne
       // avec l'appareil photo (voir Trials.jsx) : l'onglet Essai (section 3) ;
       // sinon l'accueil habituel.
       initialSection={hasBankCallback && canViewAccounts ? 3 : hasTrialCheckin ? 2 : 0}
-      initialTool={hasBankCallback && canViewAccounts ? 1 : 0}
       header={<CampaignTitle />}
       sections={[
         {
@@ -58,9 +57,8 @@ function AppContent() {
           label: 'Finances',
           alwaysShowTabs: true,
           tools: [
-            { label: 'Bilan financier', content: () => <FinancialBalance /> },
-            // "Comptes" (donnees bancaires) : uniquement avec le mot de
-            // passe "comptes" -- masque sinon (confort d'affichage, le
+            // "Comptes" (donnees bancaires), en premier : uniquement avec le
+            // mot de passe "comptes" -- masque sinon (confort d'affichage, le
             // backend refuse de toute facon avec un 403).
             ...(canViewAccounts
               ? [
@@ -71,6 +69,10 @@ function AppContent() {
                   },
                 ]
               : []),
+            // Ancien "Bilan financier" (analyse IA des releves deposes),
+            // remplace par l'historique de l'onglet Comptes : garde pour
+            // l'instant, sous le nom "Deprecated".
+            { label: 'Deprecated', content: () => <FinancialBalance /> },
           ],
         },
         {
