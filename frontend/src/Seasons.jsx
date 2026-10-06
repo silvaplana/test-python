@@ -763,7 +763,20 @@ function SeasonDialog({ season, defaults, onClose, onSaved, onDelete }) {
   return (
     <dialog ref={dialogRef} className="trial-dialog" onClose={onClose}>
       <form onSubmit={save}>
-        <h3>{season ? `Modifier la saison ${season.name}` : 'Nouvelle saison'}</h3>
+        {/* La croix ferme la fiche sans enregistrer. */}
+        <div className="trial-scan-header">
+          <h3>{season ? `Modifier la saison ${season.name}` : 'Nouvelle saison'}</h3>
+          <button
+            type="button"
+            className="trial-scan-close"
+            onClick={() => dialogRef.current.close()}
+            disabled={pending}
+            aria-label="Fermer sans enregistrer"
+            title="Fermer sans enregistrer"
+          >
+            ✕
+          </button>
+        </div>
         <div className="trial-form-grid">
           <label className="trial-form-wide">
             Nom *
@@ -809,9 +822,6 @@ function SeasonDialog({ season, defaults, onClose, onSaved, onDelete }) {
               Supprimer la saison
             </button>
           )}
-          <button type="button" onClick={() => dialogRef.current.close()} disabled={pending}>
-            Annuler
-          </button>
           <button type="submit" className="trial-save" disabled={pending}>
             Enregistrer
           </button>
