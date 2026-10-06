@@ -366,27 +366,6 @@ export function NewMembersBadge() {
   return <span className="nav-badge">{count}</span>
 }
 
-// TEMPORAIRE (debug, voir Profile.jsx) : simule un nouvel adherent non
-// consulte SUR CET APPAREIL, en "oubliant" un id deja memorise --
-// contrairement a une nouvelle inscription simulee cote serveur (voir
-// PushNotifications.check_for_new_members), qui ne peut pas se refleter
-// ici : le badge cote client compare a sa propre memoire locale
-// (localStorage), independante de celle du serveur. A retirer une fois
-// les badges valides en conditions reelles.
-export function debugForgetOneSeenMember() {
-  const seen = readSeenMemberIds()
-  if (!seen || seen.size === 0) return false
-  const ids = [...seen]
-  ids.pop()
-  try {
-    localStorage.setItem(SEEN_MEMBER_IDS_KEY, JSON.stringify(ids))
-  } catch {
-    return false
-  }
-  window.dispatchEvent(new Event(SEEN_CHANGED_EVENT))
-  return true
-}
-
 // Codes promo type "ANCIEN_N" (ex: ANCIEN_2) : le seul type de code promo
 // verifie pour l'instant. N = anciennete minimum requise (en saisons
 // precedentes, "Nouvelle saison" comprise) -- valide aussi pour une
