@@ -16,9 +16,9 @@ const STATE_LABELS = { brouillon: 'Brouillon', valide: 'Validé', officiel: 'Off
 // Les 3 PPT d'un calcul (voir backend generalassemblies.py), dans l'ordre
 // d'affichage.
 const KINDS = [
-  { id: 'modele', label: 'Modèle' },
-  { id: 'genere', label: "Produit par l'IA" },
-  { id: 'modifie', label: 'Modifié' },
+  { id: 'modele', label: 'PPT modèle' },
+  { id: 'genere', label: 'PPT produit par IA' },
+  { id: 'modifie', label: 'PPT modifié' },
 ]
 
 async function callApi(path, options) {
@@ -534,10 +534,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             </span>
           )}
           <div className="reports-downloads">
-            <button onClick={download} disabled={!shownFile || running}>
-              Télécharger
-            </button>
-            <PptxButton label="Envoyer le PPT modifié" onFile={uploadModified} disabled={assemblyId == null || running} />
+            <PptxButton label="Importer le PPT modifié" onFile={uploadModified} disabled={assemblyId == null || running} />
           </div>
         </div>
 
@@ -563,9 +560,13 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
                 </button>
               ))}
             </div>
-            <p className="reports-period">
-              {shownFile.filename}, enregistré le {dateFr(shownFile.createdAt)} à {timeFr(shownFile.createdAt)}.
-            </p>
+            {/* Telecharge le PPT choisi juste au-dessus. */}
+            <div className="ag-shown-file">
+              <span className="reports-period">
+                {shownFile.filename}, enregistré le {dateFr(shownFile.createdAt)} à {timeFr(shownFile.createdAt)}.
+              </span>
+              <button onClick={download}>Télécharger</button>
+            </div>
             {result && shownKind === 'genere' && <RunDetails result={result} />}
             <SlidesPreview
               key={`${shownKind}-${shownFile.createdAt}`}

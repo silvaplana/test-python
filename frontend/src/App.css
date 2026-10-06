@@ -2795,6 +2795,34 @@ td button + .ffst-role-picker,
   cursor: not-allowed;
 }
 
+/* PPT affiche dans le resultat : son nom et le bouton pour le telecharger. */
+.ag-shown-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.ag-shown-file .reports-period {
+  flex: 1 1 12rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ag-shown-file button {
+  flex: none;
+  min-height: 40px;
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .ag-link {
   padding: 0;
   border: 0;
