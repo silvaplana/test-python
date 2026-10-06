@@ -1,6 +1,7 @@
-// Sous-onglets de Finances a venir (voir App.jsx) : Saisons, Bilan
-// financier, Assemblees generales, Previsionnel. Pour l'instant un simple
-// ecran d'attente par sous-onglet, qui rappelle a quoi il servira.
+// Sous-onglets de Finances a venir (voir App.jsx) : Bilan financier,
+// Assemblees generales, Previsionnel (Saisons : voir Seasons.jsx). Pour
+// l'instant un simple ecran d'attente par sous-onglet, qui rappelle a quoi
+// il servira.
 function InDevelopment({ title, children }) {
   return (
     <section>
@@ -12,14 +13,6 @@ function InDevelopment({ title, children }) {
         <p>{children}</p>
       </div>
     </section>
-  )
-}
-
-export function Seasons() {
-  return (
-    <InDevelopment title="Saisons">
-      L'organisation du temps par saison (ex : 2026-2027), l'unité de temps importante pour un club.
-    </InDevelopment>
   )
 }
 

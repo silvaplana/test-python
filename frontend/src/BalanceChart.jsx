@@ -62,7 +62,7 @@ export function balanceSeries(operations, currentBalance) {
 }
 
 // Graduations "rondes" (1, 2, 5 x 10^n) pour l'axe vertical.
-function niceTicks(min, max, count = 4) {
+export function niceTicks(min, max, count = 4) {
   const span = max - min || 1
   const rough = span / count
   const pow = 10 ** Math.floor(Math.log10(rough))

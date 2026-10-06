@@ -1865,7 +1865,7 @@ td button + .ffst-role-picker,
   position: absolute;
   right: 0;
   top: calc(100% + 0.3rem);
-  min-width: 13rem;
+  min-width: 10rem;
   padding: 0.3rem 0;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -2039,4 +2039,234 @@ td button + .ffst-role-picker,
   color: var(--text-h);
   font-size: 1.15rem;
   font-weight: 600;
+}
+
+/* Finances > Saisons (voir Seasons.jsx) : choix de la saison et boutons,
+   4 chiffres cles, graphique avec ses deux rangees de filtres. */
+.seasons {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  text-align: left;
+}
+
+.seasons-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+}
+
+.seasons-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.seasons-picker select {
+  min-width: 10rem;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 16px;
+}
+
+.seasons-range {
+  font-size: 0.85rem;
+}
+
+.seasons-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.seasons-actions button {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.seasons-actions button:hover:not(:disabled) {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.seasons-actions button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.seasons-actions .seasons-primary {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.seasons-actions .seasons-danger {
+  color: #f87171;
+}
+
+.seasons-empty {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.seasons-figures {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.seasons-figure {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--code-bg);
+}
+
+.seasons-figure-label,
+.seasons-figure-sub {
+  font-size: 0.75rem;
+}
+
+.seasons-figure-value {
+  color: var(--text-h);
+  font-size: 1.3rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.seasons-figure-value.seasons-negative {
+  color: #fdba74;
+}
+
+.seasons-chart-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--code-bg);
+}
+
+.seasons-chart-filters {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+}
+
+.seasons-chart-filters .filter-chips {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.seasons-chart-filters .filter-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.seasons-chart {
+  width: 100%;
+}
+
+.seasons-chart svg {
+  display: block;
+}
+
+.seasons-axis-strong {
+  fill: var(--text-h);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.seasons-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.3rem 1rem;
+  font-size: 0.8rem;
+}
+
+.seasons-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.seasons-legend i {
+  width: 12px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.seasons-legend .seasons-legend-selected {
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+/* Telephone : choix de la saison sur toute la largeur, 3 boutons cote a
+   cote dessous, chiffres en 2 x 2, filtres en 2 rangees qui defilent. */
+@media (max-width: 640px) {
+  .seasons-picker {
+    flex: 1 1 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.25rem;
+  }
+
+  .seasons-picker select {
+    min-width: 0;
+  }
+
+  .seasons-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    flex: 1 1 100%;
+    margin-left: 0;
+  }
+
+  .seasons-actions button {
+    min-height: 44px;
+    padding-inline: 0.4rem;
+  }
+
+  .seasons-wide-only {
+    display: none;
+  }
+
+  .seasons-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .seasons-figure-value {
+    font-size: 1.1rem;
+  }
+
+  .seasons-chart-card {
+    padding: 0.75rem 0.6rem;
+  }
+
+  .seasons-chart-filters {
+    flex-direction: column;
+  }
 }

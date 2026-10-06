@@ -23,6 +23,7 @@ from helloasso import HelloAsso, HelloAssoReceiver
 from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
 from notifications import NotificationsReceiver, PushNotifications
+from seasons import Seasons, SeasonsReceiver
 from trials import Trials, TrialsPublicReceiver, TrialsReceiver
 
 load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
@@ -212,6 +213,16 @@ bank_statements_receiver = BankStatementsReceiver(
     # Operations recentes lues a la banque, ajoutees a l'historique a
     # chaque ouverture de l'onglet (voir BankStatements.sync_live).
     live_operations=bank_accounts_client.get_recent_operations,
+)
+
+# Saisons du club (/seasons/...), onglet Finances > Saisons : meme
+# protection que les comptes (elles affichent les soldes). Licencies de la
+# saison en cours repris de FFST.
+seasons_client = Seasons(db=database, ledger=bank_statements_client.get_ledger)
+seasons_receiver = SeasonsReceiver(
+    client=seasons_client,
+    app=accounts_router,
+    licences_count=lambda: len(ffst_client.get_licences()),
 )
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
