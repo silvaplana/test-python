@@ -423,6 +423,19 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
         <label>
           Date de départ
           <input type="date" value={form.startDate} min={season.startDate} max={season.endDate} onChange={update('startDate')} />
+          {/* Raccourcis : aujourd'hui (si la saison est en cours) ou le 1er jour de la saison. */}
+          <span className="ag-model-actions forecasts-date-shortcuts">
+            <button
+              type="button"
+              onClick={() => setForm((prev) => ({ ...prev, startDate: seasonsData.today }))}
+              disabled={seasonsData.today < season.startDate || seasonsData.today >= season.endDate}
+            >
+              Aujourd'hui
+            </button>
+            <button type="button" onClick={() => setForm((prev) => ({ ...prev, startDate: season.startDate }))}>
+              Début de saison
+            </button>
+          </span>
           <span className="reports-hint">
             {form.startDate
               ? 'Le réel après cette date s’affiche pour comparer.'

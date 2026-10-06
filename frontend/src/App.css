@@ -2939,3 +2939,8 @@ td button + .ffst-role-picker,
   stroke-dasharray: 3 3;
   opacity: 0.6;
 }
+
+/* Previsionnel : raccourcis sous la date de depart. */
+.forecasts-date-shortcuts {
+  margin-top: 0.4rem;
+}
