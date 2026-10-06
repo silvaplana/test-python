@@ -4,15 +4,22 @@ import { showToast } from './Toast.jsx'
 // Finances > Assemblées générales : base du PowerPoint de l'AG d'une saison
 // (voir backend/src/generalassemblies). Meme ecran que Bilan financier
 // (liste des calculs par saison, etats, panneau prompt / modele / cout) ;
-// le resultat est un PPT, en versions : une par calcul et une par PPT
-// modifie envoye. "Executer le calcul" fait ecrire les diapos du tresorier
-// par l'IA a partir du bilan de la saison, en arriere-plan : l'ecran relit
-// le calcul jusqu'a la fin.
+// chaque calcul garde 3 PPT (voir KINDS) : le modele choisi (fichier de
+// l'ordinateur ou PPT d'un autre calcul), celui produit par l'IA et celui
+// modifie par le tresorier. "Executer le calcul" fait ecrire les diapos du
+// tresorier par l'IA a partir du bilan de la saison, en arriere-plan :
+// l'ecran relit le calcul jusqu'a la fin.
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const POLL_MS = 2000
 const STATE_LABELS = { brouillon: 'Brouillon', valide: 'Validé', officiel: 'Officiel' }
-const ORIGIN_LABELS = { genere: 'générée', envoye: 'envoyée par toi' }
+// Les 3 PPT d'un calcul (voir backend generalassemblies.py), dans l'ordre
+// d'affichage.
+const KINDS = [
+  { id: 'modele', label: 'Modèle' },
+  { id: 'genere', label: "Produit par l'IA" },
+  { id: 'modifie', label: 'Modifié' },
+]
 
 async function callApi(path, options) {
   const response = await fetch(`${API_URL}${path}`, { credentials: 'include', ...options })
@@ -129,7 +136,7 @@ export function GeneralAssemblies({ active }) {
   async function uploadTemplate(file) {
     try {
       await sendFile('/general-assemblies/template', file)
-      showToast('Modèle de PPT enregistré')
+      showToast('Modèle général enregistré')
       load()
     } catch (err) {
       showToast(err.message, 'warning')
@@ -200,8 +207,8 @@ export function GeneralAssemblies({ active }) {
                     ? 'calcul en cours…'
                     : a.status === 'error'
                       ? 'dernier calcul en erreur'
-                      : a.latestVersion
-                        ? `version ${a.latestVersion} · ${a.modelLabel}`
+                      : a.hasPpt
+                        ? `PPT prêt · ${a.modelLabel}`
                         : 'pas encore calculé'}
                   {' · '}
                   {aiCost(a.aiCost)}
@@ -226,7 +233,7 @@ export function GeneralAssemblies({ active }) {
 // Bilan et PPT modele que prendrait un calcul pour la saison choisie.
 function Sources({ options, onTemplate }) {
   return (
-    <div className={options.report && options.template ? 'ag-sources' : 'ag-sources ag-sources-alert'}>
+    <div className={options.report ? 'ag-sources' : 'ag-sources ag-sources-alert'}>
       <span>
         Bilan utilisé :{' '}
         {options.report ? (
@@ -238,8 +245,12 @@ function Sources({ options, onTemplate }) {
         )}
       </span>
       <span>
-        PPT modèle : <b>{options.template ? options.template.name : "aucun, envoie le PPT d'une AG précédente"}</b>{' '}
-        <PptxButton className="ag-link" label={options.templateUploaded ? 'Changer le modèle' : 'Envoyer un modèle'} onFile={onTemplate} />
+        PPT modèle d'un calcul qui n'en a pas : <b>{options.template ? options.template.name : 'aucun'}</b>{' '}
+        <PptxButton
+          className="ag-link"
+          label={options.templateUploaded ? 'Changer le modèle général' : 'Envoyer un modèle général'}
+          onFile={onTemplate}
+        />
       </span>
     </div>
   )
@@ -270,8 +281,10 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
   const [form, setForm] = useState({ name: `AG ${season.name}`, state: 'brouillon', prompt: '', model: options.defaultModel })
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
-  // Version affichee (null : la derniere).
-  const [version, setVersion] = useState(null)
+  // PPT affiche dans le resultat : une sorte de KINDS (null : le plus abouti).
+  const [kind, setKind] = useState(null)
+  // PPT des autres calculs utilisables comme modele.
+  const [sources, setSources] = useState([])
 
   const load = useCallback(async () => {
     const data = await callApi(`/general-assemblies/${assemblyId}`)
@@ -286,6 +299,14 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
       .catch((err) => setError(err.message))
   }, [assemblyId, load])
 
+  useEffect(() => {
+    callApi(`/general-assemblies/model-sources${assemblyId == null ? '' : `?exclude=${assemblyId}`}`)
+      .then(setSources)
+      .catch(() => {
+        // Liste indisponible : le modele peut toujours etre envoye en fichier.
+      })
+  }, [assemblyId])
+
   const running = assembly?.status === 'running'
   useEffect(() => {
     if (!running) return undefined
@@ -294,7 +315,7 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
         .then((data) => {
           if (data.status === 'error') showToast(data.error, 'warning')
           else if (data.status === 'idle') {
-            setVersion(null)
+            setKind('genere')
             showToast('PPT prêt')
           }
         })
@@ -342,19 +363,20 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
     setPending(false)
   }
 
-  const versions = assembly?.versions ?? []
-  const shownVersion = versions.find((v) => v.number === version) ?? versions[0]
+  const files = assembly?.files ?? {}
+  const shownKind = files[kind] ? kind : ['modifie', 'genere', 'modele'].find((k) => files[k])
+  const shownFile = files[shownKind]
 
   async function download() {
     try {
-      const response = await fetch(`${API_URL}/general-assemblies/${assemblyId}/download?version=${shownVersion.number}`, {
+      const response = await fetch(`${API_URL}/general-assemblies/${assemblyId}/download?kind=${shownKind}`, {
         credentials: 'include',
       })
       if (!response.ok) throw new Error(`Téléchargement impossible (${response.status})`)
       const url = URL.createObjectURL(await response.blob())
       const link = document.createElement('a')
       link.href = url
-      link.download = shownVersion.filename.replace(/[\\/:*?"<>|]/g, '-')
+      link.download = shownFile.filename.replace(/[\\/:*?"<>|]/g, '-')
       link.click()
       URL.revokeObjectURL(url)
     } catch (err) {
@@ -362,14 +384,43 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
     }
   }
 
-  async function uploadVersion(file) {
+  async function uploadModified(file) {
     try {
       setAssembly(await sendFile(`/general-assemblies/${assemblyId}/upload`, file))
-      setVersion(null)
-      showToast('PPT modifié enregistré comme nouvelle version')
+      setKind('modifie')
+      showToast('PPT modifié enregistré')
     } catch (err) {
       showToast(err.message, 'warning')
     }
+  }
+
+  // Choix du PPT modele : send(id) l'enregistre pour le calcul id. Un
+  // nouveau calcul est d'abord cree (il lui faut un identifiant).
+  async function chooseModel(send) {
+    setPending(true)
+    setError(null)
+    try {
+      const id = await save()
+      const updated = await send(id)
+      showToast('PPT modèle enregistré')
+      if (assemblyId == null) {
+        onCreated(id)
+        return
+      }
+      setAssembly(updated)
+      setKind('modele')
+    } catch (err) {
+      setError(err.message)
+    }
+    setPending(false)
+  }
+
+  const uploadModel = (file) => chooseModel((id) => sendFile(`/general-assemblies/${id}/model`, file))
+
+  function copyModel(value) {
+    const source = sources.find((x) => `${x.assemblyId}:${x.kind}` === value)
+    if (source)
+      chooseModel((id) => sendJson(`/general-assemblies/${id}/model`, 'PUT', { sourceId: source.assemblyId, kind: source.kind }))
   }
 
   const result = assembly?.result
@@ -416,8 +467,38 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             chiffres du bilan, mettre les années à jour et marquer « À compléter » ce qui n'est pas connu.
           </span>
         </label>
+        <div className="trial-form-wide ag-model">
+          <span>PPT modèle</span>
+          <b>
+            {files.modele
+              ? files.modele.filename
+              : options.template
+                ? `Par défaut : ${options.template.name}`
+                : "Aucun pour l'instant"}
+          </b>
+          <div className="ag-model-actions">
+            <PptxButton label="Choisir un fichier" onFile={uploadModel} disabled={pending || running || !form.name.trim()} />
+            <select
+              aria-label="Prendre le PPT d'un autre calcul"
+              value=""
+              onChange={(e) => copyModel(e.target.value)}
+              disabled={pending || running || !form.name.trim() || sources.length === 0}
+            >
+              <option value="">{sources.length === 0 ? 'Aucun PPT dans les autres calculs' : "Prendre le PPT d'un autre calcul…"}</option>
+              {sources.map((x) => (
+                <option key={`${x.assemblyId}:${x.kind}`} value={`${x.assemblyId}:${x.kind}`}>
+                  {x.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <span className="reports-hint">
+            L'exemple dont l'IA reprend la mise en page : un fichier de ton ordinateur, ou un PPT déjà enregistré dans un autre
+            calcul. Il est copié dans ce calcul.
+          </span>
+        </div>
         <label>
-          Modèle
+          Modèle d'IA
           <select value={form.model} onChange={update('model')}>
             {options.models.map((m) => (
               <option key={m.id} value={m.id}>
@@ -453,10 +534,10 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             </span>
           )}
           <div className="reports-downloads">
-            <button onClick={download} disabled={!shownVersion || running}>
+            <button onClick={download} disabled={!shownFile || running}>
               Télécharger
             </button>
-            <PptxButton label="Envoyer le PPT modifié" onFile={uploadVersion} disabled={assemblyId == null || running} />
+            <PptxButton label="Envoyer le PPT modifié" onFile={uploadModified} disabled={assemblyId == null || running} />
           </div>
         </div>
 
@@ -465,26 +546,33 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
             <div className="reports-progress" />
             <p>{modelLabel(assembly.model)} prépare le PPT… (jusqu'à quelques minutes)</p>
           </div>
-        ) : !shownVersion ? (
-          <p className="reports-placeholder">Pas encore de PPT : lancez « Exécuter le calcul ».</p>
+        ) : !shownFile ? (
+          <p className="reports-placeholder">Pas encore de PPT : choisis un PPT modèle, puis lance « Exécuter le calcul ».</p>
         ) : (
           <>
-            {versions.length > 1 && (
-              <div className="filter-chips" role="group" aria-label="Version">
-                {versions.map((v) => (
-                  <button
-                    key={v.number}
-                    className={v.number === shownVersion.number ? 'filter-chip filter-chip-active' : 'filter-chip'}
-                    aria-pressed={v.number === shownVersion.number}
-                    onClick={() => setVersion(v.number)}
-                  >
-                    v{v.number} {ORIGIN_LABELS[v.origin]} {dateFr(v.createdAt)} {timeFr(v.createdAt)}
-                  </button>
-                ))}
-              </div>
-            )}
-            {result && result.version === shownVersion.number && <RunDetails result={result} />}
-            <SlidesPreview key={shownVersion.number} assemblyId={assemblyId} version={shownVersion.number} changed={result?.version === shownVersion.number ? result.changedSlides : []} />
+            <div className="seasons-segmented" role="group" aria-label="PPT affiché">
+              {KINDS.map((k) => (
+                <button
+                  key={k.id}
+                  aria-pressed={k.id === shownKind}
+                  disabled={!files[k.id]}
+                  title={files[k.id] ? files[k.id].filename : 'Pas encore de PPT de cette sorte'}
+                  onClick={() => setKind(k.id)}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
+            <p className="reports-period">
+              {shownFile.filename}, enregistré le {dateFr(shownFile.createdAt)} à {timeFr(shownFile.createdAt)}.
+            </p>
+            {result && shownKind === 'genere' && <RunDetails result={result} />}
+            <SlidesPreview
+              key={`${shownKind}-${shownFile.createdAt}`}
+              assemblyId={assemblyId}
+              kind={shownKind}
+              changed={result && shownKind === 'genere' ? result.changedSlides : []}
+            />
           </>
         )}
       </div>
@@ -563,22 +651,22 @@ function SlideText({ slide }) {
   )
 }
 
-function SlideView({ assemblyId, version, slide }) {
-  const src = useImage(slide.image ? `${API_URL}/general-assemblies/${assemblyId}/versions/${version}/slides/${slide.image}.png` : null)
+function SlideView({ assemblyId, kind, slide }) {
+  const src = useImage(slide.image ? `${API_URL}/general-assemblies/${assemblyId}/files/${kind}/slides/${slide.image}.png` : null)
   if (slide.image && src) return <img src={src} alt={`Diapo ${slide.number} : ${slide.title}`} />
   return <SlideText slide={slide} />
 }
 
-function SlidesPreview({ assemblyId, version, changed }) {
+function SlidesPreview({ assemblyId, kind, changed }) {
   const [preview, setPreview] = useState(null)
   const [error, setError] = useState(null)
   const [open, setOpen] = useState(null)
 
   useEffect(() => {
-    callApi(`/general-assemblies/${assemblyId}/versions/${version}/slides`)
+    callApi(`/general-assemblies/${assemblyId}/files/${kind}/slides`)
       .then(setPreview)
       .catch((err) => setError(err.message))
-  }, [assemblyId, version])
+  }, [assemblyId, kind])
 
   useEffect(() => {
     if (open === null) return undefined
@@ -603,7 +691,7 @@ function SlidesPreview({ assemblyId, version, changed }) {
         {preview.slides.map((slide, i) => (
           <button key={slide.number} className={slide.hidden ? 'ag-thumb ag-thumb-hidden' : 'ag-thumb'} onClick={() => setOpen(i)} aria-label={`Diapo ${slide.number} : ${slide.title}`}>
             <div className="ag-thumb-stage">
-              <SlideView assemblyId={assemblyId} version={version} slide={slide} />
+              <SlideView assemblyId={assemblyId} kind={kind} slide={slide} />
             </div>
             <span className="ag-thumb-caption">
               <span className="ag-thumb-number">{slide.number}</span>
@@ -624,7 +712,7 @@ function SlidesPreview({ assemblyId, version, changed }) {
         <div className="ag-viewer" role="dialog" aria-modal="true" aria-label={`Diapo ${current.number}`} onClick={(e) => e.target === e.currentTarget && setOpen(null)}>
           <div className="ag-viewer-box">
             <div className="ag-viewer-stage">
-              <SlideView assemblyId={assemblyId} version={version} slide={current} />
+              <SlideView assemblyId={assemblyId} kind={kind} slide={current} />
             </div>
             <div className="ag-viewer-footer">
               <span>

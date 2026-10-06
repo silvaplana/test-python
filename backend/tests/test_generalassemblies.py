@@ -173,7 +173,9 @@ def test_run_fills_the_template_with_the_official_report(setup):
     done = client.run(assembly["id"], {})
 
     assert done["status"] == "idle"
-    assert done["latestVersion"] == 1
+    assert done["hasPpt"] is True
+    # Le modele par defaut (modele general) est devenu le modele du calcul.
+    assert [kind for kind, file in done["files"].items() if file] == ["modele", "genere"]
     result = done["result"]
     assert result["report"]["name"] == "Bilan officiel"
     assert result["template"]["kind"] == "uploaded"
@@ -190,7 +192,7 @@ def test_run_fills_the_template_with_the_official_report(setup):
     assert data["licencies"] == [{"saison": "2024-2025", "licencies": 47}, {"saison": "2025-2026", "licencies": 50}]
     assert data["modele"][0]["zones"][0]["paragraphes"][0]["texte"] == "Assemblée Générale\nBilan saison 2024-2025"
 
-    path, filename = client.version_path(assembly["id"])
+    path, filename = client.file_path(assembly["id"])
     assert filename == "AG-2025-2026-AG 2026.pptx"
     slide = texts(path)[1]
     assert slide["title"] == "Résumé exécutif 2025/2026"
@@ -211,7 +213,9 @@ def test_run_warns_about_amounts_not_in_the_report(setup):
     assert client.run(assembly["id"], {})["result"]["warnings"] == ["Diapo 2 : 1 507 € ne vient pas du bilan, à vérifier."]
     # Un montant donne dans le prompt est accepte.
     assert client.run(assembly["id"], {"prompt": "Le résultat de l'an dernier était 1507 €"})["result"]["warnings"] == []
-    assert client.get(assembly["id"])["latestVersion"] == 2
+    # Le nouveau PPT a remplace le precedent : un seul fichier par sorte.
+    folder = client.storage / str(assembly["id"])
+    assert len(list(folder.glob("v*.pptx"))) == 2
 
 
 def test_run_needs_a_report_and_a_template(setup):
@@ -238,6 +242,22 @@ def test_previous_official_assembly_is_the_template(setup):
     assert client.run(assembly["id"], {})["result"]["template"]["kind"] == "previous"
 
 
+def test_own_model_is_used_instead_of_the_default(setup):
+    client, writer, _, _, tmp_path = setup
+    assembly = client.create({"seasonId": 2, "name": "AG 2026"})
+    client.set_model(assembly["id"], make_pptx(tmp_path / "ex.pptx", title="Exemple du club").read_bytes(), "ex.pptx")
+
+    done = client.run(assembly["id"], {})
+
+    assert done["result"]["template"] == {"kind": "own", "name": "ex.pptx"}
+    assert writer.calls[0][1]["modele"][1]["zones"][0]["paragraphes"][0]["texte"] == "Exemple du club"
+    # Le modele reste celui choisi, et un PPT modifie ne le remplace pas.
+    client.upload(assembly["id"], make_pptx(tmp_path / "m.pptx", title="Retouché").read_bytes(), "m.pptx")
+    files = client.get(assembly["id"])["files"]
+    assert [files[kind]["filename"] for kind in ("modele", "genere", "modifie")] == ["ex.pptx", "AG-2025-2026-AG 2026.pptx", "m.pptx"]
+    assert texts(client.file_path(assembly["id"])[0])[1]["title"] == "Retouché"
+
+
 def test_one_official_per_season_and_delete(setup):
     client, *_ = setup
     first = client.create({"seasonId": 2, "name": "A", "state": "officiel"})
@@ -258,7 +278,7 @@ def test_ai_error_keeps_cost_and_no_version(setup):
     assembly = client.create({"seasonId": 2, "name": "AG"})
     done = client.run(assembly["id"], {})
     assert (done["status"], done["error"]) == ("error", "L'IA a refusé de préparer cette AG.")
-    assert done["latestVersion"] is None
+    assert done["hasPpt"] is False
     assert costs == [(2, 0.02)]
 
 
@@ -274,15 +294,16 @@ def test_api_upload_download_and_slides(setup, monkeypatch):
 
     sent = make_pptx(tmp_path / "modifie.pptx", title="Ma version").read_bytes()
     response = http.post(f"/general-assemblies/{created['id']}/upload", files={"file": ("ma-version.pptx", sent)})
-    assert [v["origin"] for v in response.json()["versions"]] == ["envoye", "genere"]
+    assert [kind for kind, file in response.json()["files"].items() if file] == ["modele", "genere", "modifie"]
+    assert response.json()["files"]["modifie"]["filename"] == "ma-version.pptx"
 
     download = http.get(f"/general-assemblies/{created['id']}/download")
     assert download.status_code == 200
     assert texts(io.BytesIO(download.content))[1]["title"] == "Ma version"
-    first = http.get(f"/general-assemblies/{created['id']}/download?version=1")
+    first = http.get(f"/general-assemblies/{created['id']}/download?kind=genere")
     assert texts(io.BytesIO(first.content))[1]["title"] == "Résumé exécutif 2025/2026"
 
-    preview = http.get(f"/general-assemblies/{created['id']}/versions/2/slides").json()
+    preview = http.get(f"/general-assemblies/{created['id']}/files/modifie/slides").json()
     assert preview["thumbnails"] is False
     assert [s["title"] for s in preview["slides"]] == ["Assemblée Générale Bilan saison 2024-2025", "Ma version"]
 
@@ -290,7 +311,28 @@ def test_api_upload_download_and_slides(setup, monkeypatch):
     assert bad.status_code == 400
     listing = http.get("/general-assemblies?seasonId=2").json()
     assert listing["templateUploaded"] is True
-    assert [a["latestVersion"] for a in listing["assemblies"]] == [2]
+    assert [a["hasPpt"] for a in listing["assemblies"]] == [True]
+    assert http.get(f"/general-assemblies/{created['id']}/files/inconnu/slides").status_code == 404
+
+    # Modele d'un autre calcul : fichier de l'ordinateur, ou PPT d'un calcul.
+    other = http.post("/general-assemblies", json={"seasonId": 2, "name": "Essai"}).json()
+    local = make_pptx(tmp_path / "local.pptx", title="Mon exemple").read_bytes()
+    sent = http.post(f"/general-assemblies/{other['id']}/model", files={"file": ("exemple.pptx", local)}).json()
+    assert sent["files"]["modele"]["filename"] == "exemple.pptx" and sent["hasPpt"] is False
+    sources = http.get(f"/general-assemblies/model-sources?exclude={other['id']}").json()
+    assert [(x["assemblyId"], x["kind"]) for x in sources] == [
+        (created["id"], "modifie"),
+        (created["id"], "genere"),
+        (created["id"], "modele"),
+        (None, "general"),
+    ]
+    assert sources[0]["label"] == "2025-2026, AG 2026 : PPT modifié"
+    copied = http.put(f"/general-assemblies/{other['id']}/model", json={"sourceId": created["id"], "kind": "modifie"})
+    assert copied.json()["files"]["modele"]["filename"] == "ma-version.pptx"
+    model = http.get(f"/general-assemblies/{other['id']}/download?kind=modele")
+    assert texts(io.BytesIO(model.content))[1]["title"] == "Ma version"
+    assert http.put(f"/general-assemblies/{other['id']}/model", json={"sourceId": other["id"], "kind": "modele"}).status_code == 400
+    assert http.put(f"/general-assemblies/{other['id']}/model", json={"kind": "general"}).status_code == 200
 
 
 def test_outline_skips_empty_zones(tmp_path):

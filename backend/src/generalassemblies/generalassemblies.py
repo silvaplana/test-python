@@ -3,15 +3,23 @@ PowerPoint de l'AG d'une saison.
 
 Un calcul d'AG (table general_assemblies) a un nom, une saison, un etat
 (brouillon, valide, officiel : un seul officiel par saison), un prompt, un
-modele d'IA et un cout de l'IA cumule. Ses PPT sont des versions (table
-general_assembly_versions) : une par calcul ou par PPT modifie envoye par
-le tresorier ; fichiers dans storage_dir/<id>/v<n>.pptx (volume Docker).
+modele d'IA et un cout de l'IA cumule. Il garde au plus 3 PPT (voir KINDS),
+un par sorte :
+- "modele" : le PPT d'exemple dont l'IA reprend la mise en page, envoye
+  depuis l'ordinateur ou copie d'un PPT d'un autre calcul ;
+- "genere" : le PPT produit par le dernier calcul ;
+- "modifie" : le PPT retouche par le tresorier, renvoye dans l'appli.
+Un nouveau PPT remplace celui de la meme sorte. Ils sont enregistres dans la
+table general_assembly_versions (origin "modele", "genere" ou "envoye" ; la
+derniere ligne de chaque origin compte), fichiers
+storage_dir/<id>/v<n>.pptx (volume Docker).
 
 Executer un calcul (voir run), en arriere-plan :
 1. bilan financier de la saison : l'officiel, sinon le valide, sinon le
    brouillon le plus recent (onglet Bilan financier) ; aucun : refuse ;
-2. PPT modele : le dernier PPT de l'AG officielle de la saison precedente,
-   sinon le modele envoye dans l'onglet (storage_dir/modele.pptx) ;
+2. PPT modele : celui du calcul ; s'il n'en a pas, le PPT final de l'AG
+   officielle de la saison precedente, sinon le modele general de l'onglet
+   (storage_dir/modele.pptx) -- il devient alors le modele du calcul ;
 3. l'IA ecrit le texte des diapos du tresorier (voir ai.py) ;
 4. l'appli place ce texte dans le modele (voir slides.fill) et verifie que
    chaque montant ecrit vient bien du bilan.
@@ -45,6 +53,11 @@ STATES = {"brouillon": "Brouillon", "valide": "Validé", "officiel": "Officiel"}
 STATE_RANK = {"officiel": 0, "valide": 1, "brouillon": 2}
 RUN_TIMEOUT = timedelta(minutes=20)
 MAX_UPLOAD = 50 * 1024 * 1024
+# Les 3 PPT d'un calcul : sorte -> origin en base (voir le haut du fichier).
+KINDS = {"modele": "modele", "genere": "genere", "modifie": "envoye"}
+KIND_LABELS = {"modele": "modèle", "genere": "produit par l'IA", "modifie": "modifié"}
+# PPT final d'un calcul : le modifie s'il existe, sinon celui de l'IA.
+FINAL_KINDS = ("modifie", "genere")
 
 
 class AssemblyError(ValueError):
@@ -116,23 +129,26 @@ class GeneralAssemblies:
 
     def get(self, assembly_id: int) -> dict:
         row = self._row(assembly_id)
-        with self.db.connect() as connection:
-            versions = connection.execute(
-                "SELECT * FROM general_assembly_versions WHERE assembly_id = ? ORDER BY number DESC", (assembly_id,)
-            ).fetchall()
         return {
             **self._summary(row),
             "prompt": row["prompt"],
             "result": json.loads(row["result"]) if row["result"] else None,
-            "versions": [
-                {
-                    "number": v["number"],
-                    "origin": v["origin"],
-                    "filename": v["filename"],
-                    "createdAt": v["created_at"],
-                }
-                for v in versions
-            ],
+            "files": self.files(assembly_id),
+        }
+
+    def files(self, assembly_id: int) -> dict:
+        """Les 3 PPT du calcul : {"modele", "genere", "modifie"}, chacun
+        {"kind", "filename", "createdAt"} ou None."""
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM general_assembly_versions WHERE assembly_id = ? ORDER BY number", (assembly_id,)
+            ).fetchall()
+        latest = {row["origin"]: row for row in rows}
+        return {
+            kind: {"kind": kind, "filename": latest[origin]["filename"], "createdAt": latest[origin]["created_at"]}
+            if origin in latest
+            else None
+            for kind, origin in KINDS.items()
         }
 
     def _row(self, assembly_id: int):
@@ -147,9 +163,10 @@ class GeneralAssemblies:
         if status == "running" and datetime.fromisoformat(row["run_started_at"]) < datetime.now(timezone.utc) - RUN_TIMEOUT:
             status, error = "error", "Calcul interrompu (serveur redémarré) : relance-le."
         with self.db.connect() as connection:
-            latest = connection.execute(
-                "SELECT MAX(number) FROM general_assembly_versions WHERE assembly_id = ?", (row["id"],)
-            ).fetchone()[0]
+            ready = connection.execute(
+                "SELECT 1 FROM general_assembly_versions WHERE assembly_id = ? AND origin IN ('genere', 'envoye')",
+                (row["id"],),
+            ).fetchone()
         return {
             "id": row["id"],
             "seasonId": row["season_id"],
@@ -160,7 +177,8 @@ class GeneralAssemblies:
             "aiCost": row["ai_cost"],
             "status": status,
             "error": error,
-            "latestVersion": latest,
+            # Un PPT d'AG existe (produit par l'IA ou modifie).
+            "hasPpt": ready is not None,
             "updatedAt": row["updated_at"],
         }
 
@@ -223,24 +241,25 @@ class GeneralAssemblies:
 
     # ----- fichiers -----
 
-    def version_path(self, assembly_id: int, number: int | None = None) -> tuple[Path, str]:
-        """Fichier d'une version (la derniere si number est None) et son nom
-        de telechargement."""
+    def file_path(self, assembly_id: int, kind: str | None = None) -> tuple[Path, str]:
+        """Fichier d'un des 3 PPT du calcul et son nom de telechargement.
+        kind None : le PPT final (voir FINAL_KINDS)."""
+        if kind is not None and kind not in KINDS:
+            raise AssemblyNotFoundError(kind)
         with self.db.connect() as connection:
-            if number is None:
+            for candidate in (kind,) if kind else FINAL_KINDS:
                 row = connection.execute(
-                    "SELECT * FROM general_assembly_versions WHERE assembly_id = ? ORDER BY number DESC LIMIT 1",
-                    (assembly_id,),
+                    """SELECT * FROM general_assembly_versions WHERE assembly_id = ? AND origin = ?
+                       ORDER BY number DESC LIMIT 1""",
+                    (assembly_id, KINDS[candidate]),
                 ).fetchone()
-            else:
-                row = connection.execute(
-                    "SELECT * FROM general_assembly_versions WHERE assembly_id = ? AND number = ?", (assembly_id, number)
-                ).fetchone()
-        if row is None:
-            raise AssemblyNotFoundError(assembly_id)
-        return self.storage / str(assembly_id) / f"v{row['number']}.pptx", row["filename"]
+                if row is not None:
+                    return self.storage / str(assembly_id) / f"v{row['number']}.pptx", row["filename"]
+        raise AssemblyNotFoundError(assembly_id)
 
-    def _add_version(self, assembly_id: int, origin: str, source: Path | bytes, filename: str) -> int:
+    def _set_file(self, assembly_id: int, kind: str, source: Path | bytes, filename: str) -> None:
+        """Enregistre un PPT du calcul, a la place de celui de la meme sorte."""
+        origin = KINDS[kind]
         folder = self.storage / str(assembly_id)
         folder.mkdir(parents=True, exist_ok=True)
         with self.db.connect() as connection:
@@ -255,13 +274,26 @@ class GeneralAssemblies:
                 target.write_bytes(source)
             else:
                 shutil.move(str(source), target)
+            replaced = [
+                r["number"]
+                for r in connection.execute(
+                    "SELECT number FROM general_assembly_versions WHERE assembly_id = ? AND origin = ?",
+                    (assembly_id, origin),
+                )
+            ]
+            connection.execute(
+                "DELETE FROM general_assembly_versions WHERE assembly_id = ? AND origin = ?", (assembly_id, origin)
+            )
             connection.execute(
                 """INSERT INTO general_assembly_versions (assembly_id, number, origin, filename, created_at)
                    VALUES (?, ?, ?, ?, ?)""",
                 (assembly_id, number, origin, filename, _now()),
             )
             connection.execute("UPDATE general_assemblies SET updated_at = ? WHERE id = ?", (_now(), assembly_id))
-        return number
+        # Fichiers et images des diapos des PPT remplaces.
+        for old in replaced:
+            (folder / f"v{old}.pptx").unlink(missing_ok=True)
+            shutil.rmtree(folder / f"v{old}-apercu", ignore_errors=True)
 
     @staticmethod
     def _check_pptx(content: bytes, path: Path) -> None:
@@ -276,26 +308,87 @@ class GeneralAssemblies:
             raise AssemblyError(str(exc)) from exc
 
     def upload(self, assembly_id: int, content: bytes, filename: str) -> dict:
-        """PPT modifie par le tresorier : nouvelle version du calcul."""
+        """PPT modifie par le tresorier (remplace le precedent)."""
         self._row(assembly_id)
         tmp = self.storage / str(assembly_id) / "envoi.tmp"
         self._check_pptx(content, tmp)
-        self._add_version(assembly_id, "envoye", tmp, filename or "ag.pptx")
+        self._set_file(assembly_id, "modifie", tmp, filename or "ag.pptx")
         return self.get(assembly_id)
 
+    def set_model(self, assembly_id: int, content: bytes, filename: str) -> dict:
+        """PPT modele du calcul, envoye depuis l'ordinateur."""
+        self._row(assembly_id)
+        tmp = self.storage / str(assembly_id) / "modele.tmp"
+        self._check_pptx(content, tmp)
+        self._set_file(assembly_id, "modele", tmp, filename or "modele.pptx")
+        return self.get(assembly_id)
+
+    def copy_model(self, assembly_id: int, source_id: int | None, kind: str) -> dict:
+        """PPT modele du calcul, copie d'un PPT d'un autre calcul (source_id,
+        kind : une sorte de KINDS) ou du modele general de l'onglet
+        (kind "general")."""
+        self._row(assembly_id)
+        if kind == "general":
+            if not self.template_path.exists():
+                raise AssemblyError("Il n'y a pas de modèle général")
+            path, filename = self.template_path, "Modèle général.pptx"
+        else:
+            if source_id is None or source_id == assembly_id or kind not in KINDS:
+                raise AssemblyError("Choisis un PPT d'un autre calcul")
+            try:
+                path, filename = self.file_path(source_id, kind)
+            except AssemblyNotFoundError as exc:
+                raise AssemblyError("Ce PPT n'existe plus") from exc
+        self._set_file(assembly_id, "modele", path.read_bytes(), filename)
+        return self.get(assembly_id)
+
+    def model_sources(self, exclude: int | None = None) -> list[dict]:
+        """PPT qui peuvent servir de modele a un calcul : ceux de tous les
+        autres calculs (toutes saisons, le plus recent d'abord), puis le
+        modele general de l'onglet s'il existe."""
+        names = {s["id"]: s["name"] for s in self.seasons()}
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                """SELECT v.*, a.name AS assembly_name, a.season_id, a.state FROM general_assembly_versions v
+                   JOIN general_assemblies a ON a.id = v.assembly_id
+                   WHERE a.id IS NOT ? ORDER BY v.number""",
+                (exclude,),
+            ).fetchall()
+        kinds = {origin: kind for kind, origin in KINDS.items()}
+        latest = {(row["assembly_id"], row["origin"]): row for row in rows if row["origin"] in kinds}
+        sources = [
+            {
+                "assemblyId": row["assembly_id"],
+                "kind": kinds[row["origin"]],
+                "label": f"{names.get(row['season_id'], '?')}, {row['assembly_name']} : PPT {KIND_LABELS[kinds[row['origin']]]}",
+                "filename": row["filename"],
+                "createdAt": row["created_at"],
+            }
+            for row in sorted(latest.values(), key=lambda r: (r["created_at"], r["number"]), reverse=True)
+        ]
+        if self.template_path.exists():
+            sources.append(
+                {"assemblyId": None, "kind": "general", "label": "Modèle général", "filename": "modele.pptx", "createdAt": None}
+            )
+        return sources
+
     def set_template(self, content: bytes) -> dict:
-        """Modele de PPT utilise quand la saison precedente n'a pas d'AG
-        officielle."""
+        """Modele general : utilise par un calcul sans modele, quand la
+        saison precedente n'a pas d'AG officielle."""
         tmp = self.storage / "modele.tmp"
         self._check_pptx(content, tmp)
         tmp.replace(self.template_path)
         return {"templateUploaded": True}
 
-    def slides(self, assembly_id: int, number: int) -> dict:
-        """Apercu d'une version : textes de chaque diapo et, si LibreOffice
+    def _preview(self, assembly_id: int, kind: str) -> tuple[Path, Path]:
+        path, _ = self.file_path(assembly_id, kind)
+        return path, path.with_name(f"{path.stem}-apercu")
+
+    def slides(self, assembly_id: int, kind: str) -> dict:
+        """Apercu d'un des 3 PPT : textes de chaque diapo et, si LibreOffice
         est installe, numero de l'image de chaque diapo affichee."""
-        path, _ = self.version_path(assembly_id, number)
-        images = thumbnails(path, path.with_name(f"v{number}-apercu"))
+        path, folder = self._preview(assembly_id, kind)
+        images = thumbnails(path, folder)
         result, index = [], 0
         for slide in texts(path):
             image = None
@@ -305,9 +398,8 @@ class GeneralAssemblies:
             result.append({**slide, "image": image})
         return {"slides": result, "thumbnails": images is not None}
 
-    def thumbnail(self, assembly_id: int, number: int, image: int) -> Path:
-        path, _ = self.version_path(assembly_id, number)
-        images = thumbnails(path, path.with_name(f"v{number}-apercu")) or []
+    def thumbnail(self, assembly_id: int, kind: str, image: int) -> Path:
+        images = thumbnails(*self._preview(assembly_id, kind)) or []
         if not 1 <= image <= len(images):
             raise AssemblyNotFoundError(image)
         return images[image - 1]
@@ -321,8 +413,8 @@ class GeneralAssemblies:
         return min(candidates, key=lambda r: STATE_RANK[r["state"]], default=None)
 
     def _template(self, season_id: int) -> tuple[Path, dict] | None:
-        """PPT modele : la derniere version de l'AG officielle de la saison
-        precedente, sinon le modele envoye dans l'onglet."""
+        """PPT modele par defaut d'un calcul qui n'en a pas : le PPT final de
+        l'AG officielle de la saison precedente, sinon le modele general."""
         seasons = self.seasons()
         index = next((i for i, s in enumerate(seasons) if s["id"] == season_id), None)
         if index:
@@ -331,15 +423,24 @@ class GeneralAssemblies:
                 row = connection.execute(
                     """SELECT a.id, a.name FROM general_assemblies a
                        WHERE a.season_id = ? AND a.state = 'officiel'
-                       AND EXISTS (SELECT 1 FROM general_assembly_versions v WHERE v.assembly_id = a.id)""",
+                       AND EXISTS (SELECT 1 FROM general_assembly_versions v
+                                   WHERE v.assembly_id = a.id AND v.origin IN ('genere', 'envoye'))""",
                     (previous["id"],),
                 ).fetchone()
             if row is not None:
-                path, _ = self.version_path(row["id"])
+                path, _ = self.file_path(row["id"])
                 return path, {"kind": "previous", "name": f"AG officielle {previous['name']} ({row['name']})"}
         if self.template_path.exists():
-            return self.template_path, {"kind": "uploaded", "name": "Modèle envoyé dans l'onglet"}
+            return self.template_path, {"kind": "uploaded", "name": "Modèle général"}
         return None
+
+    def _model(self, assembly_id: int, season_id: int) -> tuple[Path, dict] | None:
+        """PPT modele d'un calcul : le sien, sinon celui par defaut."""
+        try:
+            path, filename = self.file_path(assembly_id, "modele")
+        except AssemblyNotFoundError:
+            return self._template(season_id)
+        return path, {"kind": "own", "name": filename}
 
     # ----- calcul -----
 
@@ -349,8 +450,8 @@ class GeneralAssemblies:
             raise AssemblyError("Un calcul est déjà en cours")
         if self._source_report(row["season_id"]) is None:
             raise AssemblyError("Aucun bilan calculé pour cette saison : calcule-le d'abord dans Bilan financier.")
-        if self._template(row["season_id"]) is None:
-            raise AssemblyError("Pas de PPT modèle : envoie d'abord le PPT d'une AG précédente.")
+        if self._model(assembly_id, row["season_id"]) is None:
+            raise AssemblyError("Pas de PPT modèle : choisis d'abord le PPT d'une AG précédente.")
         name, state, prompt, model = self._validate({**dict(row), **{k: v for k, v in data.items() if v is not None}})
         with self.db.connect() as connection:
             if state == "officiel":
@@ -377,7 +478,11 @@ class GeneralAssemblies:
             if source is None:
                 raise AssemblyError("Aucun bilan calculé pour cette saison.")
             report = self.report(source["id"])
-            template, template_info = self._template(season["id"])
+            template, template_info = self._model(assembly_id, season["id"])
+            if template_info["kind"] != "own":
+                # Modele par defaut : il devient le modele du calcul.
+                self._set_file(assembly_id, "modele", template.read_bytes(), f"{template_info['name']}.pptx")
+                template, _ = self.file_path(assembly_id, "modele")
             data = self._ai_data(seasons, index, report, outline(template))
             draft: Draft = self.writer.write(row["model"], data, row["prompt"])
             cost = draft.cost
@@ -387,9 +492,8 @@ class GeneralAssemblies:
             warnings = check_amounts(
                 draft.zones, self._known_amounts(report["result"]) | self._prompt_amounts(row["prompt"])
             )
-            number = self._add_version(assembly_id, "genere", output, f"AG-{season['name']}-{row['name']}.pptx")
+            self._set_file(assembly_id, "genere", output, f"AG-{season['name']}-{row['name']}.pptx")
             result = {
-                "version": number,
                 "report": {"id": report["id"], "name": report["name"], "state": report["state"]},
                 "template": template_info,
                 "changedSlides": changed,

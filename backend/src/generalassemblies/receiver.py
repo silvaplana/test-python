@@ -28,6 +28,15 @@ class RunRequest(BaseModel):
     model: str | None = None
 
 
+class ModelRequest(BaseModel):
+    """Corps de PUT /general-assemblies/{id}/model : PPT a copier comme
+    modele du calcul. kind : "modele", "genere" ou "modifie" d'un autre
+    calcul (sourceId), ou "general" (modele general de l'onglet)."""
+
+    sourceId: int | None = None
+    kind: str
+
+
 class GeneralAssembliesReceiver:
     """Recoit les requetes REST (FastAPI) et delegue a GeneralAssemblies.
 
@@ -44,14 +53,18 @@ class GeneralAssembliesReceiver:
         self.app.get("/general-assemblies")(self.listAssemblies)
         self.app.post("/general-assemblies")(self.createAssembly)
         self.app.post("/general-assemblies/template")(self.uploadTemplate)
+        # Avant /general-assemblies/{assembly_id} : sinon pris pour un id.
+        self.app.get("/general-assemblies/model-sources")(self.getModelSources)
         self.app.get("/general-assemblies/{assembly_id}")(self.getAssembly)
         self.app.put("/general-assemblies/{assembly_id}")(self.updateAssembly)
         self.app.delete("/general-assemblies/{assembly_id}")(self.deleteAssembly)
         self.app.post("/general-assemblies/{assembly_id}/run")(self.runAssembly)
-        self.app.post("/general-assemblies/{assembly_id}/upload")(self.uploadVersion)
+        self.app.post("/general-assemblies/{assembly_id}/upload")(self.uploadModified)
+        self.app.post("/general-assemblies/{assembly_id}/model")(self.uploadModel)
+        self.app.put("/general-assemblies/{assembly_id}/model")(self.copyModel)
         self.app.get("/general-assemblies/{assembly_id}/download")(self.download)
-        self.app.get("/general-assemblies/{assembly_id}/versions/{number}/slides")(self.getSlides)
-        self.app.get("/general-assemblies/{assembly_id}/versions/{number}/slides/{image}.png")(self.getThumbnail)
+        self.app.get("/general-assemblies/{assembly_id}/files/{kind}/slides")(self.getSlides)
+        self.app.get("/general-assemblies/{assembly_id}/files/{kind}/slides/{image}.png")(self.getThumbnail)
 
     def _call(self, action, *args):
         try:
@@ -87,11 +100,27 @@ class GeneralAssembliesReceiver:
         du PPT en arriere-plan, voir GeneralAssemblies.run."""
         return self._call(self.client.run, assembly_id, request.model_dump())
 
-    async def uploadVersion(self, assembly_id: int, file: UploadFile) -> dict:
+    async def uploadModified(self, assembly_id: int, file: UploadFile) -> dict:
         """Endpoint REST POST /general-assemblies/{id}/upload : PPT modifie
-        par le tresorier, enregistre comme nouvelle version."""
+        par le tresorier (remplace le precedent)."""
         content = await file.read()
         return self._call(self.client.upload, assembly_id, content, file.filename or "ag.pptx")
+
+    async def uploadModel(self, assembly_id: int, file: UploadFile) -> dict:
+        """Endpoint REST POST /general-assemblies/{id}/model : PPT modele du
+        calcul, envoye depuis l'ordinateur."""
+        content = await file.read()
+        return self._call(self.client.set_model, assembly_id, content, file.filename or "modele.pptx")
+
+    def copyModel(self, assembly_id: int, request: ModelRequest) -> dict:
+        """Endpoint REST PUT /general-assemblies/{id}/model : PPT modele du
+        calcul, copie d'un PPT d'un autre calcul ou du modele general."""
+        return self._call(self.client.copy_model, assembly_id, request.sourceId, request.kind)
+
+    def getModelSources(self, exclude: int | None = None) -> list[dict]:
+        """Endpoint REST GET /general-assemblies/model-sources?exclude= : PPT
+        des autres calculs (et modele general) utilisables comme modele."""
+        return self.client.model_sources(exclude)
 
     async def uploadTemplate(self, file: UploadFile) -> dict:
         """Endpoint REST POST /general-assemblies/template : PPT modele (utilise
@@ -99,20 +128,21 @@ class GeneralAssembliesReceiver:
         content = await file.read()
         return self._call(self.client.set_template, content)
 
-    def download(self, assembly_id: int, version: int | None = None) -> FileResponse:
-        """Endpoint REST GET /general-assemblies/{id}/download?version= : PPT
-        d'une version (la derniere par defaut)."""
-        path, filename = self._call(self.client.version_path, assembly_id, version)
+    def download(self, assembly_id: int, kind: str | None = None) -> FileResponse:
+        """Endpoint REST GET /general-assemblies/{id}/download?kind= : un des
+        3 PPT du calcul ("modele", "genere", "modifie") ; sans kind, le PPT
+        final (modifie, sinon produit par l'IA)."""
+        path, filename = self._call(self.client.file_path, assembly_id, kind)
         return FileResponse(
             path,
             media_type=PPTX,
             headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"},
         )
 
-    def getSlides(self, assembly_id: int, number: int) -> dict:
-        """Endpoint REST GET /general-assemblies/{id}/versions/{n}/slides :
+    def getSlides(self, assembly_id: int, kind: str) -> dict:
+        """Endpoint REST GET /general-assemblies/{id}/files/{kind}/slides :
         textes des diapos et images disponibles (LibreOffice)."""
-        return self._call(self.client.slides, assembly_id, number)
+        return self._call(self.client.slides, assembly_id, kind)
 
-    def getThumbnail(self, assembly_id: int, number: int, image: int) -> FileResponse:
-        return FileResponse(self._call(self.client.thumbnail, assembly_id, number, image), media_type="image/png")
+    def getThumbnail(self, assembly_id: int, kind: str, image: int) -> FileResponse:
+        return FileResponse(self._call(self.client.thumbnail, assembly_id, kind, image), media_type="image/png")

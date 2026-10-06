@@ -2750,6 +2750,51 @@ td button + .ffst-role-picker,
   background: rgba(251, 146, 60, 0.1);
 }
 
+/* Choix du PPT modele d'un calcul : fichier de l'ordinateur ou PPT d'un
+   autre calcul. */
+.ag-model {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.ag-model b {
+  color: var(--text-h);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.ag-model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ag-model-actions button,
+.ag-model-actions select {
+  min-height: 40px;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.ag-model-actions select {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+.ag-model-actions button:disabled,
+.ag-model-actions select:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .ag-link {
   padding: 0;
   border: 0;
