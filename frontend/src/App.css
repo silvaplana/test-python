@@ -2021,3 +2021,22 @@ td button + .ffst-role-picker,
   font-size: 0.8rem;
   text-align: left;
 }
+
+/* Sous-onglets de Finances pas encore developpes (voir Finances.jsx). */
+.in-development {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.in-development p {
+  margin: 0;
+}
+
+.in-development .in-development-badge {
+  margin-bottom: 0.6rem;
+  color: var(--text-h);
+  font-size: 1.15rem;
+  font-weight: 600;
+}

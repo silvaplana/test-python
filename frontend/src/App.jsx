@@ -5,6 +5,7 @@ import { requestStatementImport } from './BankHistory.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
+import { FinancialReports, Forecast, GeneralAssemblies, Seasons } from './Finances.jsx'
 import { Profile } from './Profile.jsx'
 import { TrialsTable, hasTrialCheckin } from './Trials.jsx'
 import Navigation from './Navigation.jsx'
@@ -69,6 +70,12 @@ function AppContent() {
                   },
                 ]
               : []),
+            // A venir (voir Finances.jsx) : pour l'instant des ecrans "En
+            // cours de dev".
+            { label: 'Saisons', content: () => <Seasons /> },
+            { label: 'Bilan financier', shortLabel: 'Bilan', content: () => <FinancialReports /> },
+            { label: 'Assemblées générales', shortLabel: 'AG', content: () => <GeneralAssemblies /> },
+            { label: 'Prévisionnel', content: () => <Forecast /> },
             // Ancien "Bilan financier" (analyse IA des releves deposes),
             // remplace par l'historique de l'onglet Comptes : garde pour
             // l'instant, sous le nom "Deprecated".
