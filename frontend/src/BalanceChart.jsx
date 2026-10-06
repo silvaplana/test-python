@@ -117,7 +117,9 @@ function smoothPath(points) {
 // la duree, curseur qui suit la souris (ou le doigt) avec date + solde, et
 // variation sur la periode. SVG maison (aucune dependance), largeur adaptee au
 // conteneur.
-export function BalanceChart({ series }) {
+// showPercent : variation en % sur la periode (sans objet pour un cumul
+// d'operations, voir BankHistory).
+export function BalanceChart({ series, showPercent = true }) {
   const gradientId = useId()
   const wrapperRef = useRef(null)
   const [width, setWidth] = useState(600)
@@ -173,7 +175,7 @@ export function BalanceChart({ series }) {
   const first = visible[0]
   const last = visible[visible.length - 1]
   const change = last.v - first.v
-  const percent = first.v !== 0 ? (change / Math.abs(first.v)) * 100 : null
+  const percent = showPercent && first.v !== 0 ? (change / Math.abs(first.v)) * 100 : null
   const color = change >= 0 ? GREEN : RED
   const hovered = hoverIndex != null ? visible[hoverIndex] : null
 

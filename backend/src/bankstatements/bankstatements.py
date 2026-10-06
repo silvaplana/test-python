@@ -31,6 +31,7 @@ import py7zr
 
 from database import Database
 
+from .categories import CATEGORY_NAMES, categorize
 from .parser import ParsedStatement, StatementParseError, parse_statement
 
 # Ecart maximal (jours) entre les deux operations d'un virement interne.
@@ -258,7 +259,8 @@ class BankStatements:
 
         Retour : {"accounts": [{"id", "name", "kind", "balance", "asOf",
         "coverage": [{"from", "to", "statements"}]}], "allAccounts",
-        "total", "rows": [...], "issues": [...]} (montants en euros).
+        "total", "categories", "rows": [...], "issues": [...]} (montants en
+        euros ; chaque ligne porte sa "category", voir categories.py).
         """
         with self.db.connect() as connection:
             accounts = [dict(r) for r in connection.execute("SELECT id, name, kind FROM bank_accounts ORDER BY kind, id")]
@@ -329,6 +331,9 @@ class BankStatements:
                 "accountId": op["account_id"],
                 "label": op["label"],
                 "details": op["details"],
+                # Recette / depense deduite du libelle (voir categories.py) ;
+                # un virement entre les comptes du club est a part.
+                "category": categorize(op["label"], op["details"], op["transfer_id"] is not None),
                 "amount": (abs(op["amount"]) if twin is not None else op["amount"]) / 100,
                 "transfer": transfer,
                 # Lue par la connexion bancaire, pas encore dans un releve.
@@ -363,6 +368,8 @@ class BankStatements:
             # Tous les comptes (pour choisir la vue), meme avec account_id.
             "allAccounts": [{"id": a["id"], "name": a["name"], "kind": a["kind"]} for a in accounts],
             "total": sum(b for b in balances.values() if b is not None) / 100,
+            # Toutes les categories possibles, dans l'ordre d'affichage.
+            "categories": CATEGORY_NAMES,
             "rows": rows,
             "issues": issues,
         }

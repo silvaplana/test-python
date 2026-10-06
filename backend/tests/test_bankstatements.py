@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from bankstatements import BankStatements, BankStatementsReceiver, StatementParseError, parse_statement
+from bankstatements.categories import categorize
 from database import Database
 
 COURANT = "C/C Connect Asso N° 00020461601 en euros (GD)"
@@ -270,3 +271,39 @@ def test_sync_route_never_fails(statements):
     BankStatementsReceiver(client=statements, app=app, live_operations=broken)
     assert TestClient(app).post("/bankstatements/sync").json() == {"added": [], "error": "Banque non connectée"}
 
+
+
+@pytest.mark.parametrize(
+    "label, details, category",
+    [
+        ("VIR STRIPE TECHNOLOGY", "", "Cotisations en ligne"),
+        ("VIR HELLOASSOPAY R4WOXYY6WK2XP0Q HELLOASSO 35", "", "Cotisations en ligne"),
+        ("VIR SEPA SALAIRE CHRISTOPHE CH3V26216L038172", "", "Salaires"),
+        ("VIR Salaires", "", "Salaires"),
+        ("PRLV SEPA URSSAF PACA UR 937000002004519013", "", "URSSAF"),
+        ("PLAN SANTE SA1406498", "2508001 SA1406498", "Mutuelle"),
+        ("VIR AFFIL. FFST", "", "FFST (licences)"),
+        ("REMBOURSEMENT LICENCES", "", "FFST (licences)"),
+        ("FACT SGT25089720011273", "DONT TVA 0,38EUR", "Frais bancaires"),
+        ("PAIEMENT CB 2603 VOIRON", "FACTURE DIGITALEA", "Autres"),
+        ("SOUTIEN ASSO SPORTIVE/CULTURELL", "", "Soutien asso (banque)"),
+        ("Intérêts Livret Bleu", "", "Intérêts"),
+        ("CB DECATHLON", "", "Autres"),
+    ],
+)
+def test_categorize(label, details, category):
+    assert categorize(label, details) == category
+
+
+def test_ledger_rows_have_a_category(statements):
+    statements.import_files(history())
+    ledger = statements.get_ledger()
+    assert {r["label"]: r["category"] for r in ledger["rows"]} == {
+        "VIR SALAIRE": "Salaires",
+        "VIR C/C EUROCOMPTE": "Virement interne",
+        "CB DECATHLON": "Autres",
+    }
+    assert ledger["categories"][-2:] == ["Autres", "Virement interne"]
+    # Un compte seul : le virement interne reste classe a part.
+    alone = statements.get_ledger(ledger["accounts"][0]["id"])
+    assert [r["category"] for r in alone["rows"]] == ["Salaires", "Virement interne", "Autres"]

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BalanceChart } from './BalanceChart.jsx'
+import { normaliserTexte } from './HelloAsso.jsx'
 import { showToast } from './Toast.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -93,6 +94,51 @@ function ledgerSeries(rows, value) {
   return series
 }
 
+// Choix du menu "Categories" (voir BankHistory) : tout, les 5 categories
+// les plus frequentes, les 5 plus grosses, ou une categorie precise (son
+// nom). Les operations sont classees par le backend (bankstatements/
+// categories.py).
+const ALL_CATEGORIES = 'all'
+const TOP_FREQUENT = 'top-frequent'
+const TOP_AMOUNT = 'top-amount'
+const TOP_COUNT = 5
+// Categories qui ne sont pas une vraie nature de recette ou de depense :
+// hors des "5 plus...".
+const NOT_RANKED = ['Autres', 'Virement interne']
+
+// Par categorie : nombre d'operations, recettes, depenses et total. Un
+// virement interne ne compte pas (ni recette ni depense).
+function categoryStats(rows) {
+  const stats = new Map()
+  for (const row of rows) {
+    const stat = stats.get(row.category) ?? { name: row.category, count: 0, income: 0, expense: 0, total: 0 }
+    stat.count += 1
+    if (!row.transfer) {
+      if (row.amount > 0) stat.income += row.amount
+      else stat.expense += row.amount
+      stat.total += row.amount
+    }
+    stats.set(row.category, stat)
+  }
+  return stats
+}
+
+// Serie du graphique quand un filtre est actif : cumul des operations
+// retenues (ex: ce que les salaires ont coute depuis le debut), un point
+// par jour entre la 1re et la derniere.
+function cumulativeSeries(rows) {
+  let sum = 0
+  const cumulated = [...rows].reverse().map((row) => {
+    sum += row.transfer ? 0 : row.amount
+    return { ...row, cumul: Math.round(sum * 100) / 100 }
+  })
+  const series = ledgerSeries(cumulated.reverse(), (row) => row.cumul)
+  // Depart a 0 la veille de la 1re operation : la variation affichee sur
+  // toute la periode est ainsi le total des operations retenues.
+  if (series.length > 0) series.unshift({ t: series[0].t - DAY_MS, v: 0, ops: [] })
+  return series
+}
+
 // Etat des comptes du club, lu dans la base (voir backend bankstatements/) :
 // total des comptes (vue par defaut) ou un compte seul, en graphique ou en
 // tableau. A chaque ouverture de l'onglet (active), les dernieres operations
@@ -107,6 +153,9 @@ export function BankHistory({ active, syncReady }) {
   const [importing, setImporting] = useState(false)
   const [importErrors, setImportErrors] = useState([])
   const [shownRows, setShownRows] = useState(ROWS_PAGE)
+  // Filtres sur la nature des operations : menu "Categories" + recherche.
+  const [category, setCategory] = useState(ALL_CATEGORIES)
+  const [search, setSearch] = useState('')
   const fileInput = useRef(null)
   const sentinel = useRef(null)
 
@@ -191,15 +240,64 @@ export function BankHistory({ active, syncReady }) {
     writeSetting(DISPLAY_KEY, next)
   }
 
+  function chooseCategory(next) {
+    setCategory(next)
+    setShownRows(ROWS_PAGE)
+  }
+
+  function chooseSearch(next) {
+    setSearch(next)
+    setShownRows(ROWS_PAGE)
+  }
+
   const single = view !== 'all'
+
+  // Categories presentes, et celles retenues par le menu (null : toutes).
+  const stats = useMemo(() => categoryStats(ledger?.rows ?? []), [ledger])
+  const selectedCategories = useMemo(() => {
+    if (category === ALL_CATEGORIES) return null
+    if (category !== TOP_FREQUENT && category !== TOP_AMOUNT) return [category]
+    const ranked = [...stats.values()].filter((stat) => !NOT_RANKED.includes(stat.name))
+    const byAmount = (a, b) => Math.abs(b.total) - Math.abs(a.total)
+    // A nombre d'operations egal : la plus grosse d'abord.
+    ranked.sort(category === TOP_FREQUENT ? (a, b) => b.count - a.count || byAmount(a, b) : byAmount)
+    return ranked.slice(0, TOP_COUNT).map((stat) => stat.name)
+  }, [category, stats])
+
+  // Operations retenues par le menu et la recherche (libelle, details ou
+  // categorie, sans tenir compte des majuscules ni des accents).
+  const wanted = normaliserTexte(search.trim())
+  const filtering = selectedCategories !== null || wanted !== ''
+  const rows = useMemo(() => {
+    if (!ledger) return []
+    if (!filtering) return ledger.rows
+    return ledger.rows.filter(
+      (row) =>
+        (selectedCategories === null || selectedCategories.includes(row.category)) &&
+        (wanted === '' || normaliserTexte(`${rowLabel(row)} ${row.details} ${row.category}`).includes(wanted))
+    )
+  }, [ledger, filtering, selectedCategories, wanted])
+  // Recettes, depenses et detail par categorie de la selection.
+  const selection = useMemo(() => {
+    const perCategory = [...categoryStats(rows).values()].sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
+    return {
+      perCategory,
+      income: perCategory.reduce((sum, stat) => sum + stat.income, 0),
+      expense: perCategory.reduce((sum, stat) => sum + stat.expense, 0),
+    }
+  }, [rows])
+
+  // Graphique : solde des comptes, ou cumul des operations retenues quand un
+  // filtre est actif (le solde n'aurait plus de sens).
   const series = useMemo(() => {
     if (!ledger) return []
+    if (filtering) return cumulativeSeries(rows)
     return ledgerSeries(ledger.rows, single ? (row) => row.balances[view] : (row) => row.total)
-  }, [ledger, single, view])
+  }, [ledger, filtering, rows, single, view])
 
   // Tableau : n'affiche que les premieres lignes, puis la suite quand on
   // arrive en bas de la zone qui defile.
-  const rowCount = ledger?.rows.length ?? 0
+  const rowCount = rows.length
   useEffect(() => {
     if (display !== 'table' || !sentinel.current) return
     const observer = new IntersectionObserver((entries) => {
@@ -286,8 +384,72 @@ export function BankHistory({ active, syncReady }) {
             </div>
           </div>
 
-          {display === 'chart' ? (
-            <BalanceChart series={series} />
+          <div className="history-filters">
+            <select
+              value={category}
+              onChange={(e) => chooseCategory(e.target.value)}
+              aria-label="Catégories affichées"
+              className={category === ALL_CATEGORIES ? undefined : 'history-filter-active'}
+            >
+              <option value={ALL_CATEGORIES}>Toutes les catégories</option>
+              <option value={TOP_FREQUENT}>Les {TOP_COUNT} plus fréquentes</option>
+              <option value={TOP_AMOUNT}>Les {TOP_COUNT} plus grosses</option>
+              <optgroup label="Une catégorie">
+                {ledger.categories
+                  .filter((name) => stats.has(name))
+                  .map((name) => (
+                    <option key={name} value={name}>
+                      {name} ({stats.get(name).count})
+                    </option>
+                  ))}
+              </optgroup>
+            </select>
+            <label className="member-search">
+              <span aria-hidden="true">🔍</span>
+              <input
+                type="search"
+                name="operation-search"
+                placeholder="Rechercher une opération..."
+                value={search}
+                onChange={(e) => chooseSearch(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {filtering && (
+            <div className="history-selection">
+              <p>
+                <strong>{plural(rows.length, 'opération')}</strong> · Recettes{' '}
+                <span className="success-state">+{euros(selection.income)}</span> · Dépenses{' '}
+                <span className="unpaid-amount">{euros(selection.expense)}</span> · Net{' '}
+                <strong>{euros(selection.income + selection.expense)}</strong>
+              </p>
+              {selection.perCategory.length > 1 && (
+                <ul>
+                  {selection.perCategory.map((stat) => (
+                    <li key={stat.name}>
+                      <button className="history-category" onClick={() => chooseCategory(stat.name)}>
+                        {stat.name}
+                      </button>{' '}
+                      <span className={stat.total < 0 ? 'unpaid-amount' : 'success-state'}>
+                        {stat.total > 0 ? '+' : ''}
+                        {euros(stat.total)}
+                      </span>{' '}
+                      <small>({plural(stat.count, 'opération')})</small>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
+          {rows.length === 0 ? (
+            <p className="empty-state">Aucune opération ne correspond</p>
+          ) : display === 'chart' ? (
+            <>
+              {filtering && <p className="history-chart-note">Cumul des opérations retenues</p>}
+              <BalanceChart series={series} showPercent={!filtering} />
+            </>
           ) : (
             <div className="table-wrapper operations-scroll history-table">
               <table>
@@ -306,9 +468,10 @@ export function BankHistory({ active, syncReady }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {ledger.rows.slice(0, shownRows).map((row) => {
+                  {rows.slice(0, shownRows).map((row) => {
                     const name = shortName(accounts.find((a) => a.id === row.accountId))
                     const subline = [
+                      !row.transfer && row.category,
                       !single && !row.transfer && name,
                       row.provisional && 'banque, en attente du relevé',
                       row.details.split('\n')[0],
@@ -340,7 +503,7 @@ export function BankHistory({ active, syncReady }) {
                   })}
                 </tbody>
               </table>
-              {shownRows < ledger.rows.length && <div ref={sentinel} className="history-more" />}
+              {shownRows < rows.length && <div ref={sentinel} className="history-more" />}
             </div>
           )}
         </>

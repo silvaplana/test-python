@@ -1941,3 +1941,83 @@ td button + .ffst-role-picker,
     bottom: 1.5rem;
   }
 }
+
+/* Finances/Comptes : filtres sur la nature des operations (menu "Categories"
+   + recherche, voir BankHistory.jsx) et resume de la selection. */
+.history-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+/* 16px minimum : en dessous, Safari sur iPhone zoome sur le champ. */
+.history-filters select {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 16px;
+}
+
+.history-filters select.history-filter-active {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.history-filters .member-search {
+  flex: 2 1 14rem;
+}
+
+.history-selection {
+  margin: 0 0 0.75rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.9rem;
+  text-align: left;
+}
+
+.history-selection p {
+  margin: 0;
+}
+
+.history-selection .success-state,
+.history-selection .unpaid-amount {
+  margin: 0;
+}
+
+.history-selection ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.history-selection small {
+  color: var(--text);
+}
+
+.history-category {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  text-decoration: underline dotted var(--accent-border);
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.history-chart-note {
+  margin: 0 0 0.25rem;
+  color: var(--text);
+  font-size: 0.8rem;
+  text-align: left;
+}
