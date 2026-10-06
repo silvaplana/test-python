@@ -18,7 +18,33 @@ import { AppMenu } from './AppMenu.jsx'
 // fois visite (juste cache via l'attribut HTML "hidden"), pour ne pas
 // perdre l'etat d'une tache en cours (ex: Bilan financier et son analyse
 // IA en flux SSE) en changeant de section/outil.
-function Navigation({ header, sections, initialSection = 0, initialTool = 0 }) {
+//
+// Le dernier ecran affiche (section + outil) est retenu sur l'appareil : a
+// la reouverture de l'appli, on repart de celui-ci. forcedSection l'emporte
+// (ouverture par un lien precis : retour de la banque, QR code d'un eleve).
+const LAST_SCREEN_KEY = 'navigation-last-screen'
+
+// Dernier ecran retenu, en positions dans sections ; null si aucun, ou s'il
+// n'existe plus (onglet retire, acces aux finances perdu...).
+function readLastScreen(sections) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_SCREEN_KEY))
+    const section = sections.findIndex((s) => s.key === saved.section)
+    if (section < 0) return null
+    const tool = sections[section].tools.findIndex((t) => t.label === saved.tool)
+    return { section, tool: Math.max(tool, 0) }
+  } catch {
+    return null
+  }
+}
+
+function Navigation({ header, sections, forcedSection = null }) {
+  // Ecran de depart, fige a la 1re ouverture.
+  const [start] = useState(
+    () => (forcedSection == null ? readLastScreen(sections) : { section: forcedSection, tool: 0 }) ?? { section: 0, tool: 0 }
+  )
+  const initialSection = start.section
+  const initialTool = start.tool
   const [activeSection, setActiveSection] = useState(initialSection)
   // Outil actif par section (index) : se souvient du dernier outil
   // consulte dans chaque section quand on y revient.
@@ -41,6 +67,12 @@ function Navigation({ header, sections, initialSection = 0, initialTool = 0 }) {
       const key = `${sectionIndex}-${toolIndex}`
       return prev.has(key) ? prev : new Set(prev).add(key)
     })
+    try {
+      const screen = { section: sections[sectionIndex].key, tool: sections[sectionIndex].tools[toolIndex]?.label }
+      localStorage.setItem(LAST_SCREEN_KEY, JSON.stringify(screen))
+    } catch {
+      // Stockage indisponible : l'ecran ne sera juste pas retenu.
+    }
   }
 
   function selectSection(sectionIndex) {

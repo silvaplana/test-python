@@ -23,8 +23,8 @@ function AppContent() {
       // Retour de la banque (voir BankAccounts.jsx) : ouvre directement
       // Finances/Comptes (section 4, 1er outil) ; QR code d'un eleve scanne
       // avec l'appareil photo (voir Trials.jsx) : l'onglet Essai (section 3) ;
-      // sinon l'accueil habituel.
-      initialSection={hasBankCallback && canViewAccounts ? 3 : hasTrialCheckin ? 2 : 0}
+      // sinon le dernier ecran affiche sur cet appareil (voir Navigation.jsx).
+      forcedSection={hasBankCallback && canViewAccounts ? 3 : hasTrialCheckin ? 2 : null}
       header={<CampaignTitle />}
       sections={[
         {
