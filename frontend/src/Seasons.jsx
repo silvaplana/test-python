@@ -697,7 +697,8 @@ function SeasonDialog({ season, defaults, onClose, onSaved, onDelete }) {
           endDate: season.endDate,
           licences: toInput(season.licences),
           endBalance: manual ? toInput(season.balance.total) : '',
-          aiCost: toInput(season.aiCost),
+          // Le cout cumule peut porter des fractions de centime.
+          aiCost: toInput(season.aiCost == null ? null : Math.round(season.aiCost * 100) / 100),
         }
       : { ...defaults, licences: '', endBalance: '', aiCost: '' }
   )

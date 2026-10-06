@@ -167,3 +167,12 @@ def test_api(seasons):
 
     assert client.delete(f"/seasons/{season_id}").status_code == 200
     assert client.delete(f"/seasons/{season_id}").status_code == 404
+
+
+def test_ai_cost_below_one_cent_adds_up(seasons):
+    """Un appel a l'IA coute souvent moins d'un centime : ces couts
+    s'additionnent quand meme dans le cout de la saison."""
+    created = seasons.create(season("2025-2026", "2025-07-01", "2026-06-30"))
+    for _ in range(4):
+        seasons.add_ai_cost(created["id"], 0.0027)
+    assert seasons.get_seasons()["seasons"][0]["aiCost"] == pytest.approx(0.0108)

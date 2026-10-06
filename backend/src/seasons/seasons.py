@@ -169,10 +169,13 @@ class Seasons:
 
     def add_ai_cost(self, season_id: int, euros: float) -> None:
         """Ajoute le cout d'un appel a l'IA (ex : calcul d'un bilan, voir
-        financialreports) au cout IA cumule de la saison."""
+        financialreports) au cout IA cumule de la saison. Sans arrondi au
+        centime : un appel coute souvent moins d'un centime, et arrondi il ne
+        s'ajouterait jamais (la colonne garde alors des fractions de
+        centime)."""
         with self.db.connect() as connection:
             connection.execute(
-                "UPDATE seasons SET ai_cost = COALESCE(ai_cost, 0) + ? WHERE id = ?", (round(euros * 100), season_id)
+                "UPDATE seasons SET ai_cost = COALESCE(ai_cost, 0) + ? WHERE id = ?", (euros * 100, season_id)
             )
 
     def _get(self, season_id: int) -> dict:
