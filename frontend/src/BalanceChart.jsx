@@ -122,9 +122,11 @@ function smoothPath(points) {
 // conteneur.
 // showPercent : variation en % sur la periode (sans objet pour un cumul
 // d'operations, voir BankHistory).
+// fromZero : la courbe repart de zero au debut de la periode affichee (cumul
+// d'operations : ce qui s'est passe sur la periode, pas depuis le 1er releve).
 // extraRange : {label, content}, un choix de plus a la suite des durees (ex :
 // "Saisons") ; quand il est choisi, content remplace le graphique.
-export function BalanceChart({ series, showPercent = true, extraRange = null }) {
+export function BalanceChart({ series, showPercent = true, fromZero = false, extraRange = null }) {
   const gradientId = useId()
   const wrapperRef = useRef(null)
   const [width, setWidth] = useState(600)
@@ -175,8 +177,12 @@ export function BalanceChart({ series, showPercent = true, extraRange = null }) 
     if (series.length < 2) return series
     const cutoff = series[series.length - 1].t - range.days * DAY_MS
     const slice = series.filter((p) => p.t >= cutoff)
-    return slice.length >= 2 ? slice : series
-  }, [series, range])
+    if (slice.length < 2) return series
+    if (!fromZero) return slice
+    // Valeur atteinte juste avant la periode : le nouveau zero.
+    const base = series[series.length - slice.length - 1]?.v ?? 0
+    return slice.map((p) => ({ ...p, v: Math.round((p.v - base) * 100) / 100 }))
+  }, [series, range, fromZero])
 
   if (extraChosen) {
     return (

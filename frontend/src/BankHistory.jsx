@@ -513,10 +513,11 @@ export function BankHistory({ active, syncReady }) {
             <p className="empty-state">Aucune opération ne correspond</p>
           ) : display === 'chart' ? (
             <>
-              {filtering && <p className="history-chart-note">Cumul des opérations retenues</p>}
+              {filtering && <p className="history-chart-note">Cumul des opérations retenues, depuis le début de la période</p>}
               <BalanceChart
                 series={series}
                 showPercent={!filtering}
+                fromZero={filtering}
                 extraRange={{
                   label: 'Saisons',
                   content: <SeasonsOverlay series={series} rows={rows} filtering={filtering} seasonsData={seasonsData} />,
