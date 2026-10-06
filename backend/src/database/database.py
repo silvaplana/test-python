@@ -197,6 +197,33 @@ MIGRATIONS: list[str] = [
         UNIQUE (assembly_id, number)
     );
     """,
+    # 8 : previsionnels d'une saison (voir forecasts/). Plusieurs par saison,
+    # memes champs que les bilans (etat, prompt, modele, cout de l'IA cumule
+    # en euros, status du calcul) plus start_date (date de depart du
+    # previsionnel, NULL : dernier jour connu des comptes) et params (JSON :
+    # derniere position des curseurs). result : JSON du dernier calcul
+    # (formule Python ecrite par l'IA, explication, parametres declares,
+    # donnees utilisees, courbe prevue).
+    """
+    CREATE TABLE forecasts (
+        id INTEGER PRIMARY KEY,
+        season_id INTEGER NOT NULL REFERENCES seasons (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'brouillon',
+        prompt TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL,
+        start_date TEXT,
+        ai_cost REAL NOT NULL DEFAULT 0,
+        result TEXT,
+        params TEXT,
+        status TEXT NOT NULL DEFAULT 'idle',
+        error TEXT,
+        run_started_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX forecasts_season ON forecasts (season_id);
+    """,
 ]
 
 

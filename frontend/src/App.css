@@ -2026,25 +2026,6 @@ td button + .ffst-role-picker,
   text-align: left;
 }
 
-/* Sous-onglets de Finances pas encore developpes (voir Finances.jsx). */
-.in-development {
-  padding: 2rem 1rem;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  text-align: center;
-}
-
-.in-development p {
-  margin: 0;
-}
-
-.in-development .in-development-badge {
-  margin-bottom: 0.6rem;
-  color: var(--text-h);
-  font-size: 1.15rem;
-  font-weight: 600;
-}
-
 /* Finances > Saisons (voir Seasons.jsx) : choix de la saison et boutons,
    4 chiffres cles, graphique avec ses deux rangees de filtres. */
 .seasons {
@@ -3015,4 +2996,96 @@ td button + .ffst-role-picker,
   border-bottom: 0;
   color: var(--text-h);
   font-weight: 600;
+}
+
+/* Finances > Prévisionnel (voir Forecasts.jsx) : curseurs des parametres
+   de la formule, explication, formule et graphique. */
+.forecasts-end {
+  color: #fdba74;
+}
+
+.forecasts-explanation {
+  margin: 0;
+  color: var(--text-h);
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.forecasts-code {
+  margin: 0;
+  padding: 0.8rem 1rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--text-h);
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.forecasts-params {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: 1rem 1.75rem;
+}
+
+.forecasts-param {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.85rem;
+}
+
+.forecasts-param-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.forecasts-param-head b {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Curseur assez haut pour le doigt. */
+.forecasts-param input[type='range'] {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  accent-color: #fdba74;
+}
+
+.forecasts-param-bounds {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+}
+
+.forecasts-chart-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.forecasts-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0.3rem 0.5rem;
+}
+
+.forecasts-legend .forecasts-dash {
+  height: 0;
+  border-top: 3px dashed #fdba74;
+  border-radius: 0;
+}
+
+.forecasts-start {
+  stroke: var(--text);
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
 }

@@ -7,6 +7,8 @@ un seul conteneur "backend" pour tout le projet).
 
 import asyncio
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import uvicorn
 from dotenv import load_dotenv
@@ -20,6 +22,7 @@ from database import Database
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from financialreports import FinancialReports, FinancialReportsReceiver
+from forecasts import Forecasts, ForecastsReceiver
 from generalassemblies import GeneralAssemblies, GeneralAssembliesReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from mailer import Mailer
@@ -252,6 +255,21 @@ general_assemblies_client = GeneralAssemblies(
     add_season_ai_cost=seasons_client.add_ai_cost,
 )
 general_assemblies_receiver = GeneralAssembliesReceiver(client=general_assemblies_client, app=accounts_router)
+
+# Previsionnels d'une saison (/forecasts/...), onglet Finances >
+# Prévisionnel : meme protection que les comptes. L'API Claude ecrit une
+# formule Python (executee a part, voir forecasts/sandbox.py) a partir de
+# l'historique des comptes et des adherents HelloAsso ; cout ajoute a celui
+# de la saison.
+forecasts_client = Forecasts(
+    db=database,
+    ledger=bank_statements_client.get_ledger,
+    seasons=lambda: seasons_client.get_seasons()["seasons"],
+    add_season_ai_cost=seasons_client.add_ai_cost,
+    members=helloasso_receiver.getSummary,
+    today=lambda: datetime.now(ZoneInfo("Europe/Paris")).date(),
+)
+forecasts_receiver = ForecastsReceiver(client=forecasts_client, app=accounts_router)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant

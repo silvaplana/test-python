@@ -7,7 +7,7 @@ import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, Unpa
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import { FinancialReports } from './FinancialReports.jsx'
-import { Forecast } from './Finances.jsx'
+import { Forecasts } from './Forecasts.jsx'
 import { GeneralAssemblies } from './GeneralAssemblies.jsx'
 import { Profile } from './Profile.jsx'
 import { Seasons } from './Seasons.jsx'
@@ -99,11 +99,11 @@ function AppContent() {
                     shortLabel: 'AG',
                     content: (active) => <GeneralAssemblies active={active} />,
                   },
+                  // Previsionnels du solde par saison (voir Forecasts.jsx),
+                  // meme mot de passe que Comptes.
+                  { label: 'Prévisionnel', content: (active) => <Forecasts active={active} /> },
                 ]
               : []),
-            // A venir (voir Finances.jsx) : pour l'instant un ecran "En
-            // cours de dev".
-            { label: 'Prévisionnel', content: () => <Forecast /> },
             // Ancien "Bilan financier" (analyse IA des releves deposes),
             // remplace par l'historique de l'onglet Comptes : garde pour
             // l'instant, sous le nom "Deprecated".
