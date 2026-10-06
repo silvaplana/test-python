@@ -4,7 +4,7 @@ import { showToast } from './Toast.jsx'
 
 // Finances > Prévisionnel : previsionnels d'une saison (voir
 // backend/src/forecasts). Chaque previsionnel a un nom, un etat, une date de
-// depart, un prompt et un modele d'IA ; "Executer le calcul" fait ecrire par
+// depart, un prompt et un modele d'IA ; "Produire la formule par l'IA" fait ecrire par
 // l'IA une formule Python (verifiee et executee par l'appli) qui prevoit le
 // solde (courant + Livret Bleu) chaque semaine jusqu'a la fin de la saison.
 // Les curseurs reglent les parametres de la formule : la courbe est
@@ -287,6 +287,9 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
   const [tab, setTab] = useState('explain')
+  // Zone "Explication du résultat de l'IA" depliee : retenu en base, par
+  // previsionnel (voir toggleExplanation).
+  const [explanationOpen, setExplanationOpen] = useState(true)
   // Position des curseurs a l'ecran (enregistree apres SLIDER_DELAY_MS).
   const [params, setParams] = useState({})
   const [replaying, setReplaying] = useState(false)
@@ -295,6 +298,7 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
   const load = useCallback(async () => {
     const data = await callApi(`/forecasts/${forecastId}`)
     setForecast(data)
+    setExplanationOpen(data.explanationOpen ?? true)
     return data
   }, [forecastId])
 
@@ -329,6 +333,16 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
   }, [running, load])
 
   useEffect(() => () => clearTimeout(timer.current), [])
+
+  // Plie ou deplie l'explication, et le retient pour ce previsionnel.
+  function toggleExplanation() {
+    const open = !explanationOpen
+    setExplanationOpen(open)
+    if (forecastId != null)
+      sendJson(`/forecasts/${forecastId}/explanation`, 'PUT', { open }).catch(() => {
+        // Non retenu (reseau...) : sans consequence pour l'affichage en cours.
+      })
+  }
 
   function update(key) {
     return (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
@@ -503,13 +517,23 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
           Enregistrer
         </button>
         <button className="reports-run" onClick={() => submit(true)} disabled={pending || running || !form.name.trim()}>
-          {running ? 'Calcul en cours…' : 'Exécuter le calcul'}
+          {running ? 'Production en cours…' : "Produire la formule par l'IA"}
         </button>
       </div>
 
       <div className="reports-result">
         <div className="reports-result-header">
-          <h3>Résultat</h3>
+          <h3>
+            <button
+              type="button"
+              className="forecasts-collapse"
+              aria-expanded={explanationOpen}
+              title={explanationOpen ? 'Replier' : 'Déplier'}
+              onClick={toggleExplanation}
+            >
+              <span aria-hidden="true">{explanationOpen ? '▾' : '▸'}</span> Explication du résultat de l'IA
+            </button>
+          </h3>
           {result && (
             <span className="reports-result-meta">
               {result.modelLabel} · {euros(result.cost)} · {dateFr(result.generatedAt)}
@@ -522,8 +546,8 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
             <div className="reports-progress" />
             <p>{modelLabel(forecast.model)} écrit la formule, puis l'appli la vérifie et la teste… (jusqu'à quelques minutes)</p>
           </div>
-        ) : !result ? (
-          <p className="reports-placeholder">Pas encore de formule : lancez « Exécuter le calcul ».</p>
+        ) : !explanationOpen ? null : !result ? (
+          <p className="reports-placeholder">Pas encore de formule : lancez « Produire la formule par l'IA ».</p>
         ) : (
           <>
             <div className="filter-chips" role="group" aria-label="Résultat">

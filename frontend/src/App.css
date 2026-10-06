@@ -2960,3 +2960,24 @@ td button + .ffst-role-picker,
     grid-column: 1 / -1;
   }
 }
+
+/* Previsionnel : titre de la zone "Explication du résultat de l'IA", qui la
+   plie et la deplie. */
+.forecasts-collapse {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 40px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.forecasts-collapse:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

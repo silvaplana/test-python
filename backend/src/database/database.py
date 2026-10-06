@@ -230,6 +230,11 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE general_assembly_versions ADD COLUMN source TEXT;
     """,
+    # 10 : previsionnel, zone "Explication du résultat de l'IA" depliee (1)
+    # ou repliee (0) dans l'ecran -- retenu par previsionnel.
+    """
+    ALTER TABLE forecasts ADD COLUMN explanation_open INTEGER NOT NULL DEFAULT 1;
+    """,
 ]
 
 

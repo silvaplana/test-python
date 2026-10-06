@@ -36,6 +36,13 @@ class ParamsRequest(BaseModel):
     params: dict[str, float]
 
 
+class ExplanationRequest(BaseModel):
+    """Corps de PUT /forecasts/{id}/explanation : zone "Explication du
+    résultat de l'IA" depliee (true) ou repliee (false)."""
+
+    open: bool
+
+
 class ForecastsReceiver:
     """Recoit les requetes REST (FastAPI) et delegue a Forecasts.
 
@@ -56,6 +63,7 @@ class ForecastsReceiver:
         self.app.delete("/forecasts/{forecast_id}")(self.deleteForecast)
         self.app.post("/forecasts/{forecast_id}/run")(self.runForecast)
         self.app.put("/forecasts/{forecast_id}/params")(self.setParams)
+        self.app.put("/forecasts/{forecast_id}/explanation")(self.setExplanationOpen)
         self.app.get("/forecasts/{forecast_id}/download")(self.downloadForecast)
 
     def _call(self, action, *args):
@@ -100,6 +108,11 @@ class ForecastsReceiver:
         """Endpoint REST PUT /forecasts/{id}/params : rejoue la formule avec
         ces curseurs (sans IA) et les enregistre."""
         return self._call(self.client.set_params, forecast_id, request.params)
+
+    def setExplanationOpen(self, forecast_id: int, request: ExplanationRequest) -> dict:
+        """Endpoint REST PUT /forecasts/{id}/explanation : retient si la zone
+        "Explication du résultat de l'IA" est depliee."""
+        return self._call(self.client.set_explanation_open, forecast_id, request.open)
 
     def downloadForecast(self, forecast_id: int, format: str = "png") -> Response:
         """Endpoint REST GET /forecasts/{id}/download?format=png|pdf : resultat

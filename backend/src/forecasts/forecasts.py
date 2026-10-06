@@ -105,7 +105,20 @@ class Forecasts:
             "result": json.loads(row["result"]) if row["result"] else None,
             # Derniere position des curseurs.
             "params": json.loads(row["params"]) if row["params"] else {},
+            # Zone "Explication du résultat de l'IA" depliee dans l'ecran.
+            "explanationOpen": bool(row["explanation_open"]),
         }
+
+    def set_explanation_open(self, forecast_id: int, is_open: bool) -> dict:
+        """Retient si la zone "Explication du résultat de l'IA" est depliee
+        (simple reglage d'affichage : la date de modification ne change pas)."""
+        with self.db.connect() as connection:
+            updated = connection.execute(
+                "UPDATE forecasts SET explanation_open = ? WHERE id = ?", (1 if is_open else 0, forecast_id)
+            ).rowcount
+        if updated == 0:
+            raise ForecastNotFoundError(forecast_id)
+        return {"explanationOpen": bool(is_open)}
 
     def _row(self, forecast_id: int):
         with self.db.connect() as connection:

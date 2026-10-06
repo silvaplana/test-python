@@ -14,6 +14,7 @@ from database import Database
 from financialreports.ai import AnalysisError
 from forecasts import ForecastError, Forecasts, ForecastsReceiver
 from forecasts import data as forecast_data
+from forecasts.forecasts import ForecastNotFoundError
 from forecasts.ai import Formula, defaults
 from forecasts.sandbox import FormulaError, check, run
 from seasons import Seasons
@@ -341,3 +342,16 @@ def test_api_and_downloads(db, seasons):
 
     assert client.delete(f"/forecasts/{fid}").json() == {"deleted": fid}
     assert client.get(f"/forecasts/{fid}").status_code == 404
+
+
+def test_explanation_open_is_kept(db, seasons):
+    """La zone "Explication du résultat de l'IA" pliee ou depliee est
+    retenue par previsionnel, sans toucher a sa date de modification."""
+    forecasts = make_forecasts(db, seasons, FakeCoder())
+    created = forecasts.create({"seasonId": season_id(seasons, "2026-2027"), "name": "P"})
+    assert created["explanationOpen"] is True
+    assert forecasts.set_explanation_open(created["id"], False) == {"explanationOpen": False}
+    again = forecasts.get(created["id"])
+    assert again["explanationOpen"] is False and again["updatedAt"] == created["updatedAt"]
+    with pytest.raises(ForecastNotFoundError):
+        forecasts.set_explanation_open(9999, True)
