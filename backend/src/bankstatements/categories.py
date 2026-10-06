@@ -28,6 +28,13 @@ CATEGORIES: list[tuple[str, list[str]]] = [
     ("Frais bancaires", ["FACT SGT"]),
     ("Soutien asso (banque)", ["SOUTIEN ASSO"]),
     ("Intérêts", ["INTERETS"]),
+    ("Matériel", ["ALI EXPR", "MATOS", "DECATHLON"]),
+    ("Médecine du travail", ["GIMS"]),
+    # ASP : Agence de services et de paiement (aides de l'Etat) ; DGFIP :
+    # remboursements des impots. "ASP" seul serait trop court (il figure
+    # dans d'autres mots).
+    ("Aides et remboursements", ["ASP AGENCE", "DGFIP"]),
+    ("Saisies", ["BLOCAGE SAISIE"]),
 ]
 
 OTHER = "Autres"

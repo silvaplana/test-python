@@ -288,7 +288,13 @@ def test_sync_route_never_fails(statements):
         ("PAIEMENT CB 2603 VOIRON", "FACTURE DIGITALEA", "Autres"),
         ("SOUTIEN ASSO SPORTIVE/CULTURELL", "", "Soutien asso (banque)"),
         ("Intérêts Livret Bleu", "", "Intérêts"),
-        ("CB DECATHLON", "", "Autres"),
+        ("CB DECATHLON", "", "Matériel"),
+        ("VIR ALI EXPR MATOS CLUB2", "", "Matériel"),
+        ("PRLV SEPA GIMS-GROUPEMENT INTER", "GIMS-GROUPEMENT INTERPROF MEDICO SO", "Médecine du travail"),
+        ("VIR ASP AGENCE COMPTABLE", "ASP AGENCE COMPTABLE", "Aides et remboursements"),
+        ("VIR SIE LA CIOTAT", "SIE LA CIOTAT\nREMB. DGFIP - REMB VIRT", "Aides et remboursements"),
+        ("BLOCAGE SAISIE ATTRIBUTION", "REF 71811", "Saisies"),
+        ("VIR PIZZA AG 29 NOV", "", "Autres"),
     ],
 )
 def test_categorize(label, details, category):
@@ -301,9 +307,9 @@ def test_ledger_rows_have_a_category(statements):
     assert {r["label"]: r["category"] for r in ledger["rows"]} == {
         "VIR SALAIRE": "Salaires",
         "VIR C/C EUROCOMPTE": "Virement interne",
-        "CB DECATHLON": "Autres",
+        "CB DECATHLON": "Matériel",
     }
     assert ledger["categories"][-2:] == ["Autres", "Virement interne"]
     # Un compte seul : le virement interne reste classe a part.
     alone = statements.get_ledger(ledger["accounts"][0]["id"])
-    assert [r["category"] for r in alone["rows"]] == ["Salaires", "Virement interne", "Autres"]
+    assert [r["category"] for r in alone["rows"]] == ["Salaires", "Virement interne", "Matériel"]
