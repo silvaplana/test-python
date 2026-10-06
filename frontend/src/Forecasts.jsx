@@ -173,7 +173,7 @@ export function Forecasts({ active }) {
               {s.name}
               {s.current ? ' (en cours)' : ''}
               {/* Nombre de prévisionnels de la saison (connu une fois la liste chargee). */}
-              {listing?.counts && ` : ${listing.counts[s.id] ?? 0} prévisionnel${(listing.counts[s.id] ?? 0) > 1 ? 's' : ''}`}
+              {listing?.counts && ` : ${listing.counts[s.id] ?? 0}`}
             </option>
           ))}
         </select>
