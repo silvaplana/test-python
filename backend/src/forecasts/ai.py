@@ -28,7 +28,7 @@ La formule :
 - définit une fonction prevoir(donnees, p) qui renvoie une liste avec une valeur par élément de donnees["semaines"], dans le même ordre : le solde prévu (en euros) à la date de cette semaine, sous la forme {"date": ..., "solde": ...} ;
 - part de donnees["soldeDepart"] (solde réel à la date de départ) ;
 - lit les paramètres réglables dans le dictionnaire p (clés déclarées dans "parametres") ;
-- n'utilise que Python standard : seuls les modules math et datetime peuvent être importés ; pas de fichier, pas de réseau, pas de print, pas de nom commençant par « _ » ;
+- n'utilise que Python standard : seuls les modules math et datetime peuvent être importés ; pas de fichier, pas de réseau, pas de print, pas de nom ni d'attribut commençant par « _ », pas de méthode .format() (utilise des f-strings) ;
 - reste simple et lisible par un trésorier : des commentaires en français, pas d'astuce.
 
 Les données (dictionnaire donnees, montants en euros, recettes positives, dépenses négatives, virements entre les comptes du club exclus) :

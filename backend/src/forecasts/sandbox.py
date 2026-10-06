@@ -1,14 +1,22 @@
 """Execution de la formule Python ecrite par l'IA pour un previsionnel.
 
-Le code vient d'un modele d'IA : il n'est jamais execute dans le serveur
-lui-meme. Deux protections :
+Le code vient d'un modele d'IA, qui lit des textes venus de l'exterieur
+(libelles de la banque...) : il n'est jamais execute dans le serveur
+lui-meme, et il est traite comme hostile. Trois protections independantes :
 1. verification du code avant execution (check) : une fonction
    prevoir(donnees, p), pas d'import hors math et datetime, pas de nom ou
-   d'attribut "_..." (acces aux entrailles de Python), pas de fonction
-   integree dangereuse (open, eval, exec, getattr...) ;
+   d'attribut "_..." ni d'attribut d'introspection (gi_frame, f_back,
+   f_globals... : acces aux entrailles de Python), pas de fonction integree
+   dangereuse (open, eval, exec, getattr...) ;
 2. execution dans un processus Python separe (run) : fonctions integrees
    limitees a une liste sure, imports limites a math et datetime, temps de
-   calcul, memoire et ecriture de fichiers bornes, et delai maximum.
+   calcul, memoire et ecriture de fichiers bornes, aucun nouveau processus,
+   et delai maximum ;
+3. dans ce processus, un "audit hook" de Python (impossible a retirer)
+   refuse toute operation sensible pendant le calcul : ouverture de
+   fichier, reseau, lancement de programme, import d'un autre module...
+   Meme une formule qui contournerait 1 et 2 ne peut donc ni lire les
+   donnees du serveur ni communiquer.
 """
 
 from __future__ import annotations
@@ -25,6 +33,15 @@ FORBIDDEN_NAMES = {
     "delattr", "input", "breakpoint", "memoryview", "type", "object", "super", "help", "exit", "quit",
     "classmethod", "staticmethod", "property",
 }
+# Attributs d'introspection : depuis un generateur ou une trace d'erreur, ils
+# remontent aux variables du programme qui lance la formule (donc a sys, os,
+# open...). Prefixes des cadres d'execution (f_), generateurs (gi_),
+# coroutines (cr_, ag_), traces (tb_) et objets code (co_).
+FORBIDDEN_ATTRIBUTE_PREFIXES = ("gi_", "cr_", "ag_", "f_", "tb_", "co_")
+# format / format_map : "{0.attribut}".format(x) lit un attribut par son nom
+# sans passer par la verification ; mro : remonte a la classe object.
+FORBIDDEN_ATTRIBUTES = {"format", "format_map", "mro", "func_globals", "func_code", "sys", "modules"}
+
 # Delai maximum d'une execution (secondes) et memoire maximum (octets).
 TIMEOUT = 10
 MEMORY = 512 * 1024 * 1024
@@ -38,11 +55,18 @@ try:
     resource.setrlimit(resource.RLIMIT_CPU, (5, 5))
     resource.setrlimit(resource.RLIMIT_AS, (%(memory)d, %(memory)d))
     resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
+    # Aucun nouveau processus (os.system, subprocess...).
+    resource.setrlimit(resource.RLIMIT_NPROC, (0, 0))
 except Exception:
     pass
 import math, datetime
+# strptime importe _strptime a chaque appel : charge ici, avant
+# l'interdiction des imports, et autorise ci-dessous (la verification du
+# code refuse de toute facon un "import _strptime" ecrit dans la formule).
+import _strptime
+datetime.datetime.strptime("2026-01-01", "%%Y-%%m-%%d")
 request = json.loads(sys.stdin.read())
-MODULES = {"math": math, "datetime": datetime}
+MODULES = {"math": math, "datetime": datetime, "_strptime": _strptime}
 def safe_import(name, globals=None, locals=None, fromlist=(), level=0):
     if name not in MODULES:
         raise ImportError("Import interdit : " + name)
@@ -55,13 +79,33 @@ import builtins
 safe_builtins = {name: getattr(builtins, name) for name in SAFE}
 safe_builtins["__import__"] = safe_import
 scope = {"__builtins__": safe_builtins, "__name__": "formule"}
+# Pendant le calcul, toute operation sensible signalee par Python (fichier,
+# reseau, programme, import...) est refusee, sauf : la compilation et
+# l'execution du code de la formule (une fois chacune) et l'import de math
+# et datetime. Un audit hook ne peut pas etre retire.
+state = {"compile": 1, "exec": 1, "done": False}
+def audit(event, args):
+    if state["done"]:
+        return
+    if event == "import" and args and args[0] in MODULES:
+        return
+    if state.get(event, 0) > 0:
+        state[event] -= 1
+        return
+    raise RuntimeError("Opération interdite dans la formule : " + event)
+sys.addaudithook(audit)
 try:
     exec(compile(request["code"], "formule", "exec"), scope)
     points = scope["prevoir"](request["donnees"], request["params"])
     out = {"ok": True, "points": points}
 except BaseException as exc:
     out = {"ok": False, "error": type(exc).__name__ + " : " + str(exc)[:300]}
-sys.stdout.write(json.dumps(out, default=str))
+try:
+    answer = json.dumps(out, default=str)
+except BaseException as exc:
+    answer = json.dumps({"ok": False, "error": "Résultat de la formule illisible"})
+state["done"] = True
+sys.stdout.write(answer)
 ''' % {"memory": MEMORY}
 
 
@@ -85,7 +129,11 @@ def check(code: str) -> None:
                 raise FormulaError(f"Import interdit : {node.module} (seuls math et datetime)")
         elif isinstance(node, ast.Name) and (node.id.startswith("_") or node.id in FORBIDDEN_NAMES):
             raise FormulaError(f"Nom interdit dans la formule : {node.id}")
-        elif isinstance(node, ast.Attribute) and node.attr.startswith("_"):
+        elif isinstance(node, ast.Attribute) and (
+            node.attr.startswith("_")
+            or node.attr.startswith(FORBIDDEN_ATTRIBUTE_PREFIXES)
+            or node.attr in FORBIDDEN_ATTRIBUTES
+        ):
             raise FormulaError(f"Attribut interdit dans la formule : {node.attr}")
         elif isinstance(node, (ast.Global, ast.Nonlocal, ast.AsyncFunctionDef, ast.Await, ast.ClassDef)):
             raise FormulaError("Construction interdite dans la formule (global, classe, async)")

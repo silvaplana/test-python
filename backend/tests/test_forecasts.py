@@ -124,6 +124,10 @@ def season_id(seasons, name):
         ("def prevoir(d, p):\n    return open('/etc/passwd').read()", "Nom interdit"),
         ("def prevoir(d, p):\n    return ().__class__", "Attribut interdit"),
         ("def prevoir(d, p):\n    return __builtins__", "Nom interdit"),
+        # Remontee aux variables du programme lanceur par un generateur.
+        ("def prevoir(d, p):\n    g = (x for x in [1])\n    return g.gi_frame", "Attribut interdit dans la formule : gi_frame"),
+        ("def prevoir(d, p):\n    return d.f_back.f_globals", "Attribut interdit dans la formule : f_"),
+        ("def prevoir(d, p):\n    return '{0.real}'.format(1)", "Attribut interdit dans la formule : format"),
         ("def calcul(d, p):\n    return []", "prevoir"),
         ("def prevoir(d, p)\n    return []", "illisible"),
     ],
@@ -150,6 +154,62 @@ def test_run_reports_errors_and_wrong_sizes():
     # Un import cache dans la fonction est refuse aussi.
     with pytest.raises(FormulaError, match="Import interdit : socket"):
         run("def prevoir(d, p):\n    import socket\n    return [0]", data, {})
+
+
+# Formule hostile : par un generateur, remonte aux variables du programme
+# lanceur (sys, builtins), puis tente ACTION avec ce qu'elle y trouve.
+ESCAPE = """
+def prevoir(donnees, p):
+    cadre = [0]
+    def lire():
+        g = (g.gi_frame.f_back.f_back for x in [1])
+        for f in g:
+            cadre[0] = f
+    lire()
+    f = cadre[0]
+    while "sys" not in f.f_globals:
+        f = f.f_back
+    systeme = f.f_globals["sys"]
+    integrees = f.f_globals["builtins"]
+    ACTION
+    return [1.0]
+"""
+
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        'integrees.open("/etc/hostname").read()',
+        'systeme.modules["os"].system("true")',
+        'systeme.modules["os"].listdir("/")',
+        'integrees.__import__("socket")',
+        'integrees.exec("x = 1")',
+    ],
+)
+def test_escaped_formula_can_do_nothing(monkeypatch, action):
+    """Meme si la verification du code etait contournee, le processus de
+    calcul refuse fichiers, programmes, reseau et imports."""
+    monkeypatch.setattr("forecasts.sandbox.check", lambda code: None)
+    data = {"soldeDepart": 0.0, "semaines": [{"date": "2026-10-13", "mois_commences": []}]}
+    with pytest.raises(FormulaError, match="Opération interdite dans la formule"):
+        run(ESCAPE.replace("ACTION", action), data, {})
+
+
+def test_escape_is_refused_by_check():
+    with pytest.raises(FormulaError, match="Attribut interdit"):
+        check(ESCAPE.replace("ACTION", "pass"))
+
+
+def test_run_allows_dates():
+    """Les dates (dont strptime, qui charge des modules) restent utilisables."""
+    data = {"soldeDepart": 0.0, "semaines": [{"date": "2026-10-13", "mois_commences": []}]}
+    code = (
+        "import datetime\nfrom datetime import date\n"
+        "def prevoir(d, p):\n"
+        "    jour = datetime.datetime.strptime(d['semaines'][0]['date'], '%Y-%m-%d')\n"
+        "    return [float(jour.month + date.fromisoformat('2026-10-13').day + (jour - jour).days)]"
+    )
+    assert run(code, data, {}) == [23.0]
 
 
 def test_run_stops_endless_formula(monkeypatch):

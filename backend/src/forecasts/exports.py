@@ -231,4 +231,11 @@ def to_pdf(forecast: dict, png: bytes) -> bytes:
         story.draw(device)
         writer.end_page()
     writer.close()
-    return buffer.getvalue()
+    # Polices reduites aux caracteres utilises et contenu compresse : sans
+    # cela le PDF embarque les polices entieres (plusieurs Mo).
+    document = pymupdf.open(stream=buffer.getvalue(), filetype="pdf")
+    try:
+        document.subset_fonts()
+    except Exception:  # noqa: BLE001 - outil de reduction absent : PDF plus lourd, mais correct
+        pass
+    return document.tobytes(garbage=4, deflate=True)
