@@ -19,6 +19,7 @@ from . import data as forecast_data
 WIDTH, HEIGHT = 1000, 560
 CHART = {"left": 80, "right": 970, "top": 170, "bottom": 500}
 REAL, FORECAST, PREVIOUS, ACTUAL = "#7c3aed", "#ea7a1a", "#3987e5", "#b9a3e8"
+BASELINE = "#9ca3af"  # ligne d'equilibre (solde du debut de la saison)
 MONTHS = ["juil.", "août", "sept.", "oct.", "nov.", "déc.", "janv.", "févr.", "mars", "avr.", "mai", "juin"]
 
 
@@ -80,6 +81,10 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
         "prev": prev,
     }
     values = [p["v"] for line in lines.values() for p in line if p["v"] is not None]
+    # Ligne d'equilibre : le solde du debut de la saison.
+    baseline = data.get("soldeDebutSaison")
+    if baseline is not None:
+        values.append(baseline)
     low, high = min(values), max(values)
     step = _nice_step((high - low) / 4 or 1000)
     y_min, y_max = math.floor(low / step) * step, math.ceil(high / step) * step
@@ -151,6 +156,10 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
         month = date(first.year + (first.month + i - 1) // 12, (first.month + i - 1) % 12 + 1, 15)
         if month.toordinal() <= x1:
             parts.append(f'<text x="{x(month.toordinal()):.1f}" y="{c["bottom"] + 22}" font-size="12" fill="#6b7280" text-anchor="middle">{name}</text>')
+    if baseline is not None:
+        parts.append(
+            f'<line x1="{c["left"]}" y1="{y(baseline):.1f}" x2="{c["right"]}" y2="{y(baseline):.1f}" stroke="{BASELINE}" stroke-width="1.5"/>'
+        )
     if prev:
         parts.append(f'<polyline points="{steps(prev)}" fill="none" stroke="{PREVIOUS}" stroke-width="1.5"/>')
     if lines["after"]:
@@ -158,11 +167,22 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
     if lines["real"]:
         parts.append(f'<polyline points="{steps(lines["real"])}" fill="none" stroke="{REAL}" stroke-width="3"/>')
     parts.append(dashes(lines["forecast"]))
+    if baseline is not None:
+        # Par-dessus les courbes, sur un fond blanc pour rester lisible.
+        text = f"ligne d'équilibre : {_eur(baseline, 0)}"
+        parts.append(
+            f'<rect x="{c["right"] - 7 * len(text) - 6}" y="{y(baseline) - 20:.1f}" width="{7 * len(text) + 6}" height="16" fill="#ffffff" opacity="0.85"/>'
+        )
+        parts.append(
+            f'<text x="{c["right"]}" y="{y(baseline) - 7:.1f}" font-size="12" fill="#4b5563" text-anchor="end">{text}</text>'
+        )
     legend = [(REAL, "réalisé"), (FORECAST, "prévision")]
     if lines["after"]:
         legend.append((ACTUAL, "réel après le départ"))
     if previous is not None:
         legend.append((PREVIOUS, previous["name"]))
+    if baseline is not None:
+        legend.append((BASELINE, "ligne d'équilibre"))
     lx = c["left"]
     for color, label in legend:
         parts.append(f'<line x1="{lx}" y1="{HEIGHT - 22}" x2="{lx + 22}" y2="{HEIGHT - 22}" stroke="{color}" stroke-width="3"/>')

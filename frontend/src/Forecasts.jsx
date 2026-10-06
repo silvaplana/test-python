@@ -505,14 +505,6 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
               {result.modelLabel} · {euros(result.cost)} · {dateFr(result.generatedAt)}
             </span>
           )}
-          <div className="reports-downloads">
-            <button onClick={() => download('png')} disabled={!result || running}>
-              Image
-            </button>
-            <button onClick={() => download('pdf')} disabled={!result || running}>
-              PDF
-            </button>
-          </div>
         </div>
 
         {running ? (
@@ -578,7 +570,7 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
               </div>
             )}
           </div>
-          <ForecastResult result={result} season={season} seasonsData={seasonsData} />
+          <ForecastResult result={result} season={season} seasonsData={seasonsData} onDownload={download} />
         </>
       )}
     </section>
@@ -608,7 +600,7 @@ function realPoints(series, from, to) {
 
 // Chiffres cles et graphique : saisons superposees (comme "Compte détaillé"
 // dans Saisons), reel puis prevision, autres saisons au choix.
-function ForecastResult({ result, season, seasonsData }) {
+function ForecastResult({ result, season, seasonsData, onDownload }) {
   const seasons = seasonsData.seasons
   const others = seasons.filter((s) => s.id !== season.id && s.startDate < season.startDate)
   const previous = others[others.length - 1]
@@ -671,7 +663,12 @@ function ForecastResult({ result, season, seasonsData }) {
         seasons={seasons}
         compare={compare}
         onToggle={toggle}
+        baseline={result.data.soldeDebutSaison ?? null}
       />
+      <div className="reports-downloads forecasts-downloads">
+        <button onClick={() => onDownload('png')}>Télécharger image</button>
+        <button onClick={() => onDownload('pdf')}>Télécharger PDF</button>
+      </div>
       <p className="reports-hint">
         Saisons superposées du 1er juillet au 30 juin. Prévision : un point par semaine ; bouger un curseur la recalcule sans rappeler
         l'IA.
@@ -680,7 +677,9 @@ function ForecastResult({ result, season, seasonsData }) {
   )
 }
 
-function ForecastChart({ series, season, start, points, afterStart, others, seasons, compare, onToggle }) {
+// baseline : solde du debut de la saison, trace en "ligne d'équilibre" (au-
+// dessus, la saison a gagne de l'argent ; en dessous, elle en a perdu).
+function ForecastChart({ series, season, start, points, afterStart, others, seasons, compare, onToggle, baseline }) {
   const [ref, width] = useWidth()
   const narrow = width < 480
   const margin = { top: 22, right: 12, bottom: 28, left: narrow ? 46 : 66 }
@@ -710,7 +709,7 @@ function ForecastChart({ series, season, start, points, afterStart, others, seas
     { key: 'forecast', label: 'prévision', color: FORECAST, width: 2.6, dashed: true, points: points.map((p) => ({ t: ts(p.date), v: p.solde })) },
   ].filter((l) => l.points.length > 0)
 
-  const values = lines.flatMap((l) => l.points.map((p) => p.v))
+  const values = [...lines.flatMap((l) => l.points.map((p) => p.v)), ...(baseline == null ? [] : [baseline])]
   const rawMin = Math.min(...values)
   const rawMax = Math.max(...values)
   const pad = (rawMax - rawMin || Math.abs(rawMax) * 0.05 || 1) * 0.12
@@ -773,6 +772,12 @@ function ForecastChart({ series, season, start, points, afterStart, others, seas
             réel après le départ
           </span>
         )}
+        {baseline != null && (
+          <span>
+            <i className="forecasts-baseline-key" />
+            ligne d'équilibre
+          </span>
+        )}
         {others.map((s) => {
           const on = compare.has(s.id)
           return (
@@ -819,6 +824,9 @@ function ForecastChart({ series, season, start, points, afterStart, others, seas
               {monthShort.format(tick.t)}
             </text>
           ))}
+          {baseline != null && (
+            <line x1={margin.left} x2={width - margin.right} y1={y(baseline)} y2={y(baseline)} className="forecasts-baseline" />
+          )}
           <line x1={x(start)} x2={x(start)} y1={margin.top} y2={margin.top + innerH} className="forecasts-start" />
           <text x={x(start)} y={margin.top - 8} textAnchor="middle" className="balance-chart-axis">
             départ
@@ -834,6 +842,12 @@ function ForecastChart({ series, season, start, points, afterStart, others, seas
               strokeLinejoin="round"
             />
           ))}
+          {/* Par-dessus les courbes, avec un liseré pour rester lisible. */}
+          {baseline != null && (
+            <text x={width - margin.right} y={y(baseline) - 6} textAnchor="end" className="balance-chart-axis forecasts-baseline-label">
+              ligne d'équilibre : {eurosRound(baseline)}
+            </text>
+          )}
           {readout.length > 0 && <line x1={cursorX} x2={cursorX} y1={margin.top} y2={margin.top + innerH} className="balance-chart-cursor" />}
           {readout.map(({ line, v }) => (
             <circle key={line.key} cx={cursorX} cy={y(v)} r="4.5" fill={line.color} className="seasons-chart-dot" />
