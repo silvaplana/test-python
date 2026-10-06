@@ -2975,3 +2975,19 @@ td button + .ffst-role-picker,
 .forecasts-date-shortcuts {
   margin-top: 0.4rem;
 }
+
+/* Previsionnel : 3 chiffres (debut de saison, solde prevu, resultat prevu). */
+.seasons-figures.forecasts-figures {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 640px) {
+  .seasons-figures.forecasts-figures {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Le resultat prevu, seul sur sa ligne, prend toute la largeur. */
+  .forecasts-figures .seasons-figure:last-child {
+    grid-column: 1 / -1;
+  }
+}

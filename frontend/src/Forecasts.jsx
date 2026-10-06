@@ -616,7 +616,6 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
 
   const points = result.points
   const end = points[points.length - 1]
-  const low = points.reduce((a, b) => (b.solde < a.solde ? b : a), points[0])
   const series = seasonsData.series.map((p) => ({ t: ts(p.date), v: p.total }))
   const start = ts(result.data.dateDepart)
   const lastKnown = series.length ? series[series.length - 1].t : start
@@ -629,7 +628,7 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
 
   return (
     <div className="reports-result">
-      <div className="seasons-figures">
+      <div className="seasons-figures forecasts-figures">
         <div className="seasons-figure">
           <span className="seasons-figure-label">Solde au {dateFr(season.startDate)}</span>
           <span className="seasons-figure-value">{opening != null ? euros(opening) : '—'}</span>
@@ -648,11 +647,6 @@ function ForecastResult({ result, season, seasonsData, onDownload }) {
             {outcome == null ? '—' : `${outcome >= 0 ? '+' : '−'}${euros(Math.abs(outcome))}`}
           </span>
           <span className="seasons-figure-sub">solde prévu moins solde de début de saison</span>
-        </div>
-        <div className="seasons-figure">
-          <span className="seasons-figure-label">Point le plus bas prévu</span>
-          <span className="seasons-figure-value">{eurosRound(low.solde)}</span>
-          <span className="seasons-figure-sub">vers le {dateFr(low.date)}</span>
         </div>
       </div>
       <ForecastChart

@@ -140,9 +140,11 @@ def chart_svg(forecast: dict, ledger: dict, previous: dict | None) -> str:
         f'formule écrite par {e(result["modelLabel"])}.</text>',
         f'<text x="40" y="112" font-size="14" fill="#6b7280">Solde prévu au {_fr(season_end)}</text>',
         f'<text x="40" y="142" font-size="26" font-weight="bold" fill="{FORECAST}">{_eur(figures["end"]["solde"])}</text>',
-        f'<text x="330" y="112" font-size="14" fill="#6b7280">Point le plus bas prévu</text>',
-        f'<text x="330" y="142" font-size="20" fill="#1f2937">{_eur(figures["low"]["solde"])} vers le {_fr(figures["low"]["date"])}</text>',
     ]
+    if data.get("soldeDebutSaison") is not None:
+        outcome = figures["end"]["solde"] - data["soldeDebutSaison"]
+        parts.append(f'<text x="330" y="112" font-size="14" fill="#6b7280">Résultat prévu au {_fr(season_end)}</text>')
+        parts.append(f'<text x="330" y="142" font-size="20" fill="#1f2937">{"+" if outcome >= 0 else "−"}{_eur(abs(outcome))}</text>')
     if after:
         parts.append(f'<text x="680" y="112" font-size="14" fill="#6b7280">Réel au {_fr(after[-1]["date"])}</text>')
         parts.append(f'<text x="680" y="142" font-size="20" fill="#1f2937">{_eur(after[-1]["solde"])}</text>')
