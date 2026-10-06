@@ -19,6 +19,7 @@ from bankstatements import BankStatements, BankStatementsReceiver
 from database import Database
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
+from financialreports import FinancialReports, FinancialReportsReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
@@ -224,6 +225,18 @@ seasons_receiver = SeasonsReceiver(
     app=accounts_router,
     licences_count=lambda: len(ffst_client.get_licences()),
 )
+
+# Bilans financiers d'une saison (/financial-reports/...), onglet Finances >
+# Bilan financier : meme protection que les comptes. Tableau calcule depuis
+# l'historique des comptes, analyse par l'API Claude (ANTHROPIC_API_KEY), cout
+# ajoute a celui de la saison.
+financial_reports_client = FinancialReports(
+    db=database,
+    ledger=bank_statements_client.get_ledger,
+    seasons=lambda: seasons_client.get_seasons()["seasons"],
+    add_season_ai_cost=seasons_client.add_ai_cost,
+)
+financial_reports_receiver = FinancialReportsReceiver(client=financial_reports_client, app=accounts_router)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant
