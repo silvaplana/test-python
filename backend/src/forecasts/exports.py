@@ -21,14 +21,17 @@ from . import data as forecast_data
 
 WIDTH, HEIGHT = 1000, 560
 CHART = {"left": 80, "right": 970, "top": 170, "bottom": 500}
-REAL, FORECAST, ACTUAL = "#7c3aed", "#ea7a1a", "#b9a3e8"
+# Couleurs de l'appli (theme sombre, voir index.css et Forecasts.jsx) : fond,
+# texte, texte discret, traits de la grille, puis les courbes.
+BACKGROUND, TEXT, MUTED, GRID = "#16171d", "#f3f4f6", "#9ca3af", "#2e303a"
+REAL, FORECAST, ACTUAL = "#c084fc", "#fdba74", "#d1d5db"
 # Couleur des saisons comparees, dans l'ordre des saisons : les memes qu'a
 # l'ecran (SEASON_COLORS de Seasons.jsx).
 SEASON_COLORS = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#9085e9"]
 # Hauteur du haut de l'image (titre, parametres, soldes) au-dessus du graphique.
 HEADER = 150
 PARAMS_LINE = 118  # caracteres par ligne de parametres dans l'image
-BASELINE = "#9ca3af"  # ligne d'equilibre (solde du debut de la saison)
+BASELINE = "#f3f4f6"  # ligne d'equilibre (solde du debut de la saison)
 MONTHS = ["juil.", "août", "sept.", "oct.", "nov.", "déc.", "janv.", "févr.", "mars", "avr.", "mai", "juin"]
 
 
@@ -42,6 +45,11 @@ def _eur(value: float | None, decimals: int = 2) -> str:
 def _fr(iso: str) -> str:
     year, month, day = iso[:10].split("-")
     return f"{day}/{month}/{year}"
+
+
+def _rgb(color: str) -> tuple[float, float, float]:
+    """"#16171d" -> composantes entre 0 et 1 (couleurs de PyMuPDF)."""
+    return tuple(int(color[i : i + 2], 16) / 255 for i in (1, 3, 5))
 
 
 def _day(iso: str) -> int:
@@ -131,7 +139,11 @@ def chart_svg(forecast: dict, ledger: dict, compared: list[dict], header: bool =
     # Haut de l'image : titre, parametres choisis (une ou plusieurs lignes),
     # soldes et resultat. Le graphique descend d'autant.
     e = html.escape
-    params_lines = _wrap([f"{label} : {value}" for label, value in chosen_parameters(forecast)], PARAMS_LINE) if header else []
+    chosen = [f"{label} : {value}" for label, value in chosen_parameters(forecast)]
+    if chosen:
+        # Les parametres choisis sont les hypotheses de la prevision.
+        chosen[0] = "Hypothèses : " + chosen[0]
+    params_lines = _wrap(chosen, PARAMS_LINE) if header else []
     top = (HEADER + 20 * max(0, len(params_lines) - 1)) if header else 20
     shift = top - CHART["top"]
     c = {**CHART, "top": CHART["top"] + shift, "bottom": CHART["bottom"] + shift}
@@ -177,32 +189,32 @@ def chart_svg(forecast: dict, ledger: dict, compared: list[dict], header: bool =
 
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{WIDTH}" height="{height}" font-family="sans-serif">',
-        f'<rect width="{WIDTH}" height="{height}" fill="#ffffff"/>',
+        f'<rect width="{WIDTH}" height="{height}" fill="{BACKGROUND}"/>',
     ]
     if header:
         parts.append(
-            f'<text x="40" y="44" font-size="24" font-weight="bold" fill="#1f2937">{e(forecast["name"])} — saison {e(result["seasonName"])}</text>'
+            f'<text x="40" y="44" font-size="24" font-weight="bold" fill="{TEXT}">{e(forecast["name"])} — saison {e(result["seasonName"])}</text>'
         )
         for i, line in enumerate(params_lines):
-            parts.append(f'<text x="40" y="{70 + 20 * i}" font-size="14" fill="#374151">{e(line)}</text>')
+            parts.append(f'<text x="40" y="{70 + 20 * i}" font-size="14" fill="{TEXT}">{e(line)}</text>')
         base = 70 + 20 * max(1, len(params_lines))
         for i, (label, value) in enumerate(figures(forecast)):
-            color = FORECAST if i == 1 else "#1f2937"
-            parts.append(f'<text x="{40 + 310 * i}" y="{base + 14}" font-size="14" fill="#6b7280">{e(label)}</text>')
+            color = FORECAST if i == 1 else TEXT
+            parts.append(f'<text x="{40 + 310 * i}" y="{base + 14}" font-size="14" fill="{MUTED}">{e(label)}</text>')
             parts.append(f'<text x="{40 + 310 * i}" y="{base + 42}" font-size="22" font-weight="bold" fill="{color}">{e(value)}</text>')
     v = y_min
     while v <= y_max + 1e-6:
-        parts.append(f'<line x1="{c["left"]}" y1="{y(v):.1f}" x2="{c["right"]}" y2="{y(v):.1f}" stroke="#e5e7eb" stroke-width="1"/>')
-        parts.append(f'<text x="{c["left"] - 8}" y="{y(v) + 4:.1f}" font-size="12" fill="#6b7280" text-anchor="end">{_eur(v, 0)}</text>')
+        parts.append(f'<line x1="{c["left"]}" y1="{y(v):.1f}" x2="{c["right"]}" y2="{y(v):.1f}" stroke="{GRID}" stroke-width="1"/>')
+        parts.append(f'<text x="{c["left"] - 8}" y="{y(v) + 4:.1f}" font-size="12" fill="{MUTED}" text-anchor="end">{_eur(v, 0)}</text>')
         v += step
     first = date.fromisoformat(season_start)
     for i, name in enumerate(MONTHS):
         month = date(first.year + (first.month + i - 1) // 12, (first.month + i - 1) % 12 + 1, 15)
         if month.toordinal() <= x1:
-            parts.append(f'<text x="{x(month.toordinal()):.1f}" y="{c["bottom"] + 22}" font-size="12" fill="#6b7280" text-anchor="middle">{name}</text>')
+            parts.append(f'<text x="{x(month.toordinal()):.1f}" y="{c["bottom"] + 22}" font-size="12" fill="{MUTED}" text-anchor="middle">{name}</text>')
     if baseline is not None:
         parts.append(
-            f'<line x1="{c["left"]}" y1="{y(baseline):.1f}" x2="{c["right"]}" y2="{y(baseline):.1f}" stroke="{BASELINE}" stroke-width="1.5"/>'
+            f'<line x1="{c["left"]}" y1="{y(baseline):.1f}" x2="{c["right"]}" y2="{y(baseline):.1f}" stroke="{BASELINE}" stroke-width="1" opacity="0.7"/>'
         )
     for season, points in others:
         parts.append(f'<polyline points="{steps(points)}" fill="none" stroke="{season["color"]}" stroke-width="1.5"/>')
@@ -212,12 +224,12 @@ def chart_svg(forecast: dict, ledger: dict, compared: list[dict], header: bool =
         parts.append(f'<polyline points="{steps(lines["real"])}" fill="none" stroke="{REAL}" stroke-width="3"/>')
     parts.append(dashes(lines["forecast"]))
     if baseline is not None:
-        # Par-dessus les courbes, avec un lisere blanc pour rester lisible
+        # Par-dessus les courbes, avec un lisere de la couleur du fond pour rester lisible
         # (trace d'abord en contour epais, puis en plein).
         text = f"ligne d'équilibre : {_eur(baseline, 0)}"
         where = f'x="{c["right"]}" y="{y(baseline) - 7:.1f}" font-size="12" text-anchor="end"'
-        parts.append(f'<text {where} fill="#ffffff" stroke="#ffffff" stroke-width="4">{text}</text>')
-        parts.append(f'<text {where} fill="#4b5563">{text}</text>')
+        parts.append(f'<text {where} fill="{BACKGROUND}" stroke="{BACKGROUND}" stroke-width="4">{text}</text>')
+        parts.append(f'<text {where} fill="{TEXT}">{text}</text>')
     legend = [(REAL, "réalisé"), (FORECAST, "prévision")]
     if lines["after"]:
         legend.append((ACTUAL, "réel après le départ"))
@@ -227,7 +239,7 @@ def chart_svg(forecast: dict, ledger: dict, compared: list[dict], header: bool =
     lx = c["left"]
     for color, label in legend:
         parts.append(f'<line x1="{lx}" y1="{height - 22}" x2="{lx + 22}" y2="{height - 22}" stroke="{color}" stroke-width="3"/>')
-        parts.append(f'<text x="{lx + 30}" y="{height - 17}" font-size="13" fill="#374151">{e(label)}</text>')
+        parts.append(f'<text x="{lx + 30}" y="{height - 17}" font-size="13" fill="{TEXT}">{e(label)}</text>')
         lx += 60 + 8 * len(label)
     parts.append("</svg>")
     return "".join(parts)
@@ -246,16 +258,13 @@ def to_png(svg: str) -> bytes:
     return document[0].get_pixmap(dpi=144).tobytes("png")
 
 
-_CSS = """
-* { font-family: sans-serif; font-size: 9.5pt; color: #222; }
-h1 { font-size: 15pt; margin: 0 0 4pt; }
-h2 { font-size: 11.5pt; margin: 10pt 0 4pt; }
-table { border-collapse: collapse; }
-th { background: #ece6f6; text-align: left; padding: 2pt 6pt; }
-td { padding: 2pt 6pt; border-bottom: 1px solid #ddd; }
-td.num { text-align: right; white-space: nowrap; }
-pre { font-family: monospace; font-size: 7.5pt; background: #f5f5f5; padding: 6pt; }
-.muted { color: #666; }
+_CSS = f"""
+* {{ font-family: sans-serif; font-size: 9.5pt; color: {TEXT}; }}
+h1 {{ font-size: 15pt; margin: 0 0 4pt; }}
+h2 {{ font-size: 11.5pt; margin: 10pt 0 4pt; }}
+table {{ border-collapse: collapse; }}
+td {{ padding: 2pt 6pt; border-bottom: 1px solid {GRID}; }}
+td.num {{ text-align: right; white-space: nowrap; }}
 """
 
 
@@ -268,7 +277,7 @@ def to_pdf(forecast: dict, png: bytes) -> bytes:
     amounts = "".join(f"<tr><td>{e(label)}</td><td class='num'>{e(value)}</td></tr>" for label, value in figures(forecast))
     body = (
         f"<h1>{e(forecast['name'])} — saison {e(result['seasonName'])}</h1>"
-        + (f"<h2>Paramètres choisis</h2><table>{params}</table>" if params else "")
+        + (f"<h2>Hypothèses</h2><table>{params}</table>" if params else "")
         + f"<h2>Soldes et résultat</h2><table>{amounts}</table>"
         + "<h2>Graphique</h2><img src='courbe.png' width='520'/>"
     )
@@ -289,6 +298,10 @@ def to_pdf(forecast: dict, png: bytes) -> bytes:
     # Polices reduites aux caracteres utilises et contenu compresse : sans
     # cela le PDF embarque les polices entieres (plusieurs Mo).
     document = pymupdf.open(stream=buffer.getvalue(), filetype="pdf")
+    # Fond sombre de l'appli, sous le texte de chaque page.
+    for page_number in range(len(document)):
+        sheet = document[page_number]
+        sheet.draw_rect(sheet.rect, color=None, fill=_rgb(BACKGROUND), overlay=False)
     try:
         document.subset_fonts()
     except Exception:  # noqa: BLE001 - outil de reduction absent : PDF plus lourd, mais correct
