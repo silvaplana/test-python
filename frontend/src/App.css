@@ -941,10 +941,17 @@ td button + .ffst-role-picker,
   color: var(--text);
 }
 
+/* Periodes sur une seule ligne, sous les chiffres. */
 .balance-chart-ranges {
   display: flex;
+  flex: 1 1 100%;
   gap: 0.35rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.balance-chart-ranges .filter-chip {
+  padding-inline: 0.8rem;
 }
 
 .balance-chart-plot {
@@ -1989,6 +1996,23 @@ td button + .ffst-role-picker,
   color: inherit;
   font: inherit;
   cursor: pointer;
+}
+
+/* Legende en cases a cocher (onglet Comptes, periode "Saisons"). */
+.seasons-legend label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 36px;
+  padding: 0.3rem 0.5rem;
+  cursor: pointer;
+}
+
+.seasons-legend input[type='checkbox'] {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .seasons-legend .seasons-legend-off {

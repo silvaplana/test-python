@@ -19,12 +19,9 @@ const RED = '#f87171'
 // Durees proposees (en jours) : seules celles couvertes par les donnees
 // disponibles sont affichees, plus "Max" (tout l'historique connu).
 const RANGES = [
-  { label: '1S', days: 7, long: '1 semaine' },
-  { label: '1M', days: 30, long: '1 mois' },
   { label: '3M', days: 90, long: '3 mois' },
   { label: '6M', days: 182, long: '6 mois' },
   { label: '1A', days: 365, long: '1 an' },
-  { label: '5A', days: 1826, long: '5 ans' },
 ]
 
 const eurosFull = (n) =>
@@ -125,7 +122,9 @@ function smoothPath(points) {
 // conteneur.
 // showPercent : variation en % sur la periode (sans objet pour un cumul
 // d'operations, voir BankHistory).
-export function BalanceChart({ series, showPercent = true }) {
+// extraRange : {label, content}, un choix de plus a la suite des durees (ex :
+// "Saisons") ; quand il est choisi, content remplace le graphique.
+export function BalanceChart({ series, showPercent = true, extraRange = null }) {
   const gradientId = useId()
   const wrapperRef = useRef(null)
   const [width, setWidth] = useState(600)
@@ -142,6 +141,27 @@ export function BalanceChart({ series, showPercent = true }) {
   // donnees) -- sinon Max.
   const [rangeLabel, setRangeLabel] = useState(null)
   const range = ranges.find((r) => r.label === rangeLabel) ?? ranges[ranges.length - 1]
+  const extraChosen = extraRange != null && rangeLabel === extraRange.label
+  const rangeChips = (
+    <div className="balance-chart-ranges" role="group" aria-label="Période">
+      {[...ranges, ...(extraRange ? [extraRange] : [])].map((r) => {
+        const chosen = extraChosen ? r === extraRange : r.label === range.label
+        return (
+          <button
+            key={r.label}
+            className={chosen ? 'filter-chip filter-chip-active' : 'filter-chip'}
+            aria-pressed={chosen}
+            onClick={() => {
+              setRangeLabel(r.label)
+              setHover(null)
+            }}
+          >
+            {r.label}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   useEffect(() => {
     const el = wrapperRef.current
@@ -158,6 +178,14 @@ export function BalanceChart({ series, showPercent = true }) {
     return slice.length >= 2 ? slice : series
   }, [series, range])
 
+  if (extraChosen) {
+    return (
+      <div className="balance-chart">
+        <div className="balance-chart-top">{rangeChips}</div>
+        {extraRange.content}
+      </div>
+    )
+  }
   if (visible.length < 2) {
     return <p className="balance-chart-empty">Pas assez de données pour tracer l'évolution.</p>
   }
@@ -249,21 +277,7 @@ export function BalanceChart({ series, showPercent = true }) {
             </>
           )}
         </div>
-        <div className="balance-chart-ranges" role="group" aria-label="Durée">
-          {ranges.map((r) => (
-            <button
-              key={r.label}
-              className={r.label === range.label ? 'filter-chip filter-chip-active' : 'filter-chip'}
-              aria-pressed={r.label === range.label}
-              onClick={() => {
-                setRangeLabel(r.label)
-                setHover(null)
-              }}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
+        {rangeChips}
       </div>
 
       <div className="balance-chart-plot" ref={wrapperRef}>

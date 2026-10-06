@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BalanceChart } from './BalanceChart.jsx'
+import { CurveChart } from './Seasons.jsx'
 import { normaliserTexte } from './HelloAsso.jsx'
 import { showToast } from './Toast.jsx'
 
@@ -49,7 +50,7 @@ const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`
 // Nom court d'un compte (filtres et colonnes du tableau).
 function shortName(account) {
   if (!account) return ''
-  if (account.kind === 'checking') return 'Courant'
+  if (account.kind === 'checking') return 'CC'
   if (/bleu/i.test(account.name)) return 'Bleu'
   return account.name
 }
@@ -139,6 +140,23 @@ function cumulativeSeries(rows) {
   return series
 }
 
+// Periode "Saisons" du graphique : la courbe affichee (comptes et categories
+// choisis) decoupee par saison, les saisons superposees sur le meme axe du
+// 1er juillet au 30 juin. Sous le graphique, une case a cocher par saison.
+function SeasonsOverlay({ series, seasonsData }) {
+  if (!seasonsData) return <p className="balance-chart-empty">Chargement des saisons…</p>
+  const seasons = seasonsData.seasons
+  if (seasons.length === 0)
+    return <p className="balance-chart-empty">Aucune saison : crée-les d'abord dans l'onglet Saisons.</p>
+  const data = {
+    seasons,
+    today: seasonsData.today,
+    series: series.filter((p) => p.v != null).map((p) => ({ date: new Date(p.t).toISOString().slice(0, 10), total: p.v })),
+  }
+  const current = seasons.find((s) => s.current) ?? seasons[seasons.length - 1]
+  return <CurveChart data={data} selected={current} mode="overlay" hiddenKey="bankhistory-seasons-hidden" checkboxes />
+}
+
 // Etat des comptes du club, lu dans la base (voir backend bankstatements/) :
 // total des comptes (vue par defaut) ou un compte seul, en graphique ou en
 // tableau. A chaque ouverture de l'onglet (active), les dernieres operations
@@ -156,6 +174,8 @@ export function BankHistory({ active, syncReady }) {
   // Filtres sur la nature des operations : menu "Categories" + recherche.
   const [category, setCategory] = useState(ALL_CATEGORIES)
   const [search, setSearch] = useState('')
+  // Saisons du club (periode "Saisons" du graphique, voir SeasonsOverlay).
+  const [seasonsData, setSeasonsData] = useState(null)
   const fileInput = useRef(null)
   const sentinel = useRef(null)
 
@@ -173,6 +193,16 @@ export function BankHistory({ active, syncReady }) {
   useEffect(() => {
     load()
   }, [load])
+
+  // Saisons du club, pour la periode "Saisons" du graphique.
+  useEffect(() => {
+    if (!active) return
+    callApi('/seasons')
+      .then(setSeasonsData)
+      .catch(() => {
+        // Saisons indisponibles : les autres periodes restent utilisables.
+      })
+  }, [active])
 
   // Dernieres operations de la banque, a chaque ouverture de l'onglet.
   useEffect(() => {
@@ -448,7 +478,11 @@ export function BankHistory({ active, syncReady }) {
           ) : display === 'chart' ? (
             <>
               {filtering && <p className="history-chart-note">Cumul des opérations retenues</p>}
-              <BalanceChart series={series} showPercent={!filtering} />
+              <BalanceChart
+                series={series}
+                showPercent={!filtering}
+                extraRange={{ label: 'Saisons', content: <SeasonsOverlay series={series} seasonsData={seasonsData} /> }}
+              />
             </>
           ) : (
             <div className="table-wrapper operations-scroll history-table">

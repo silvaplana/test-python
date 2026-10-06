@@ -48,9 +48,9 @@ function writeSetting(key, value) {
 // Identifiants des saisons masquees dans le graphique "Superposées".
 const HIDDEN_KEY = 'seasons-hidden'
 
-function readHidden() {
+function readHidden(key) {
   try {
-    const ids = JSON.parse(readSetting(HIDDEN_KEY, '[]'))
+    const ids = JSON.parse(readSetting(key, '[]'))
     return new Set(Array.isArray(ids) ? ids : [])
   } catch {
     return new Set()
@@ -352,7 +352,10 @@ const CHART_HEIGHT = 260
 //   saison), pour comparer les saisons entre elles ; un clic sur une saison
 //   de la legende la masque ou la reaffiche ;
 // - Selectionnee : la saison choisie seule.
-function CurveChart({ data, selected, mode }) {
+// Sert aussi a l'onglet Comptes (periode "Saisons", voir BankHistory.jsx) :
+// hiddenKey : ou retenir les saisons masquees ; checkboxes : legende en
+// cases a cocher.
+export function CurveChart({ data, selected, mode, hiddenKey = HIDDEN_KEY, checkboxes = false }) {
   const [ref, width] = useWidth()
   const narrow = width < 480
   const margin = { top: 26, right: 12, bottom: 28, left: narrow ? 46 : 66 }
@@ -364,14 +367,14 @@ function CurveChart({ data, selected, mode }) {
   const seasons = data.seasons
   // Superposees : saisons masquees d'un clic dans la legende (choix retenu
   // sur cet appareil).
-  const [hidden, setHidden] = useState(readHidden)
+  const [hidden, setHidden] = useState(() => readHidden(hiddenKey))
   // Position horizontale du doigt ou de la souris sur le graphique (px).
   const [pointerX, setPointerX] = useState(null)
   function toggle(id) {
     const next = new Set(hidden)
     if (!next.delete(id)) next.add(id)
     setHidden(next)
-    writeSetting(HIDDEN_KEY, JSON.stringify([...next]))
+    writeSetting(hiddenKey, JSON.stringify([...next]))
   }
 
   // Solde en fin de journee t (derniere operation ce jour-la ou avant).
@@ -426,6 +429,14 @@ function CurveChart({ data, selected, mode }) {
       {legend.map((line) => {
         const off = hidden.has(line.key)
         const classes = [line.key === selected.id && 'seasons-legend-selected', off && 'seasons-legend-off']
+        if (checkboxes)
+          return (
+            <label key={line.key} className={line.key === selected.id ? 'seasons-legend-selected' : undefined}>
+              <input type="checkbox" checked={!off} onChange={() => toggle(line.key)} />
+              <i style={{ background: line.color }} />
+              {line.label}
+            </label>
+          )
         return (
           <button
             key={line.key}
