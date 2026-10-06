@@ -1279,6 +1279,10 @@ td button + .ffst-role-picker,
   white-space: nowrap;
 }
 
+.balance-chart-tooltip-date {
+  color: var(--text);
+}
+
 .balance-chart-tooltip-op > span:last-child {
   font-weight: 600;
   font-variant-numeric: tabular-nums;

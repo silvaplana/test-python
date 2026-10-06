@@ -4,8 +4,14 @@ const DAY_MS = 24 * 3600 * 1000
 const HEIGHT = 250
 const MARGIN = { top: 14, right: 14, bottom: 28, left: 66 }
 
-// Operations du jour listees dans l'infobulle (les suivantes sont resumees).
-const TOOLTIP_MAX_OPERATIONS = 5
+// Operations listees dans l'infobulle, les plus grosses d'abord (les
+// suivantes sont resumees).
+const TOOLTIP_MAX_OPERATIONS = 8
+// Sur une longue periode, plusieurs jours tombent sur le meme pixel : le
+// pointeur ne peut pas viser chaque jour. L'infobulle reunit donc les
+// operations de tous les jours a moins de SNAP_PX du pointeur, et le curseur
+// se pose sur celui de la plus grosse.
+const SNAP_PX = 6
 
 const GREEN = '#4ade80'
 const RED = '#f87171'
@@ -123,7 +129,9 @@ export function BalanceChart({ series, showPercent = true }) {
   const gradientId = useId()
   const wrapperRef = useRef(null)
   const [width, setWidth] = useState(600)
-  const [hoverIndex, setHoverIndex] = useState(null)
+  // Sous le pointeur : {index (jour ou se pose le curseur), from, to (jours
+  // reunis dans l'infobulle)}.
+  const [hover, setHover] = useState(null)
 
   const spanDays = series.length > 1 ? (series[series.length - 1].t - series[0].t) / DAY_MS : 0
   const ranges = useMemo(
@@ -177,7 +185,17 @@ export function BalanceChart({ series, showPercent = true }) {
   const change = last.v - first.v
   const percent = showPercent && first.v !== 0 ? (change / Math.abs(first.v)) * 100 : null
   const color = change >= 0 ? GREEN : RED
+  // La periode peut avoir change depuis le dernier survol.
+  const hoverIndex = hover && hover.to < visible.length ? hover.index : null
   const hovered = hoverIndex != null ? visible[hoverIndex] : null
+  // Operations des jours reunis sous le pointeur, les plus grosses d'abord.
+  const hoveredOps = hovered
+    ? visible
+        .slice(hover.from, hover.to + 1)
+        .flatMap((p) => p.ops.map((op) => ({ ...op, t: p.t })))
+        .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount))
+    : []
+  const severalDays = hovered && new Set(hoveredOps.map((op) => op.t)).size > 1
 
   const yTicks = niceTicks(yMin, yMax)
   const longRange = (t1 - t0) / DAY_MS > 300
@@ -185,20 +203,30 @@ export function BalanceChart({ series, showPercent = true }) {
   const xTickCount = width < 420 ? 3 : 5
   const xTicks = Array.from({ length: xTickCount }, (_, i) => visible[Math.round((i * (visible.length - 1)) / (xTickCount - 1))])
 
-  // Point le plus proche du pointeur (souris ou doigt).
+  // Jours proches du pointeur (souris ou doigt) : le curseur se pose sur
+  // celui de la plus grosse operation, sinon sur le plus proche.
   function onPointerMove(event) {
     const rect = event.currentTarget.getBoundingClientRect()
     const px = event.clientX - rect.left
-    let best = 0
-    let bestDistance = Infinity
+    let nearest = 0
+    let from = null
+    let to = null
+    let biggest = null
+    let biggestAmount = 0
     points.forEach((p, i) => {
       const distance = Math.abs(p.x - px)
-      if (distance < bestDistance) {
-        best = i
-        bestDistance = distance
+      if (distance < Math.abs(points[nearest].x - px)) nearest = i
+      if (distance > SNAP_PX) return
+      from ??= i
+      to = i
+      for (const op of visible[i].ops) {
+        if (Math.abs(op.amount) > biggestAmount) {
+          biggest = i
+          biggestAmount = Math.abs(op.amount)
+        }
       }
     })
-    setHoverIndex(best)
+    setHover({ index: biggest ?? nearest, from: from ?? nearest, to: to ?? nearest })
   }
 
   return (
@@ -229,7 +257,7 @@ export function BalanceChart({ series, showPercent = true }) {
               aria-pressed={r.label === range.label}
               onClick={() => {
                 setRangeLabel(r.label)
-                setHoverIndex(null)
+                setHover(null)
               }}
             >
               {r.label}
@@ -245,7 +273,7 @@ export function BalanceChart({ series, showPercent = true }) {
           role="img"
           aria-label="Évolution du solde"
           onPointerMove={onPointerMove}
-          onPointerLeave={() => setHoverIndex(null)}
+          onPointerLeave={() => setHover(null)}
           style={{ touchAction: 'pan-y' }}
         >
           <defs>
@@ -287,7 +315,7 @@ export function BalanceChart({ series, showPercent = true }) {
           )}
         </svg>
 
-        {hovered && hovered.ops.length > 0 && (
+        {hovered && hoveredOps.length > 0 && (
           <div
             className="balance-chart-tooltip"
             style={{
@@ -296,20 +324,24 @@ export function BalanceChart({ series, showPercent = true }) {
               transform: points[hoverIndex].x > width / 2 ? 'translateX(calc(-100% - 14px))' : 'translateX(14px)',
             }}
           >
-            {hovered.ops.slice(0, TOOLTIP_MAX_OPERATIONS).map((op, i) => (
+            {hoveredOps.slice(0, TOOLTIP_MAX_OPERATIONS).map((op, i) => (
               <div key={i} className="balance-chart-tooltip-op">
-                <span className="balance-chart-tooltip-label">{op.label}</span>
+                <span className="balance-chart-tooltip-label">
+                  {severalDays && <span className="balance-chart-tooltip-date">{dateShort.format(op.t)} </span>}
+                  {op.label}
+                </span>
                 <span className={op.amount < 0 ? 'op-debit' : 'op-credit'}>
                   {op.amount > 0 ? '+' : ''}
                   {eurosFull(op.amount)}
                 </span>
               </div>
             ))}
-            {hovered.ops.length > TOOLTIP_MAX_OPERATIONS && (
+            {hoveredOps.length > TOOLTIP_MAX_OPERATIONS && (
               <div className="balance-chart-tooltip-more">
-                + {hovered.ops.length - TOOLTIP_MAX_OPERATIONS} autre
-                {hovered.ops.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''} opération
-                {hovered.ops.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''}
+                + {hoveredOps.length - TOOLTIP_MAX_OPERATIONS} autre
+                {hoveredOps.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''} opération
+                {hoveredOps.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''} plus petite
+                {hoveredOps.length - TOOLTIP_MAX_OPERATIONS > 1 ? 's' : ''}
               </div>
             )}
           </div>
