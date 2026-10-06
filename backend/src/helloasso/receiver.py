@@ -1,33 +1,20 @@
 import re
+from datetime import datetime
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import httpx
 from fastapi import APIRouter, FastAPI, HTTPException, Query
 from fastapi.responses import Response
 
 from .helloasso import HelloAsso, HelloAssoAuthError
+from .summary import FAILED_PAYMENT_STATES, members_summary
 
 # Restreint /helloasso/photo aux URL HelloAsso reelles (voir getPhoto) :
 # sans ca, ce endpoint deviendrait un proxy HTTP generique authentifie
 # avec les identifiants du club, un risque de securite (SSRF) pour un
 # gain nul (aucun autre hote n'a besoin de ce relais).
 PHOTO_URL_PATH_RE = re.compile(r"^/customFieldsAnswer/\d+$")
-
-# Etats HelloAsso (PaymentState) indiquant un paiement reellement refuse/en
-# echec definitif. A distinguer des etats "futur/en attente" (Pending,
-# Waiting*, Init) : une adhesion payee en plusieurs fois a des echeances a
-# venir dans cet etat le temps qu'elles arrivent a echeance, ce n'est pas un
-# impaye. Registered/Authorized/Refunding/Contested/Corrected sont des etats
-# de succes (partiel ou en cours), pas des echecs non plus.
-FAILED_PAYMENT_STATES = {
-    "Refused",
-    "Error",
-    "Canceled",
-    "Abandoned",
-    "Deleted",
-    "Inconsistent",
-    "NoDonation",
-}
 
 
 class HelloAssoReceiver:
@@ -60,6 +47,7 @@ class HelloAssoReceiver:
         self.app.get("/helloasso/campaign")(self.getCampaign)
         self.app.get("/helloasso/members")(self.getMembers)
         self.app.get("/helloasso/unpaid")(self.getUnpaid)
+        self.app.get("/helloasso/summary")(self.getSummary)
         self.app.get("/helloasso/photo")(self.getPhoto)
 
     def getCampaign(self) -> dict:
@@ -97,6 +85,16 @@ class HelloAssoReceiver:
                 }
             )
         return unpaid
+
+    def getSummary(self) -> dict:
+        """Endpoint REST GET /helloasso/summary. Chiffres des adherents de la
+        campagne : majeurs et mineurs, prix moyen de la licence, et ce qui
+        reste a encaisser mois par mois (voir members_summary)."""
+        return members_summary(
+            self.client.get_members(self.form_slug, self.form_type),
+            self.client.get_member_payments(self.form_slug, self.form_type),
+            datetime.now(ZoneInfo("Europe/Paris")).date(),
+        )
 
     def getPhoto(self, url: str, size: int = Query(default=128, ge=32, le=640)) -> Response:
         """Endpoint REST GET /helloasso/photo?url=...&size=... . Relaie (avec

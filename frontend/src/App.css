@@ -2959,3 +2959,60 @@ td button + .ffst-role-picker,
     flex: 1;
   }
 }
+
+/* Panneau "Chiffres des adhérents" (voir MembersSummary.jsx) : 3 tuiles
+   (celles de l'onglet Saisons), puis le reste a encaisser mois par mois. */
+.members-summary-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.members-summary-figures .seasons-figure-value {
+  margin-top: auto;
+}
+
+.members-summary-note {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+}
+
+.members-summary-title {
+  margin: 1.1rem 0 0.4rem;
+  color: var(--text-h);
+  font-size: 0.95rem;
+}
+
+.members-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.members-summary-table td {
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.members-summary-table td:first-child::first-letter {
+  text-transform: uppercase;
+}
+
+.members-summary-table .members-summary-count {
+  padding-inline: 0.75rem;
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.members-summary-table .members-summary-amount {
+  color: var(--text-h);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.members-summary-table tfoot td {
+  border-bottom: 0;
+  color: var(--text-h);
+  font-weight: 600;
+}
