@@ -20,6 +20,7 @@ from database import Database
 from ffst import Ffst, FfstReceiver
 from financialbalance import FinancialBalance, FinancialBalanceReceiver
 from financialreports import FinancialReports, FinancialReportsReceiver
+from generalassemblies import GeneralAssemblies, GeneralAssembliesReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
@@ -237,6 +238,20 @@ financial_reports_client = FinancialReports(
     add_season_ai_cost=seasons_client.add_ai_cost,
 )
 financial_reports_receiver = FinancialReportsReceiver(client=financial_reports_client, app=accounts_router)
+
+# Assemblees generales d'une saison (/general-assemblies/...), onglet
+# Finances > Assemblées générales : meme protection que les comptes. Base du
+# PowerPoint ecrite par l'API Claude a partir du bilan de la saison, PPT
+# gardes dans le volume Docker (versions), images des diapos par LibreOffice.
+general_assemblies_client = GeneralAssemblies(
+    db=database,
+    storage_dir=os.environ.get("GENERAL_ASSEMBLIES_DIR", "data/general_assemblies"),
+    seasons=lambda: seasons_client.get_seasons()["seasons"],
+    reports=financial_reports_client.list,
+    report=financial_reports_client.get,
+    add_season_ai_cost=seasons_client.add_ai_cost,
+)
+general_assemblies_receiver = GeneralAssembliesReceiver(client=general_assemblies_client, app=accounts_router)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant

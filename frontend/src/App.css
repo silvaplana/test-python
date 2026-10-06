@@ -2743,3 +2743,219 @@ td button + .ffst-role-picker,
     font-size: 0.75rem;
   }
 }
+
+/* ===== Finances > Assemblées générales (voir GeneralAssemblies.jsx) =====
+   Reprend les classes reports-* du bilan financier ; propre a l'AG : les
+   sources du calcul, l'apercu des diapos (vignettes 4:3) et la visionneuse. */
+
+.ag-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid rgba(96, 165, 250, 0.5);
+  border-radius: 10px;
+  background: rgba(96, 165, 250, 0.1);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.ag-sources b {
+  color: var(--text-h);
+}
+
+.ag-sources-alert {
+  border-color: rgba(251, 146, 60, 0.6);
+  background: rgba(251, 146, 60, 0.1);
+}
+
+.ag-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.ag-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.ag-warnings,
+.ag-summary {
+  margin: 0.3rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.ag-summary {
+  color: var(--text-h);
+  font-size: 0.9rem;
+}
+
+.ag-slides {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 0.75rem;
+}
+
+.ag-thumb {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.ag-thumb:hover,
+.ag-thumb:focus-visible {
+  border-color: var(--accent-border);
+  outline: none;
+}
+
+.ag-thumb-hidden {
+  opacity: 0.55;
+}
+
+.ag-thumb-stage,
+.ag-viewer-stage {
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  background: #fff;
+}
+
+.ag-thumb-stage img,
+.ag-viewer-stage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ag-thumb-caption {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+.ag-thumb-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-thumb-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-h);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-thumb-tag {
+  font-size: 0.7rem;
+}
+
+.ag-ai-dot {
+  display: inline-block;
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Apercu texte d'une diapo (sans LibreOffice) : couleurs fixes, comme une
+   diapo blanche. */
+.ag-slide-text {
+  height: 100%;
+  overflow: hidden;
+  color: #1a1a1a;
+  font-size: 0.6rem;
+  line-height: 1.3;
+}
+
+.ag-slide-title {
+  display: block;
+  padding: 0.4rem;
+  background: #1c2c4c;
+  color: #fff;
+  font-weight: 600;
+  text-align: center;
+}
+
+.ag-slide-text ul {
+  margin: 0.4rem 0;
+  padding: 0 0.5rem 0 1.2rem;
+}
+
+.ag-slide-text mark,
+.ag-details mark,
+.reports-hint mark {
+  background: #fff200;
+  color: #000;
+}
+
+.ag-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.ag-viewer-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(960px, 100%);
+  max-height: 100%;
+  padding: 0.75rem;
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.ag-viewer-stage .ag-slide-text {
+  font-size: 1rem;
+}
+
+.ag-viewer-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+@media (max-width: 640px) {
+  .ag-slides {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .ag-viewer {
+    padding: 0.5rem;
+  }
+
+  .ag-viewer-footer .reports-downloads {
+    width: 100%;
+  }
+
+  .ag-viewer-footer .reports-downloads button {
+    flex: 1;
+  }
+}

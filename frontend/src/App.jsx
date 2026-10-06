@@ -6,7 +6,8 @@ import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, Unpa
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialBalance } from './FinancialBalance.jsx'
 import { FinancialReports } from './FinancialReports.jsx'
-import { Forecast, GeneralAssemblies } from './Finances.jsx'
+import { Forecast } from './Finances.jsx'
+import { GeneralAssemblies } from './GeneralAssemblies.jsx'
 import { Profile } from './Profile.jsx'
 import { Seasons } from './Seasons.jsx'
 import { TrialsTable, hasTrialCheckin } from './Trials.jsx'
@@ -80,11 +81,17 @@ function AppContent() {
                     shortLabel: 'Bilan',
                     content: (active) => <FinancialReports active={active} />,
                   },
+                  // PPT des assemblees generales par saison (voir
+                  // GeneralAssemblies.jsx), meme mot de passe que Comptes.
+                  {
+                    label: 'Assemblées générales',
+                    shortLabel: 'AG',
+                    content: (active) => <GeneralAssemblies active={active} />,
+                  },
                 ]
               : []),
-            // A venir (voir Finances.jsx) : pour l'instant des ecrans "En
+            // A venir (voir Finances.jsx) : pour l'instant un ecran "En
             // cours de dev".
-            { label: 'Assemblées générales', shortLabel: 'AG', content: () => <GeneralAssemblies /> },
             { label: 'Prévisionnel', content: () => <Forecast /> },
             // Ancien "Bilan financier" (analyse IA des releves deposes),
             // remplace par l'historique de l'onglet Comptes : garde pour

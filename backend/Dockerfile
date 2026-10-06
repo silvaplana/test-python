@@ -28,6 +28,14 @@ RUN pip install --no-cache-dir .
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 RUN playwright install --with-deps chromium && chmod -R o+rx /ms-playwright
 
+# LibreOffice (Impress seul) : images des diapos des PowerPoint d'assemblée
+# générale (voir generalassemblies/slides.py, PPT -> PDF -> PNG). Carlito :
+# police aux mêmes dimensions que Calibri, celle des PPT du club, pour que
+# le texte tombe au même endroit que dans PowerPoint.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libreoffice-impress fonts-crosextra-carlito \
+    && rm -rf /var/lib/apt/lists/*
+
 # Bonne pratique : ne pas exécuter l'application en tant que root
 # à l'intérieur du conteneur.
 RUN useradd --create-home appuser

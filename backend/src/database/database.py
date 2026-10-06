@@ -163,6 +163,40 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX financial_reports_season ON financial_reports (season_id);
     """,
+    # 7 : assemblees generales d'une saison (voir generalassemblies/) :
+    # calculs de PPT d'AG, memes champs que les bilans (etat, prompt, modele,
+    # cout de l'IA cumule en euros, status du calcul). result : JSON du
+    # dernier calcul (bilan et modele utilises, diapos modifiees, alertes).
+    # Les PPT sont des versions (general_assembly_versions) : origin
+    # "genere" (calcul) ou "envoye" (PPT modifie par le tresorier), fichier
+    # <dossier des AG>/<assembly_id>/v<number>.pptx.
+    """
+    CREATE TABLE general_assemblies (
+        id INTEGER PRIMARY KEY,
+        season_id INTEGER NOT NULL REFERENCES seasons (id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        state TEXT NOT NULL DEFAULT 'brouillon',
+        prompt TEXT NOT NULL DEFAULT '',
+        model TEXT NOT NULL,
+        ai_cost REAL NOT NULL DEFAULT 0,
+        result TEXT,
+        status TEXT NOT NULL DEFAULT 'idle',
+        error TEXT,
+        run_started_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    CREATE INDEX general_assemblies_season ON general_assemblies (season_id);
+    CREATE TABLE general_assembly_versions (
+        id INTEGER PRIMARY KEY,
+        assembly_id INTEGER NOT NULL REFERENCES general_assemblies (id) ON DELETE CASCADE,
+        number INTEGER NOT NULL,
+        origin TEXT NOT NULL,
+        filename TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        UNIQUE (assembly_id, number)
+    );
+    """,
 ]
 
 
