@@ -21,10 +21,11 @@ function AppContent() {
   return (
     <Navigation
       // Retour de la banque (voir BankAccounts.jsx) : ouvre directement
-      // Finances/Comptes (section 4, 1er outil) ; QR code d'un eleve scanne
+      // Finances/Comptes (section 4, outil "Comptes") ; QR code d'un eleve scanne
       // avec l'appareil photo (voir Trials.jsx) : l'onglet Essai (section 3) ;
       // sinon le dernier ecran affiche sur cet appareil (voir Navigation.jsx).
       forcedSection={hasBankCallback && canViewAccounts ? 3 : hasTrialCheckin ? 2 : null}
+      forcedTool={hasBankCallback && canViewAccounts ? 'Comptes' : null}
       header={<CampaignTitle />}
       sections={[
         {
@@ -71,19 +72,19 @@ function AppContent() {
           label: 'Finances',
           alwaysShowTabs: true,
           tools: [
-            // "Comptes" (donnees bancaires), en premier : uniquement avec le
-            // mot de passe "comptes" -- masque sinon (confort d'affichage, le
+            // Outils des finances (donnees bancaires) : uniquement avec le mot
+            // de passe "comptes" -- masques sinon (confort d'affichage, le
             // backend refuse de toute facon avec un 403).
             ...(canViewAccounts
               ? [
+                  // Saisons (voir Seasons.jsx), en premier : l'unite de temps du
+                  // club ; affiche les soldes des comptes.
+                  { label: 'Saisons', content: (active) => <Seasons active={active} /> },
                   {
                     label: 'Comptes',
                     content: (active) => <BankAccounts active={active} />,
                     menu: [{ label: 'Importer relevés', onSelect: requestStatementImport }],
                   },
-                  // Saisons (voir Seasons.jsx) : affiche les soldes des
-                  // comptes, meme mot de passe que Comptes.
-                  { label: 'Saisons', content: (active) => <Seasons active={active} /> },
                   // Bilans financiers par saison (voir FinancialReports.jsx),
                   // meme mot de passe que Comptes.
                   {

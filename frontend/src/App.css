@@ -755,9 +755,19 @@ td button + .ffst-role-picker,
     font-size: 0.85rem;
   }
 
+  /* Sous-onglets sur une seule ligne (5 dans Finances) : ils se partagent
+     la largeur ; en dernier recours la barre defile. */
+  .tabs-nav {
+    flex-wrap: nowrap;
+    gap: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
   .tabs-nav button {
-    padding: 0.55rem 0.75rem;
-    font-size: 0.85rem;
+    flex: 1 1 auto;
+    padding: 0.55rem 0.35rem;
+    font-size: 0.8rem;
   }
 
   .tab-label-full {

@@ -21,7 +21,8 @@ import { AppMenu } from './AppMenu.jsx'
 //
 // Le dernier ecran affiche (section + outil) est retenu sur l'appareil : a
 // la reouverture de l'appli, on repart de celui-ci. forcedSection l'emporte
-// (ouverture par un lien precis : retour de la banque, QR code d'un eleve).
+// (ouverture par un lien precis : retour de la banque, QR code d'un eleve),
+// avec forcedTool, le libelle de l'outil a ouvrir dans cette section.
 const LAST_SCREEN_KEY = 'navigation-last-screen'
 
 // Dernier ecran retenu, en positions dans sections ; null si aucun, ou s'il
@@ -38,10 +39,16 @@ function readLastScreen(sections) {
   }
 }
 
-function Navigation({ header, sections, forcedSection = null }) {
+function Navigation({ header, sections, forcedSection = null, forcedTool = null }) {
   // Ecran de depart, fige a la 1re ouverture.
   const [start] = useState(
-    () => (forcedSection == null ? readLastScreen(sections) : { section: forcedSection, tool: 0 }) ?? { section: 0, tool: 0 }
+    () =>
+      (forcedSection == null
+        ? readLastScreen(sections)
+        : {
+            section: forcedSection,
+            tool: Math.max(0, sections[forcedSection].tools.findIndex((t) => t.label === forcedTool)),
+          }) ?? { section: 0, tool: 0 }
   )
   const initialSection = start.section
   const initialTool = start.tool
