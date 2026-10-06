@@ -41,6 +41,18 @@ function writeSetting(key, value) {
   }
 }
 
+// Identifiants des saisons masquees dans le graphique "Superposées".
+const HIDDEN_KEY = 'seasons-hidden'
+
+function readHidden() {
+  try {
+    const ids = JSON.parse(readSetting(HIDDEN_KEY, '[]'))
+    return new Set(Array.isArray(ids) ? ids : [])
+  } catch {
+    return new Set()
+  }
+}
+
 async function callApi(path, options) {
   const response = await fetch(`${API_URL}${path}`, { credentials: 'include', ...options })
   if (!response.ok) {
@@ -357,14 +369,15 @@ function CurveChart({ data, selected, mode }) {
   const today = ts(data.today)
   const lastKnown = series.length ? series[series.length - 1].t : today
   const seasons = data.seasons
-  // Superposees : saisons masquees d'un clic dans la legende.
-  const [hidden, setHidden] = useState(() => new Set())
-  const toggle = (id) =>
-    setHidden((previous) => {
-      const next = new Set(previous)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
+  // Superposees : saisons masquees d'un clic dans la legende (choix retenu
+  // sur cet appareil).
+  const [hidden, setHidden] = useState(readHidden)
+  function toggle(id) {
+    const next = new Set(hidden)
+    if (!next.delete(id)) next.add(id)
+    setHidden(next)
+    writeSetting(HIDDEN_KEY, JSON.stringify([...next]))
+  }
 
   // Solde en fin de journee t (derniere operation ce jour-la ou avant).
   function valueAt(t) {
