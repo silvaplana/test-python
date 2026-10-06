@@ -8,15 +8,14 @@ from .seasons import SeasonError, SeasonNotFoundError, Seasons
 
 class SeasonRequest(BaseModel):
     """Corps de POST /seasons et PUT /seasons/{id}. Dates AAAA-MM-JJ,
-    montants en euros. Soldes absents (null) : calcules depuis l'historique
-    des comptes."""
+    montants en euros. endBalance (compte courant + Livret Bleu) absent
+    (null) : calcule depuis l'historique des comptes."""
 
     name: str
     startDate: str
     endDate: str
     licences: int | None = None
-    checkingBalance: float | None = None
-    savingsBalance: float | None = None
+    endBalance: float | None = None
     aiCost: float | None = None
 
 

@@ -20,7 +20,6 @@ const METRICS = [
 ]
 
 const ACCENT = '#c084fc'
-const SAVINGS = '#93c5fd'
 const AI = '#5eead4'
 // Mode "Superposées" : la saison choisie en violet, les autres dans ces
 // couleurs.
@@ -169,7 +168,7 @@ export function Seasons({ active }) {
   async function remove() {
     if (
       !window.confirm(
-        `Supprimer la saison ${selected.name} ?\n\nSa fiche est effacée (dates, licenciés, soldes, coût IA). Les opérations bancaires de cette période restent dans Comptes.`
+        `Supprimer la saison ${selected.name} ?\n\nSa fiche est effacée (dates, licenciés, solde, coût IA). Les opérations bancaires de cette période restent dans Comptes.`
       )
     )
       return
@@ -317,7 +316,7 @@ function SeasonFigures({ season, previous }) {
         <span className="seasons-figure-value">{balance.total != null ? euros(balance.total) : '—'}</span>
         <span className="seasons-figure-sub">
           {balance.total != null
-            ? `courant ${eurosRound(balance.checking)} + Bleu ${eurosRound(balance.savings)}${balanceNote ? ` · ${balanceNote}` : ''}`
+            ? `courant + Livret Bleu${balanceNote ? ` · ${balanceNote}` : ''}`
             : 'pas de relevé à cette date'}
         </span>
       </div>
@@ -510,8 +509,7 @@ function CurveChart({ data, selected, mode }) {
 }
 
 // Graphiques en barres, une par saison (ou la saison choisie seule) :
-// licencies, coût IA, ou soldes de fin de saison (courant + Livret Bleu
-// empiles).
+// licencies, coût IA, ou solde de fin de saison (courant + Livret Bleu).
 function BarsChart({ seasons, selected, mode, metric }) {
   const [ref, width] = useWidth()
   const narrow = width < 480
@@ -519,15 +517,11 @@ function BarsChart({ seasons, selected, mode, metric }) {
   const innerH = CHART_HEIGHT - margin.top - margin.bottom
   const shown = mode === 'selected' ? [selected] : seasons
 
-  // Segments de chaque barre, de bas en haut ; null : pas de valeur.
+  // Segments de chaque barre (un seul pour l'instant) ; null : pas de valeur.
   function segments(s) {
     if (metric === 'licences') return s.licences != null ? [{ v: s.licences, color: ACCENT }] : null
     if (metric === 'ai') return s.aiCost != null ? [{ v: s.aiCost, color: AI }] : null
-    if (s.balance.total == null) return null
-    return [
-      { v: s.balance.checking, color: ACCENT },
-      { v: s.balance.savings, color: SAVINGS },
-    ]
+    return s.balance.total != null ? [{ v: s.balance.total, color: ACCENT }] : null
   }
   const format = (v) => (metric === 'licences' ? String(v) : narrow && v >= 1000 ? `${Math.round(v / 100) / 10} k€` : eurosRound(v))
   // Meme echelle quel que soit l'affichage (comparer d'un coup d'oeil). Un
@@ -573,18 +567,7 @@ function BarsChart({ seasons, selected, mode, metric }) {
           )
         })}
       </svg>
-      {metric === 'account' && (
-        <div className="seasons-legend">
-          <span>
-            <i style={{ background: ACCENT }} />
-            Compte courant
-          </span>
-          <span>
-            <i style={{ background: SAVINGS }} />
-            Livret Bleu
-          </span>
-        </div>
-      )}
+      {metric === 'account' && <p className="seasons-legend">Solde de fin de saison, compte courant + Livret Bleu</p>}
     </div>
   )
 }
@@ -599,9 +582,9 @@ function parseNumber(text) {
 
 const toInput = (n) => (n == null ? '' : String(n).replace('.', ','))
 
-// Fiche d'une saison : creation (season null) ou modification. Les soldes de
-// fin de saison laisses vides sont calcules depuis les releves (valeur
-// rappelee en grise dans le champ).
+// Fiche d'une saison : creation (season null) ou modification. Le solde de
+// fin de saison laisse vide est calcule depuis les releves (valeur rappelee
+// en grise dans le champ).
 function SeasonDialog({ season, defaults, onClose, onSaved }) {
   const dialogRef = useRef(null)
   const manual = season && !season.balance.auto
@@ -612,11 +595,10 @@ function SeasonDialog({ season, defaults, onClose, onSaved }) {
           startDate: season.startDate,
           endDate: season.endDate,
           licences: toInput(season.licences),
-          checkingBalance: manual ? toInput(season.balance.checking) : '',
-          savingsBalance: manual ? toInput(season.balance.savings) : '',
+          endBalance: manual ? toInput(season.balance.total) : '',
           aiCost: toInput(season.aiCost),
         }
-      : { ...defaults, licences: '', checkingBalance: '', savingsBalance: '', aiCost: '' }
+      : { ...defaults, licences: '', endBalance: '', aiCost: '' }
   )
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
@@ -652,8 +634,7 @@ function SeasonDialog({ season, defaults, onClose, onSaved }) {
       startDate: form.startDate,
       endDate: form.endDate,
       licences: parseNumber(form.licences),
-      checkingBalance: parseNumber(form.checkingBalance),
-      savingsBalance: parseNumber(form.savingsBalance),
+      endBalance: parseNumber(form.endBalance),
       aiCost: parseNumber(form.aiCost),
     }
     if (Object.values(body).some((v) => Number.isNaN(v))) {
@@ -663,12 +644,6 @@ function SeasonDialog({ season, defaults, onClose, onSaved }) {
     if (body.licences != null && !Number.isInteger(body.licences)) {
       setError('Le nombre de licenciés doit être un entier')
       return
-    }
-    // Un seul des deux soldes saisi : l'autre garde la valeur calculee.
-    const computed = season?.balance.computed
-    if ((body.checkingBalance == null) !== (body.savingsBalance == null)) {
-      body.checkingBalance ??= computed?.checking ?? 0
-      body.savingsBalance ??= computed?.savings ?? 0
     }
     setPending(true)
     setError(null)
@@ -681,8 +656,8 @@ function SeasonDialog({ season, defaults, onClose, onSaved }) {
   }
 
   const computed = season?.balance.computed
-  const placeholder = (key) =>
-    computed ? `auto : ${euros(computed[key])}` : season ? 'pas de relevé à cette date' : 'calculé depuis les relevés'
+  const placeholder =
+    computed != null ? `auto : ${euros(computed)}` : season ? 'pas de relevé à cette date' : 'calculé depuis les relevés'
 
   return (
     <dialog ref={dialogRef} className="trial-dialog" onClose={onClose}>
@@ -706,29 +681,19 @@ function SeasonDialog({ season, defaults, onClose, onSaved }) {
             <input inputMode="numeric" value={form.licences} onChange={update('licences')} autoComplete="off" />
             <span className="profile-hint">Repris de FFST pour la saison en cours ; à saisir pour les saisons passées.</span>
           </label>
-          <label>
-            Solde fin, compte courant (€)
+          <label className="trial-form-wide">
+            Solde fin de saison, courant + Livret Bleu (€)
             <input
               inputMode="decimal"
-              value={form.checkingBalance}
-              placeholder={placeholder('checking')}
-              onChange={update('checkingBalance')}
+              value={form.endBalance}
+              placeholder={placeholder}
+              onChange={update('endBalance')}
               autoComplete="off"
             />
+            <span className="profile-hint">
+              Laissez vide pour le solde calculé depuis les relevés à la date de fin (à ce jour pour la saison en cours).
+            </span>
           </label>
-          <label>
-            Solde fin, Livret Bleu (€)
-            <input
-              inputMode="decimal"
-              value={form.savingsBalance}
-              placeholder={placeholder('savings')}
-              onChange={update('savingsBalance')}
-              autoComplete="off"
-            />
-          </label>
-          <span className="profile-hint trial-form-wide">
-            Laissez vide pour le solde calculé depuis les relevés à la date de fin (à ce jour pour la saison en cours).
-          </span>
           <label className="trial-form-wide">
             Coût IA (€)
             <input inputMode="decimal" value={form.aiCost} onChange={update('aiCost')} autoComplete="off" />

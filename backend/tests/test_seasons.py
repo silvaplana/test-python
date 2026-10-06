@@ -62,14 +62,8 @@ def test_computed_end_balances(seasons):
     past, current = seasons.get_seasons()["seasons"]
 
     assert not past["current"]
-    assert past["balance"] == {
-        "checking": 3000.0,  # 1000 - 200 + 3000 - 800
-        "savings": 515.0,
-        "total": 3515.0,
-        "asOf": "2026-06-30",
-        "auto": True,
-        "computed": {"checking": 3000.0, "savings": 515.0},
-    }
+    # Courant 1000 - 200 + 3000 - 800, Livret Bleu 500 + 15.
+    assert past["balance"] == {"total": 3515.0, "asOf": "2026-06-30", "auto": True, "computed": 3515.0}
     # Saison en cours : solde a ce jour.
     assert current["current"]
     assert current["balance"]["total"] == 6015.0
@@ -84,14 +78,15 @@ def test_season_before_history_and_future_season_have_no_balance(seasons):
     assert future["balance"]["total"] is None
 
 
-def test_manual_balances_override_computed(seasons):
-    created = seasons.create(season("2025-2026", "2025-07-01", "2026-06-30", checkingBalance=1234.56, savingsBalance=500, aiCost=3.2))
+def test_manual_balance_overrides_computed(seasons):
+    created = seasons.create(season("2025-2026", "2025-07-01", "2026-06-30", endBalance=1734.56, aiCost=3.2))
     assert created["balance"]["total"] == 1734.56
     assert not created["balance"]["auto"]
-    assert created["balance"]["computed"] == {"checking": 3000.0, "savings": 515.0}
+    assert created["balance"]["asOf"] is None
+    assert created["balance"]["computed"] == 3515.0
     assert created["aiCost"] == 3.2
 
-    # Retour au calcul : soldes effaces.
+    # Retour au calcul : solde efface.
     updated = seasons.update(created["id"], season("2025-2026", "2025-07-01", "2026-06-30"))
     assert updated["balance"]["auto"]
     assert updated["balance"]["total"] == 3515.0
