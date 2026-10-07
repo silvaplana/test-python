@@ -51,7 +51,7 @@ function AppContent() {
               ),
               menu: [
                 { label: 'Chiffres des adhérents', onSelect: requestMembersSummary },
-                { label: 'Mails envoyés', onSelect: requestSentMails },
+                { label: 'Mails et SMS envoyés', onSelect: requestSentMails },
               ],
             },
             { label: 'Impayés', content: () => <UnpaidTable /> },

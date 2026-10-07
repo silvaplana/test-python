@@ -358,3 +358,62 @@ def test_members_get_a_usable_birth_date(monkeypatch):
     assert member["customFields"] == {"date de naissance": "05/11/2017", "Ville": "La Ciotat"}
     assert client.get_member_detail("club", 5)["fields"][0]["answer"] == "05/11/2017"
     assert members_summary([member], [], TODAY)["minors"] == 1
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("06 12 34 56 78", "+33612345678"),
+        ("0612345678", "+33612345678"),
+        ("06.12.34.56.78", "+33612345678"),
+        ("+33 6 12 34 56 78", "+33612345678"),
+        ("0033612345678", "+33612345678"),
+        ("612345678", "+33612345678"),
+        ("+41 79 123 45 67", "+41791234567"),
+        ("", None),
+        ("non", None),
+        (None, None),
+    ],
+)
+def test_normalize_phone(value, expected):
+    from helloasso.mails import normalize_phone
+
+    assert normalize_phone(value) == expected
+
+
+def test_member_sms_journal(monkeypatch, tmp_path):
+    """SMS prepare : numero relu chez HelloAsso, trace en base, compteur."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from database import Database
+    from helloasso import HelloAsso, HelloAssoReceiver
+    from helloasso.mails import MemberSms
+
+    def item(item_id, phone):
+        fields = [{"name": "Numéro de téléphone", "type": "Phone", "answer": phone}] if phone else []
+        return {"id": item_id, "type": "Membership", "state": "Processed", "amount": 0, "user": {"firstName": "Léo", "lastName": "Martin"}, "customFields": fields}
+
+    order = {"id": 7, "payer": {}, "payments": [], "items": [item(42, "06 12 34 56 78"), item(43, None)]}
+    client = HelloAsso(client_id="x", client_secret="y", organization_slug="club")
+    monkeypatch.setattr(client, "get_form_orders", lambda form_slug, form_type="Membership": [order])
+    db = Database(str(tmp_path / "test.db"))
+    db.migrate()
+    app = FastAPI()
+    receiver = HelloAssoReceiver(client=client, app=app, form_slug="club")
+
+    class NoMailer:
+        enabled = False
+        sender = ""
+
+    receiver.enable_member_mail(NoMailer(), contact=None, sender=None, sms_journal=MemberSms(db))
+    http = TestClient(app)
+
+    saved = http.post("/helloasso/members/42/sms", json={"message": " Cours annulé ce soir. "}).json()
+    assert (saved["phone"], saved["body"], saved["firstName"]) == ("+33612345678", "Cours annulé ce soir.", "Léo")
+    assert http.post("/helloasso/members/43/sms", json={"message": "x"}).status_code == 400  # pas de numero
+    assert http.post("/helloasso/members/42/sms", json={"message": "  "}).status_code == 400
+    assert http.post("/helloasso/members/99/sms", json={"message": "x"}).status_code == 404
+    assert [s["body"] for s in http.get("/helloasso/members/42/sms").json()] == ["Cours annulé ce soir."]
+    assert http.get("/helloasso/sms-counts").json() == {"42": 1}
+    assert len(http.get("/helloasso/sms").json()) == 1

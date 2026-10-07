@@ -24,7 +24,7 @@ from financialreports import FinancialReports, FinancialReportsReceiver
 from forecasts import Forecasts, ForecastsReceiver
 from generalassemblies import GeneralAssemblies, GeneralAssembliesReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
-from helloasso.mails import MemberMails
+from helloasso.mails import MemberMails, MemberSms
 from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
 from notifications import NotificationsReceiver, PushNotifications
@@ -135,6 +135,7 @@ helloasso_receiver.enable_member_mail(
     sender=os.environ.get("MEMBERS_MAIL_SENDER", "sambo-admin@silvaplana.cloud"),
     # Trace de chaque mail en base (table member_mails).
     journal=MemberMails(database),
+    sms_journal=MemberSms(database),
 )
 
 # Monte les routes des eleves en cours d'essai (/trials/...) sur la meme app

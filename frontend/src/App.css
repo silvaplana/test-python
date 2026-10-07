@@ -3281,3 +3281,23 @@ tr.member-row {
   color: var(--text-h);
   font-size: 0.95rem;
 }
+
+/* Fenetre SMS : lien qui ouvre l'appli SMS du telephone, habille en bouton. */
+.member-sms-open {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.member-sms-open-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

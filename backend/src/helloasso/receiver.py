@@ -12,6 +12,8 @@ from pydantic import BaseModel
 from auth import require_accounts_auth
 from mailer import MailError
 
+from .mails import normalize_phone
+
 from .helloasso import HelloAsso, HelloAssoAuthError
 from .summary import FAILED_PAYMENT_STATES, cancellation_preview, members_summary
 
@@ -28,6 +30,12 @@ class MemberMailRequest(BaseModel):
     l'adresse de l'adherent chez HelloAsso."""
 
     subject: str
+    message: str
+
+
+class MemberSmsRequest(BaseModel):
+    """Corps de POST /helloasso/members/{id}/sms : texte du SMS prepare."""
+
     message: str
 
 
@@ -149,7 +157,7 @@ class HelloAssoReceiver:
             raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
         return cancellation_preview(self._order(order_id))
 
-    def enable_member_mail(self, mailer, contact: str | None, sender: str | None, journal=None) -> None:
+    def enable_member_mail(self, mailer, contact: str | None, sender: str | None, journal=None, sms_journal=None) -> None:
         """Active l'envoi d'un mail a un adherent (POST
         /helloasso/members/{id}/mail). mailer : voir mailer/mailer.py ;
         contact : adresse de l'association, mise en copie et en adresse de
@@ -158,6 +166,14 @@ class HelloAssoReceiver:
         app/main.py une fois le mailer cree."""
         self.mailer = mailer
         self.journal = journal
+        # SMS prepares (helloasso.mails.MemberSms) : envoyes par l'appli SMS
+        # du telephone de l'utilisateur, voir prepareMemberSms.
+        self.sms_journal = sms_journal
+        if sms_journal is not None:
+            self.app.post("/helloasso/members/{item_id}/sms")(self.prepareMemberSms)
+            self.app.get("/helloasso/sms")(self.getSms)
+            self.app.get("/helloasso/sms-counts")(self.getSmsCounts)
+            self.app.get("/helloasso/members/{item_id}/sms")(self.getMemberSms)
         self.contact = contact or None
         self.mail_sender = sender or None
         self.app.get("/helloasso/mail-settings")(self.getMailSettings)
@@ -214,6 +230,43 @@ class HelloAssoReceiver:
             self.journal.record(member, to_email, self.contact, sender, subject, text)
         print(f"HelloAsso.sendMemberMail: mail « {subject} » envoye a l'adherent {item_id}")
         return {"sent": True, "to": to_email, "cc": self.contact}
+
+    def _member_phone(self, item_id: int) -> tuple[dict, str | None]:
+        """Adherent et son numero de telephone HelloAsso (reponse au champ
+        "Numéro de téléphone" du formulaire), pret pour un lien "sms:"."""
+        member = self.client.get_member_detail(self.form_slug, item_id, self.form_type)
+        if member is None:
+            raise HTTPException(status_code=404, detail="Adhérent inconnu")
+        answer = next((f["answer"] for f in member["fields"] if f.get("type") == "Phone" or "téléphone" in (f.get("name") or "").lower()), None)
+        return member, normalize_phone(answer)
+
+    def prepareMemberSms(self, item_id: int, request: MemberSmsRequest) -> dict:
+        """Endpoint REST POST /helloasso/members/{id}/sms : note qu'un SMS a
+        ete prepare pour cet adherent. Le SMS lui-meme part de l'appli SMS du
+        telephone de l'utilisateur (lien "sms:" ouvert par l'ecran) : le
+        serveur n'envoie rien et ne peut pas savoir s'il est parti."""
+        text = request.message.strip()
+        if not text:
+            raise HTTPException(status_code=400, detail="Le message est obligatoire")
+        member, phone = self._member_phone(item_id)
+        if phone is None:
+            raise HTTPException(status_code=400, detail="Cet adhérent n'a pas de numéro de téléphone chez HelloAsso")
+        return self.sms_journal.record(member, phone, text)
+
+    def getSms(self) -> list[dict]:
+        """Endpoint REST GET /helloasso/sms : tous les SMS prepares, le plus
+        recent d'abord."""
+        return self.sms_journal.list()
+
+    def getSmsCounts(self) -> dict[int, int]:
+        """Endpoint REST GET /helloasso/sms-counts : nombre de SMS prepares
+        pour chaque adherent (pastille du bouton SMS)."""
+        return self.sms_journal.counts()
+
+    def getMemberSms(self, item_id: int) -> list[dict]:
+        """Endpoint REST GET /helloasso/members/{id}/sms : SMS prepares pour
+        cet adherent, le plus recent d'abord."""
+        return self.sms_journal.list(item_id)
 
     def getMails(self) -> list[dict]:
         """Endpoint REST GET /helloasso/mails : journal de tous les mails

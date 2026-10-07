@@ -266,6 +266,21 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX member_mails_member ON member_mails (member_id);
     """,
+    # 14 : journal des SMS prepares pour les adherents (voir
+    # helloasso/mails.py). Le SMS part de l'appli SMS du telephone de
+    # l'utilisateur : l'appli sait qu'il a ete prepare, pas qu'il est parti.
+    """
+    CREATE TABLE member_sms (
+        id INTEGER PRIMARY KEY,
+        member_id INTEGER NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        body TEXT NOT NULL,
+        sent_at TEXT NOT NULL
+    );
+    CREATE INDEX member_sms_member ON member_sms (member_id);
+    """,
 ]
 
 

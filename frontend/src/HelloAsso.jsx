@@ -581,6 +581,8 @@ export function MembersTable({ active }) {
   const [contact, setContact] = useState(null)
   // Nombre de mails deja envoyes a chaque adherent (pastille du bouton Mail).
   const { data: mailCounts, refetch: refetchMailCounts } = useHelloAssoFetch('/helloasso/mail-counts')
+  // Idem pour les SMS prepares (pastille du bouton SMS).
+  const { data: smsCounts, refetch: refetchSmsCounts } = useHelloAssoFetch('/helloasso/sms-counts')
   // Un clic sur une ligne ouvre la fiche, sauf sur un bouton, un lien, une
   // photo ou un champ de la ligne, et sauf si du texte vient d'etre
   // selectionne (pour copier un e-mail).
@@ -792,8 +794,12 @@ export function MembersTable({ active }) {
                               ✉ Mail
                               {mailCounts?.[m.id] > 0 && <span className="nav-badge member-contact-badge">{mailCounts[m.id]}</span>}
                             </button>
-                            <button onClick={() => setContact({ member: m, by: 'sms' })} title="Envoyer un SMS">
+                            <button
+                              onClick={() => setContact({ member: m, by: 'sms' })}
+                              title={smsCounts?.[m.id] ? `Envoyer un SMS (${smsCounts[m.id]} déjà préparé${smsCounts[m.id] > 1 ? 's' : ''})` : 'Envoyer un SMS'}
+                            >
                               💬 SMS
+                              {smsCounts?.[m.id] > 0 && <span className="nav-badge member-contact-badge">{smsCounts[m.id]}</span>}
                             </button>
                           </span>
                         </td>
@@ -823,7 +829,9 @@ export function MembersTable({ active }) {
       {contact?.by === 'mail' && (
         <MemberMailDialog member={contact.member} onClose={() => setContact(null)} onSent={refetchMailCounts} />
       )}
-      {contact?.by === 'sms' && <MemberSmsDialog member={contact.member} onClose={() => setContact(null)} />}
+      {contact?.by === 'sms' && (
+        <MemberSmsDialog member={contact.member} onClose={() => setContact(null)} onPrepared={refetchSmsCounts} />
+      )}
 
       {cancelMember && (
         <CancelMembershipDialog
