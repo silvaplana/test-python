@@ -162,6 +162,9 @@ export function MemberSmsDialog({ member, onClose, onPrepared }) {
   function record() {
     callApi(`/helloasso/members/${member.id}/sms`, {
       method: 'POST',
+      // keepalive : la requete aboutit meme si le telephone met la page en
+      // veille en basculant vers l'appli SMS (iPhone notamment).
+      keepalive: true,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
     })
