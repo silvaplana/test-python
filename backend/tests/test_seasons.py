@@ -176,3 +176,14 @@ def test_ai_cost_below_one_cent_adds_up(seasons):
     for _ in range(4):
         seasons.add_ai_cost(created["id"], 0.0027)
     assert seasons.get_seasons()["seasons"][0]["aiCost"] == pytest.approx(0.0108)
+
+
+def test_add_current_ai_cost(seasons):
+    """Cout d'IA hors bilans (verification des adherents...) : ajoute a la
+    saison en cours, s'il y en a une."""
+    assert seasons.add_current_ai_cost(0.5) is False
+    seasons.create(season("2025-2026", "2025-07-01", "2026-06-30"))
+    seasons.create(season("2026-2027", "2026-07-01", "2027-06-30"))
+    assert seasons.add_current_ai_cost(0.013) is True
+    past, current = seasons.get_seasons()["seasons"]
+    assert past["aiCost"] is None and current["aiCost"] == pytest.approx(0.013)

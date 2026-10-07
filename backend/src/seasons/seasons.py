@@ -178,6 +178,21 @@ class Seasons:
                 "UPDATE seasons SET ai_cost = COALESCE(ai_cost, 0) + ? WHERE id = ?", (euros * 100, season_id)
             )
 
+    def add_current_ai_cost(self, euros: float) -> bool:
+        """Ajoute un cout d'IA a la saison en cours (celle qui contient la
+        date du jour), ex : verification du dossier des adherents. Retourne
+        False s'il n'y a pas de saison en cours (le cout n'est alors ajoute
+        a aucune saison)."""
+        today_iso = self.today().isoformat()
+        with self.db.connect() as connection:
+            row = connection.execute(
+                "SELECT id FROM seasons WHERE start_date <= ? AND end_date >= ?", (today_iso, today_iso)
+            ).fetchone()
+        if row is None:
+            return False
+        self.add_ai_cost(row["id"], euros)
+        return True
+
     def _get(self, season_id: int) -> dict:
         season = next((s for s in self.get_seasons()["seasons"] if s["id"] == season_id), None)
         if season is None:

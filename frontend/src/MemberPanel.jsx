@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { fetchChecks, markCheckOk } from './MemberChecks.jsx'
 import { MailHistory } from './MemberContact.jsx'
 import { showToast } from './Toast.jsx'
 
@@ -110,12 +111,30 @@ function Row({ label, children }) {
 // payeur, paiements -- et l'acces a ses documents (photo, certificat
 // medical, autorisation parentale). memberId : identifiant HelloAsso de son
 // adhesion.
-export function MemberPanel({ memberId, onClose }) {
+// canValidate : peut valider le dossier a la main (mot de passe "comptes").
+export function MemberPanel({ memberId, onClose, canValidate = false }) {
   const dialogRef = useRef(null)
   const [member, setMember] = useState(null)
   const [error, setError] = useState(null)
   // Mails deja envoyes a cet adherent depuis l'appli (journal en base).
   const [mails, setMails] = useState(null)
+  // Resultat de la verification du dossier par IA (voir MemberChecks.jsx).
+  const [check, setCheck] = useState(undefined)
+  useEffect(() => {
+    fetchChecks()
+      .then((state) => setCheck(state.checks[memberId] ?? null))
+      .catch(() => setCheck(null))
+  }, [memberId])
+
+  async function validate() {
+    try {
+      await markCheckOk(memberId)
+      setCheck({ status: 'ok', issues: [], manual: true })
+      showToast('Dossier marqué comme vérifié')
+    } catch (err) {
+      showToast(err.message, 'warning')
+    }
+  }
 
   useEffect(() => {
     fetch(`${API_URL}/helloasso/members/${memberId}/mails`, { credentials: 'include' })
@@ -168,6 +187,28 @@ export function MemberPanel({ memberId, onClose }) {
               <Row label="État HelloAsso">{member.state}</Row>
             </dl>
           </div>
+
+          <h4>Vérification du dossier par IA</h4>
+          {check === undefined ? (
+            <p className="member-panel-note">Chargement…</p>
+          ) : check === null ? (
+            <p className="member-panel-note">Pas encore vérifié.</p>
+          ) : check.status === 'ok' ? (
+            <p className="member-panel-note">{check.manual ? 'Dossier validé à la main.' : "Dossier vérifié par l'IA : rien à signaler."}</p>
+          ) : (
+            <div className="member-panel-issues">
+              <ul>
+                {check.issues.map((issue) => (
+                  <li key={issue}>{issue}</li>
+                ))}
+              </ul>
+              {canValidate && (
+                <button type="button" onClick={validate}>
+                  Marquer comme vérifié
+                </button>
+              )}
+            </div>
+          )}
 
           <h4>Documents</h4>
           {files.length === 0 ? (

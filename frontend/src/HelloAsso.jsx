@@ -3,6 +3,7 @@ import clubLogo from './assets/club-logo.png'
 import { useAuth } from './Auth.jsx'
 import { CancelMembershipDialog, isCanceled } from './CancelMembership.jsx'
 import { CAN_SEND_SMS, MemberMailDialog, MemberSmsDialog } from './MemberContact.jsx'
+import { CheckStatus, euros as eurosFr, MemberChecksPanel, useMemberChecks } from './MemberChecks.jsx'
 import { MemberPanel } from './MemberPanel.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -579,6 +580,9 @@ export function MembersTable({ active }) {
   const [openMemberId, setOpenMemberId] = useState(null)
   // Adherent a qui on ecrit : {member, by: 'mail' | 'sms'} (voir MemberContact.jsx).
   const [contact, setContact] = useState(null)
+  // Verification par IA des dossiers (voir MemberChecks.jsx) : statut de
+  // chaque adherent, cout cumule, panneau d'avancement.
+  const memberChecks = useMemberChecks()
   // Nombre de mails deja envoyes a chaque adherent (pastille du bouton Mail).
   const { data: mailCounts, refetch: refetchMailCounts } = useHelloAssoFetch('/helloasso/mail-counts')
   // Idem pour les SMS prepares (pastille du bouton SMS).
@@ -667,6 +671,7 @@ export function MembersTable({ active }) {
                     {showPhotos && <th className="member-photo-header">Photo</th>}
                     <th className="col-secondary">Ancienneté</th>
                     <th className="col-secondary">Statut HelloAsso</th>
+                    <th>Vérification IA</th>
                     <th>Statut FFST</th>
                     <th>Actions FFST</th>
                     <th>Contact</th>
@@ -723,6 +728,9 @@ export function MembersTable({ active }) {
                         )}
                         <td className="col-secondary">{history ? `${seniority} saison${seniority > 1 ? 's' : ''}` : '…'}</td>
                         <td className="col-secondary">{isCanceled(m) ? 'Résilié' : m.state}</td>
+                        <td>
+                          <CheckStatus check={memberChecks.state?.checks[m.id]} />
+                        </td>
                         <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
                         <td>
                           {ffstDataLoaded && (
@@ -827,7 +835,14 @@ export function MembersTable({ active }) {
         </>
       )}
 
-      {openMemberId != null && <MemberPanel key={openMemberId} memberId={openMemberId} onClose={() => setOpenMemberId(null)} />}
+      {members && memberChecks.state && (
+        <p className="member-checks-cost">
+          Coût IA cumulé des vérifications de dossiers : <b>{eurosFr(memberChecks.state.totalCost)}</b>
+        </p>
+      )}
+      {memberChecks.panelOpen && <MemberChecksPanel state={memberChecks.state} onClose={memberChecks.closePanel} />}
+
+      {openMemberId != null && <MemberPanel key={openMemberId} memberId={openMemberId} canValidate={canViewAccounts} onClose={() => setOpenMemberId(null)} />}
 
       {contact?.by === 'mail' && (
         <MemberMailDialog member={contact.member} onClose={() => setContact(null)} onSent={refetchMailCounts} />

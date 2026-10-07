@@ -268,6 +268,43 @@ class HelloAssoReceiver:
         cet adherent, le plus recent d'abord."""
         return self.sms_journal.list(item_id)
 
+    def enable_member_checks(self, checks) -> None:
+        """Active la verification par IA des dossiers (checks :
+        helloasso.verification.MemberChecks). Lancer une verification ou
+        valider un dossier a la main est reserve au mot de passe "comptes"
+        (les appels a l'IA sont payants)."""
+        self.checks = checks
+        admin = [Depends(require_accounts_auth)]
+        self.app.get("/helloasso/checks")(self.getChecks)
+        self.app.post("/helloasso/checks/run", dependencies=admin)(self.runChecks)
+        self.app.put("/helloasso/checks/{member_id}/ok", dependencies=admin)(self.markCheckOk)
+
+    def getChecks(self) -> dict:
+        """Endpoint REST GET /helloasso/checks : statut de verification de
+        chaque adherent, cout cumule de l'IA et avancement de la verification
+        en cours (voir MemberChecks.state), relu par l'ecran toutes les 2 s
+        pendant une verification."""
+        return self.checks.state()
+
+    def runChecks(self) -> dict:
+        """Endpoint REST POST /helloasso/checks/run : verifie par IA, en
+        arriere-plan, les adherents dont le dossier n'est pas deja bon."""
+        try:
+            return self.checks.run()
+        except RuntimeError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
+
+    def markCheckOk(self, member_id: int) -> dict:
+        """Endpoint REST PUT /helloasso/checks/{id}/ok : dossier valide a la
+        main, qui ne sera plus reverifie."""
+        try:
+            self.checks.mark_ok(member_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="Adhérent inconnu") from exc
+        return {"status": "ok"}
+
     def getMails(self) -> list[dict]:
         """Endpoint REST GET /helloasso/mails : journal de tous les mails
         envoyes aux adherents, le plus recent d'abord."""

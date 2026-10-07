@@ -2,6 +2,7 @@ import './App.css'
 import { AuthGate, useAuth } from './Auth.jsx'
 import { BankAccounts, hasBankCallback } from './BankAccounts.jsx'
 import { requestStatementImport } from './BankHistory.jsx'
+import { requestMemberChecks } from './MemberChecks.jsx'
 import { requestSentMails, SentMails } from './MemberContact.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
@@ -52,6 +53,8 @@ function AppContent() {
               menu: [
                 { label: 'Chiffres des adhérents', onSelect: requestMembersSummary },
                 { label: 'Mails et SMS envoyés', onSelect: requestSentMails },
+                // Appels a l'IA payants : reserve au mot de passe "comptes".
+                ...(canViewAccounts ? [{ label: 'Vérifier adhérents par IA', onSelect: requestMemberChecks }] : []),
               ],
             },
             { label: 'Impayés', content: () => <UnpaidTable /> },

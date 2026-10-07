@@ -281,6 +281,25 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX member_sms_member ON member_sms (member_id);
     """,
+    # 15 : verification par IA du dossier de chaque adherent (voir
+    # helloasso/verification.py). member_id : identifiant HelloAsso de
+    # l'adhesion. status : "ok", "probleme" ou "erreur" ; issues : raisons
+    # (liste JSON) ; manual : valide a la main ; cost : cout cumule de l'IA
+    # pour cet adherent, en euros (le total des lignes = cout de toutes les
+    # verifications).
+    """
+    CREATE TABLE member_checks (
+        member_id INTEGER PRIMARY KEY,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        status TEXT NOT NULL,
+        issues TEXT NOT NULL,
+        manual INTEGER NOT NULL DEFAULT 0,
+        model TEXT,
+        cost REAL NOT NULL DEFAULT 0,
+        checked_at TEXT NOT NULL
+    );
+    """,
 ]
 
 

@@ -6,6 +6,7 @@ un seul conteneur "backend" pour tout le projet).
 """
 
 import asyncio
+import html
 import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -25,6 +26,7 @@ from forecasts import Forecasts, ForecastsReceiver
 from generalassemblies import GeneralAssemblies, GeneralAssembliesReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
 from helloasso.mails import MemberMails, MemberSms
+from helloasso.verification import MemberChecks
 from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
 from notifications import NotificationsReceiver, PushNotifications
@@ -137,6 +139,43 @@ helloasso_receiver.enable_member_mail(
     journal=MemberMails(database),
     sms_journal=MemberSms(database),
 )
+
+# Verification par IA du dossier des adherents (voir
+# helloasso/verification.py) : photo, certificat medical, autorisation
+# parentale. Un nouvel adherent est verifie des sa detection (voir
+# _poll_new_members) ; s'il y a un probleme, l'association est prevenue par
+# mail (CONTACT_ASSOCIATION).
+def _notify_member_problem(member: dict, issues: list[str]) -> None:
+    contact = helloasso_receiver.contact
+    if not contact:
+        return
+    name = f"{member.get('firstName') or ''} {member.get('lastName') or ''}".strip()
+    lines = "".join(f"<li>{html.escape(issue)}</li>" for issue in issues)
+    mailer.send(
+        contact,
+        "",
+        f"Nouvel adhérent à vérifier : {name}",
+        f"<p>Le dossier HelloAsso de <b>{html.escape(name)}</b>, qui vient de s'inscrire, pose problème :</p><ul>{lines}</ul>"
+        f"<p>À voir dans sambo-admin, onglet HelloAsso › Adhérents.</p>",
+        f"Le dossier HelloAsso de {name}, qui vient de s'inscrire, pose problème :\n"
+        + "\n".join(f"- {issue}" for issue in issues)
+        + "\n\nÀ voir dans sambo-admin, onglet HelloAsso > Adhérents.",
+        sender=helloasso_receiver.mail_sender,
+    )
+
+
+member_checks = MemberChecks(
+    db=database,
+    members=lambda: helloasso_client.get_members(helloasso_receiver.form_slug, helloasso_receiver.form_type),
+    member=lambda item_id: helloasso_client.get_member_detail(helloasso_receiver.form_slug, item_id, helloasso_receiver.form_type),
+    document=helloasso_client.get_document,
+    model=os.environ.get("MEMBER_CHECK_MODEL", "sonnet"),
+    notify=_notify_member_problem,
+    # Le cout de chaque appel s'ajoute aussi au cout IA de la saison en cours
+    # (onglet Saisons). seasons_client est cree plus bas : lu a l'appel.
+    add_cost=lambda euros: seasons_client.add_current_ai_cost(euros),
+)
+helloasso_receiver.enable_member_checks(member_checks)
 
 # Monte les routes des eleves en cours d'essai (/trials/...) sur la meme app
 # (onglet "Essai"). Les certificats medicaux envoyes (donnees de sante)
@@ -320,6 +359,12 @@ async def _poll_new_members() -> None:
                     # prod), que ce backend ne connait pas.
                     url=".",
                 )
+                # Dossier du nouvel adherent verifie par IA ; mail a
+                # l'association s'il pose probleme.
+                try:
+                    await asyncio.to_thread(member_checks.check_new_member, member["id"])
+                except Exception as exc:
+                    print(f"_poll_new_members: verification de l'adherent {member.get('id')} impossible ({exc})")
         except Exception as exc:
             print(f"_poll_new_members: erreur ({exc})")
         await asyncio.sleep(NOTIFICATIONS_POLL_INTERVAL_SECONDS)
