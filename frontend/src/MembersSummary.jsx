@@ -4,7 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // Demande d'ouverture venue du menu ⋮ (voir requestMembersSummary).
 const OPEN_EVENT = 'members-summary-open'
 
-// Entree "Chiffres des adhérents" du menu ⋮ (voir App.jsx) : ouvre le
+// Entree "Statistiques des adhérents de la saison" du menu ⋮ (voir App.jsx) : ouvre le
 // panneau MembersSummary.
 export function requestMembersSummary() {
   window.dispatchEvent(new Event(OPEN_EVENT))
@@ -21,7 +21,7 @@ function monthLabel(month) {
 
 const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`
 
-// Panneau "Chiffres des adhérents" de l'onglet HelloAsso > Adherents, ouvert
+// Panneau "Statistiques des adhérents de la saison" de l'onglet HelloAsso > Adherents, ouvert
 // depuis le menu ⋮ : majeurs et mineurs, prix moyen de la licence, et ce
 // qui reste a encaisser mois par mois (voir backend helloasso/summary.py).
 // Les chiffres sont relus chez HelloAsso a chaque ouverture.
@@ -62,7 +62,7 @@ export function MembersSummary() {
   return (
     <dialog ref={dialogRef} className="trial-dialog" onClose={() => setOpen(false)}>
       <div className="trial-scan-header">
-        <h3>Chiffres des adhérents</h3>
+        <h3>Statistiques des adhérents de la saison</h3>
         <button
           type="button"
           className="trial-scan-close"

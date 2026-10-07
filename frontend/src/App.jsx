@@ -49,7 +49,7 @@ function AppContent() {
                 </>
               ),
               menu: [
-                { label: 'Chiffres des adhérents', onSelect: requestMembersSummary },
+                { label: 'Statistiques des adhérents de la saison', onSelect: requestMembersSummary },
                 // Appels a l'IA payants : reserve au mot de passe "comptes".
                 ...(canViewAccounts ? [{ label: 'Vérifier adhérents par IA', onSelect: requestMemberChecks }] : []),
               ],
