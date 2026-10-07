@@ -21,7 +21,8 @@ async function callApi(path, options) {
 // Adherents). HelloAsso ne resilie pas une personne mais sa COMMANDE : tous
 // les adherents de la commande le sont ensemble, les echeances a venir sont
 // annulees et rien n'est rembourse. La fenetre montre donc d'abord ce que la
-// resiliation changera (GET .../cancellation), puis demande confirmation.
+// resiliation changera (GET .../cancellation), puis demande confirmation,
+// deux fois : le bouton de la fenetre, puis une question nominative.
 // Action irreversible, reservee au mot de passe "comptes".
 export function CancelMembershipDialog({ member, onClose, onDone }) {
   const dialogRef = useRef(null)
@@ -37,6 +38,13 @@ export function CancelMembershipDialog({ member, onClose, onDone }) {
   }, [member.orderId])
 
   async function confirm() {
+    // Derniere confirmation, nominative, avant une action definitive.
+    const names = preview.members.map((m) => `${m.firstName} ${m.lastName}`).join(', ')
+    const question =
+      preview.members.length > 1
+        ? `Résilier définitivement les ${preview.members.length} adhésions suivantes ?\n\n${names}`
+        : `Résilier définitivement l'adhésion de ${names} ?`
+    if (!window.confirm(`${question}\n\nCette action ne peut pas être annulée.`)) return
     setPending(true)
     setError(null)
     try {
