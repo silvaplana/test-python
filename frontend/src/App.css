@@ -3267,3 +3267,17 @@ tr.member-row {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* Pastille du bouton Mail d'un adherent : nombre de mails deja envoyes. */
+.member-contact-badge {
+  margin-left: 0.35rem;
+  /* Simple compteur, pas une alerte : teinte de l'appli plutot que rouge. */
+  background: var(--accent);
+  color: #16171d;
+}
+
+.member-contact-history {
+  margin: 1.2rem 0 0.4rem;
+  color: var(--text-h);
+  font-size: 0.95rem;
+}

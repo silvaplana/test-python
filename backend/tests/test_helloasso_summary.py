@@ -288,6 +288,8 @@ def test_member_mail(monkeypatch, tmp_path):
         ("Certificat", True, None),
     ]
     assert http.get("/helloasso/members/7/mails").json() == []
+    # Pastille du bouton Mail : seuls les mails vraiment partis comptent.
+    assert http.get("/helloasso/mail-counts").json() == {"42": 1}
 
 
 def test_mailer_headers(monkeypatch):

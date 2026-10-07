@@ -66,6 +66,15 @@ class MemberMails:
             rows = connection.execute(query + " ORDER BY sent_at DESC, id DESC LIMIT ?", (*params, limit)).fetchall()
         return [self._to_dict(row) for row in rows]
 
+    def counts(self) -> dict[int, int]:
+        """Nombre de mails reellement envoyes a chaque adherent (pastille du
+        bouton Mail) : {identifiant HelloAsso: nombre}."""
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                "SELECT member_id, COUNT(*) FROM member_mails WHERE status = ? GROUP BY member_id", (SENT,)
+            ).fetchall()
+        return {row[0]: row[1] for row in rows}
+
     def _get(self, mail_id: int) -> dict:
         with self.db.connect() as connection:
             return self._to_dict(connection.execute("SELECT * FROM member_mails WHERE id = ?", (mail_id,)).fetchone())

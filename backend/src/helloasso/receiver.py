@@ -163,6 +163,7 @@ class HelloAssoReceiver:
         self.app.get("/helloasso/mail-settings")(self.getMailSettings)
         self.app.post("/helloasso/members/{item_id}/mail")(self.sendMemberMail)
         self.app.get("/helloasso/mails")(self.getMails)
+        self.app.get("/helloasso/mail-counts")(self.getMailCounts)
         self.app.get("/helloasso/members/{item_id}/mails")(self.getMemberMails)
 
     def getMailSettings(self) -> dict:
@@ -218,6 +219,12 @@ class HelloAssoReceiver:
         """Endpoint REST GET /helloasso/mails : journal de tous les mails
         envoyes aux adherents, le plus recent d'abord."""
         return self.journal.list() if self.journal is not None else []
+
+    def getMailCounts(self) -> dict[int, int]:
+        """Endpoint REST GET /helloasso/mail-counts : nombre de mails envoyes
+        a chaque adherent ({identifiant HelloAsso: nombre}), pour la pastille
+        du bouton Mail."""
+        return self.journal.counts() if self.journal is not None else {}
 
     def getMemberMails(self, item_id: int) -> list[dict]:
         """Endpoint REST GET /helloasso/members/{id}/mails : mails envoyes a

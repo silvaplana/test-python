@@ -579,6 +579,8 @@ export function MembersTable({ active }) {
   const [openMemberId, setOpenMemberId] = useState(null)
   // Adherent a qui on ecrit : {member, by: 'mail' | 'sms'} (voir MemberContact.jsx).
   const [contact, setContact] = useState(null)
+  // Nombre de mails deja envoyes a chaque adherent (pastille du bouton Mail).
+  const { data: mailCounts, refetch: refetchMailCounts } = useHelloAssoFetch('/helloasso/mail-counts')
   // Un clic sur une ligne ouvre la fiche, sauf sur un bouton, un lien, une
   // photo ou un champ de la ligne, et sauf si du texte vient d'etre
   // selectionne (pour copier un e-mail).
@@ -779,8 +781,16 @@ export function MembersTable({ active }) {
                         </td>
                         <td>
                           <span className="member-contact">
-                            <button onClick={() => setContact({ member: m, by: 'mail' })} title="Envoyer un mail">
+                            <button
+                              onClick={() => setContact({ member: m, by: 'mail' })}
+                              title={
+                                mailCounts?.[m.id]
+                                  ? `Envoyer un mail (${mailCounts[m.id]} déjà envoyé${mailCounts[m.id] > 1 ? 's' : ''})`
+                                  : 'Envoyer un mail'
+                              }
+                            >
                               ✉ Mail
+                              {mailCounts?.[m.id] > 0 && <span className="nav-badge member-contact-badge">{mailCounts[m.id]}</span>}
                             </button>
                             <button onClick={() => setContact({ member: m, by: 'sms' })} title="Envoyer un SMS">
                               💬 SMS
@@ -810,7 +820,9 @@ export function MembersTable({ active }) {
 
       {openMemberId != null && <MemberPanel key={openMemberId} memberId={openMemberId} onClose={() => setOpenMemberId(null)} />}
 
-      {contact?.by === 'mail' && <MemberMailDialog member={contact.member} onClose={() => setContact(null)} />}
+      {contact?.by === 'mail' && (
+        <MemberMailDialog member={contact.member} onClose={() => setContact(null)} onSent={refetchMailCounts} />
+      )}
       {contact?.by === 'sms' && <MemberSmsDialog member={contact.member} onClose={() => setContact(null)} />}
 
       {cancelMember && (

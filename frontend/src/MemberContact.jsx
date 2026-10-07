@@ -39,18 +39,24 @@ function ContactDialog({ title, onClose, busy = false, children }) {
 // Mail a un adherent (onglet HelloAsso > Adherents) : objet et message
 // libres, envoyes par le backend (POST /helloasso/members/{id}/mail) a son
 // adresse HelloAsso, l'association en copie et en adresse de reponse.
-export function MemberMailDialog({ member, onClose }) {
+// onSent : appele apres un envoi reussi (met a jour la pastille du bouton).
+export function MemberMailDialog({ member, onClose, onSent }) {
   const [settings, setSettings] = useState(null)
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState(`Bonjour ${member.payerFirstName || member.firstName},\n\n`)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
+  // Mails deja envoyes a cet adherent, rappeles sous le formulaire.
+  const [history, setHistory] = useState(null)
 
   useEffect(() => {
     callApi('/helloasso/mail-settings')
       .then(setSettings)
       .catch((err) => setError(err.message))
-  }, [])
+    callApi(`/helloasso/members/${member.id}/mails`)
+      .then(setHistory)
+      .catch(() => setHistory([]))
+  }, [member.id])
 
   async function send(e) {
     e.preventDefault()
@@ -63,6 +69,7 @@ export function MemberMailDialog({ member, onClose }) {
         body: JSON.stringify({ subject, message }),
       })
       showToast(`Mail envoyé à ${sent.to}`)
+      onSent?.()
       onClose()
     } catch (err) {
       setError(err.message)
@@ -113,6 +120,9 @@ export function MemberMailDialog({ member, onClose }) {
           </button>
         </div>
       </form>
+
+      <h4 className="member-contact-history">Mails déjà envoyés{history?.length ? ` (${history.length})` : ''}</h4>
+      {history ? <MailHistory mails={history} /> : <p className="member-panel-note">Chargement…</p>}
     </ContactDialog>
   )
 }
@@ -127,6 +137,9 @@ export function MemberSmsDialog({ member, onClose }) {
         <p>L'envoi de SMS depuis l'appli n'est pas encore disponible.</p>
       </div>
       <p className="member-panel-note">Numéro chez HelloAsso : {phone || 'non renseigné'}</p>
+
+      <h4 className="member-contact-history">SMS déjà envoyés</h4>
+      <p className="member-panel-note">Aucun SMS envoyé.</p>
     </ContactDialog>
   )
 }
