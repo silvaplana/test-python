@@ -124,6 +124,16 @@ mailer = Mailer(
     reply_to=os.environ.get("MAIL_REPLY_TO") or None,
 )
 
+# Mail a un adherent depuis l'onglet HelloAsso > Adherents (voir
+# HelloAssoReceiver.sendMemberMail) : expedie par MEMBERS_MAIL_SENDER,
+# l'association (CONTACT_ASSOCIATION, a defaut MAIL_REPLY_TO) en copie et en
+# adresse de reponse.
+helloasso_receiver.enable_member_mail(
+    mailer,
+    contact=os.environ.get("CONTACT_ASSOCIATION") or os.environ.get("MAIL_REPLY_TO"),
+    sender=os.environ.get("MEMBERS_MAIL_SENDER", "sambo-admin@silvaplana.cloud"),
+)
+
 # Monte les routes des eleves en cours d'essai (/trials/...) sur la meme app
 # (onglet "Essai"). Les certificats medicaux envoyes (donnees de sante)
 # restent dans le volume Docker, jamais dans Git. PUBLIC_BASE_URL : adresse

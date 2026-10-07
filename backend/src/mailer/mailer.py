@@ -55,11 +55,16 @@ class Mailer:
         text: str,
         inline_images: dict[str, bytes] | None = None,
         attachments: list[tuple[str, bytes, str]] | None = None,
+        cc: str | None = None,
+        reply_to: str | None = None,
+        sender: str | None = None,
     ) -> bool:
         """Envoie un mail HTML (+ version texte pour les messageries qui
         n'affichent pas le HTML). inline_images : {cid: PNG}, images integrees
         au mail et referencees dans le HTML par src="cid:<cid>". attachments :
-        pieces jointes (nom du fichier, contenu, type MIME). Retourne False
+        pieces jointes (nom du fichier, contenu, type MIME). cc : adresse en
+        copie ; reply_to et sender : remplacent, pour ce mail, l'adresse de
+        reponse et l'adresse d'expedition du mailer. Retourne False
         sans rien faire si le mailer n'est pas configure ; leve MailError si
         l'envoi echoue."""
         if not self.enabled:
@@ -67,11 +72,14 @@ class Mailer:
             return False
         message = EmailMessage()
         message["Subject"] = subject
-        message["From"] = formataddr((self.sender_name, self.sender))
+        sender = sender or self.sender
+        message["From"] = formataddr((self.sender_name, sender))
         message["To"] = formataddr((to_name, to_email))
-        if self.reply_to:
-            message["Reply-To"] = self.reply_to
-        message["Message-ID"] = make_msgid(domain=self.sender.split("@")[-1])
+        if cc:
+            message["Cc"] = cc
+        if reply_to or self.reply_to:
+            message["Reply-To"] = reply_to or self.reply_to
+        message["Message-ID"] = make_msgid(domain=sender.split("@")[-1])
         message.set_content(text)
         message.add_alternative(html, subtype="html")
         html_part = message.get_payload()[1]

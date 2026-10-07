@@ -212,3 +212,74 @@ def test_member_detail_and_document_api(monkeypatch):
     for url in ("https://example.org/customFieldsAnswer/123", "https://docs.helloasso.com/autre/123", "http://docs.helloasso.com/customFieldsAnswer/123"):
         assert http.get("/helloasso/document", params={"url": url}).status_code == 400
     assert fetched == ["https://docs.helloasso.com/customFieldsAnswer/123"]
+
+
+def test_member_mail(monkeypatch):
+    """Mail a un adherent : destinataire relu chez HelloAsso, association en
+    copie et en adresse de reponse, expediteur dedie."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from helloasso import HelloAsso, HelloAssoReceiver
+
+    class FakeMailer:
+        enabled = True
+        sender = "club@example.org"
+
+        def __init__(self):
+            self.sent = []
+
+        def send(self, to_email, to_name, subject, html, text, **options):
+            self.sent.append({"to": to_email, "name": to_name, "subject": subject, "html": html, "text": text, **options})
+            return True
+
+    order = {
+        "id": 7,
+        "payer": {"firstName": "Alice", "lastName": "Martin", "email": "alice@example.org"},
+        "payments": [],
+        "items": [{"id": 42, "type": "Membership", "state": "Processed", "amount": 0, "user": {"firstName": "Léo", "lastName": "Martin"}, "customFields": []}],
+    }
+    client = HelloAsso(client_id="x", client_secret="y", organization_slug="club")
+    monkeypatch.setattr(client, "get_form_orders", lambda form_slug, form_type="Membership": [order])
+    mailer = FakeMailer()
+    app = FastAPI()
+    receiver = HelloAssoReceiver(client=client, app=app, form_slug="club")
+    receiver.enable_member_mail(mailer, contact="contact@example.org", sender="sambo-admin@silvaplana.cloud")
+    http = TestClient(app)
+
+    assert http.get("/helloasso/mail-settings").json() == {"enabled": True, "sender": "sambo-admin@silvaplana.cloud", "contact": "contact@example.org"}
+    sent = http.post("/helloasso/members/42/mail", json={"subject": "Certificat", "message": "Bonjour,\nil manque <le> certificat.\n\nMerci"})
+    assert sent.json() == {"sent": True, "to": "alice@example.org", "cc": "contact@example.org"}
+    mail = mailer.sent[0]
+    assert (mail["to"], mail["name"], mail["subject"]) == ("alice@example.org", "Léo Martin", "Certificat")
+    assert (mail["cc"], mail["reply_to"], mail["sender"]) == ("contact@example.org", "contact@example.org", "sambo-admin@silvaplana.cloud")
+    assert mail["html"] == "<p>Bonjour,<br>il manque &lt;le&gt; certificat.</p><p>Merci</p>"
+
+    assert http.post("/helloasso/members/42/mail", json={"subject": " ", "message": "x"}).status_code == 400
+    assert http.post("/helloasso/members/42/mail", json={"subject": "a\nBcc: x@y.z", "message": "x"}).status_code == 400
+    assert http.post("/helloasso/members/999/mail", json={"subject": "a", "message": "x"}).status_code == 404
+    mailer.enabled = False
+    assert http.post("/helloasso/members/42/mail", json={"subject": "a", "message": "x"}).status_code == 503
+    assert len(mailer.sent) == 1
+
+
+def test_mailer_headers(monkeypatch):
+    """Copie, adresse de reponse et expediteur propres a un mail."""
+    from mailer import Mailer
+
+    sent = []
+
+    class FakeSmtp:
+        def __init__(self, *args, **kwargs): ...
+        def __enter__(self): return self
+        def __exit__(self, *args): return False
+        def starttls(self, context=None): ...
+        def login(self, user, password): ...
+        def send_message(self, message): sent.append(message)
+
+    monkeypatch.setattr("mailer.mailer.smtplib.SMTP", FakeSmtp)
+    mailer = Mailer("smtp.example.org", 587, "user", "secret", "club@example.org", "Le club", reply_to="defaut@example.org")
+    mailer.send("a@example.org", "A", "Objet", "<p>x</p>", "x", cc="c@example.org", reply_to="r@example.org", sender="sambo-admin@silvaplana.cloud")
+    mailer.send("a@example.org", "A", "Objet", "<p>x</p>", "x")
+    assert (sent[0]["Cc"], sent[0]["Reply-To"]) == ("c@example.org", "r@example.org") and "sambo-admin@silvaplana.cloud" in sent[0]["From"]
+    assert (sent[1]["Cc"], sent[1]["Reply-To"]) == (None, "defaut@example.org") and "club@example.org" in sent[1]["From"]

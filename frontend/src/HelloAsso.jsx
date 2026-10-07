@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clubLogo from './assets/club-logo.png'
 import { useAuth } from './Auth.jsx'
 import { CancelMembershipDialog, isCanceled } from './CancelMembership.jsx'
+import { MemberMailDialog, MemberSmsDialog } from './MemberContact.jsx'
 import { MemberPanel } from './MemberPanel.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -576,6 +577,8 @@ export function MembersTable({ active }) {
   const [cancelMember, setCancelMember] = useState(null)
   // Adherent dont la fiche est ouverte (clic sur sa ligne, voir MemberPanel.jsx).
   const [openMemberId, setOpenMemberId] = useState(null)
+  // Adherent a qui on ecrit : {member, by: 'mail' | 'sms'} (voir MemberContact.jsx).
+  const [contact, setContact] = useState(null)
   // Un clic sur une ligne ouvre la fiche, sauf sur un bouton, un lien, une
   // photo ou un champ de la ligne, et sauf si du texte vient d'etre
   // selectionne (pour copier un e-mail).
@@ -662,6 +665,7 @@ export function MembersTable({ active }) {
                     <th className="col-secondary">Statut HelloAsso</th>
                     <th>Statut FFST</th>
                     <th>Actions FFST</th>
+                    <th>Contact</th>
                     {canViewAccounts && <th>Adhésion</th>}
                   </tr>
                 </thead>
@@ -773,6 +777,16 @@ export function MembersTable({ active }) {
                             </>
                           )}
                         </td>
+                        <td>
+                          <span className="member-contact">
+                            <button onClick={() => setContact({ member: m, by: 'mail' })} title="Envoyer un mail">
+                              ✉ Mail
+                            </button>
+                            <button onClick={() => setContact({ member: m, by: 'sms' })} title="Envoyer un SMS">
+                              💬 SMS
+                            </button>
+                          </span>
+                        </td>
                         {canViewAccounts && (
                           <td>
                             {isCanceled(m) ? (
@@ -795,6 +809,9 @@ export function MembersTable({ active }) {
       )}
 
       {openMemberId != null && <MemberPanel key={openMemberId} memberId={openMemberId} onClose={() => setOpenMemberId(null)} />}
+
+      {contact?.by === 'mail' && <MemberMailDialog member={contact.member} onClose={() => setContact(null)} />}
+      {contact?.by === 'sms' && <MemberSmsDialog member={contact.member} onClose={() => setContact(null)} />}
 
       {cancelMember && (
         <CancelMembershipDialog

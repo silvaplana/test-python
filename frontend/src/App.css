@@ -3026,7 +3026,8 @@ tr.member-canceled td {
   text-decoration: line-through;
 }
 
-tr.member-canceled td:last-child {
+tr.member-canceled td:last-child,
+tr.member-canceled td:has(.member-contact) {
   text-decoration: none;
 }
 
@@ -3151,4 +3152,34 @@ tr.member-row {
 .member-panel-note {
   margin: 0.4rem 0 0;
   font-size: 0.85rem;
+}
+
+/* Adherents : boutons Mail et SMS d'une ligne, et fenetre d'envoi d'un mail
+   (voir MemberContact.jsx). */
+.member-contact {
+  display: inline-flex;
+  gap: 0.35rem;
+}
+
+.member-mail-headers {
+  margin: 0 0 0.8rem;
+  font-size: 0.85rem;
+}
+
+.member-mail-headers div {
+  display: flex;
+  gap: 0.6rem;
+  padding: 0.2rem 0;
+}
+
+.member-mail-headers dt {
+  flex: 0 0 8.5rem;
+}
+
+.member-mail-headers dd {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
 }

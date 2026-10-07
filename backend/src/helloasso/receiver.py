@@ -1,3 +1,4 @@
+import html
 import re
 from datetime import datetime
 from urllib.parse import urlparse
@@ -6,8 +7,10 @@ from zoneinfo import ZoneInfo
 import httpx
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from auth import require_accounts_auth
+from mailer import MailError
 
 from .helloasso import HelloAsso, HelloAssoAuthError
 from .summary import FAILED_PAYMENT_STATES, cancellation_preview, members_summary
@@ -17,6 +20,15 @@ from .summary import FAILED_PAYMENT_STATES, cancellation_preview, members_summar
 # avec les identifiants du club, un risque de securite (SSRF) pour un
 # gain nul (aucun autre hote n'a besoin de ce relais).
 PHOTO_URL_PATH_RE = re.compile(r"^/customFieldsAnswer/\d+$")
+
+
+class MemberMailRequest(BaseModel):
+    """Corps de POST /helloasso/members/{id}/mail : objet et texte du mail
+    ecrit dans l'ecran. Le destinataire n'en fait pas partie : c'est
+    l'adresse de l'adherent chez HelloAsso."""
+
+    subject: str
+    message: str
 
 
 class HelloAssoReceiver:
@@ -136,6 +148,61 @@ class HelloAssoReceiver:
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
         return cancellation_preview(self._order(order_id))
+
+    def enable_member_mail(self, mailer, contact: str | None, sender: str | None) -> None:
+        """Active l'envoi d'un mail a un adherent (POST
+        /helloasso/members/{id}/mail). mailer : voir mailer/mailer.py ;
+        contact : adresse de l'association, mise en copie et en adresse de
+        reponse ; sender : adresse d'expedition de ces mails. Appele par
+        app/main.py une fois le mailer cree."""
+        self.mailer = mailer
+        self.contact = contact or None
+        self.mail_sender = sender or None
+        self.app.get("/helloasso/mail-settings")(self.getMailSettings)
+        self.app.post("/helloasso/members/{item_id}/mail")(self.sendMemberMail)
+
+    def getMailSettings(self) -> dict:
+        """Endpoint REST GET /helloasso/mail-settings : ce que l'ecran affiche
+        avant l'envoi d'un mail (expediteur, copie, envoi possible ou non)."""
+        return {"enabled": self.mailer.enabled, "sender": self.mail_sender or self.mailer.sender, "contact": self.contact}
+
+    def sendMemberMail(self, item_id: int, request: MemberMailRequest) -> dict:
+        """Endpoint REST POST /helloasso/members/{id}/mail : envoie a un
+        adherent le mail ecrit dans l'ecran. Destinataire : son adresse chez
+        HelloAsso (celle du payeur), relue ici -- jamais une adresse fournie
+        par l'ecran, pour que cette route ne serve pas a ecrire a n'importe
+        qui. L'association est en copie et recoit les reponses."""
+        subject, text = request.subject.strip(), request.message.strip()
+        if not subject or not text:
+            raise HTTPException(status_code=400, detail="L'objet et le message sont obligatoires")
+        if "\n" in subject or "\r" in subject:
+            raise HTTPException(status_code=400, detail="L'objet doit tenir sur une ligne")
+        member = self.client.get_member_detail(self.form_slug, item_id, self.form_type)
+        if member is None:
+            raise HTTPException(status_code=404, detail="Adhérent inconnu")
+        to_email = (member["payer"].get("email") or "").strip()
+        if not to_email:
+            raise HTTPException(status_code=400, detail="Cet adhérent n'a pas d'adresse e-mail chez HelloAsso")
+        if not self.mailer.enabled:
+            raise HTTPException(status_code=503, detail="L'envoi de mails n'est pas configuré sur le serveur")
+        paragraphs = "".join(
+            f"<p>{html.escape(block).replace(chr(10), '<br>')}</p>" for block in re.split(r"\n\s*\n", text) if block.strip()
+        )
+        try:
+            self.mailer.send(
+                to_email,
+                f"{member['firstName']} {member['lastName']}",
+                subject,
+                paragraphs,
+                text,
+                cc=self.contact,
+                reply_to=self.contact,
+                sender=self.mail_sender,
+            )
+        except MailError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        print(f"HelloAsso.sendMemberMail: mail « {subject} » envoye a l'adherent {item_id}")
+        return {"sent": True, "to": to_email, "cc": self.contact}
 
     def getMember(self, item_id: int) -> dict:
         """Endpoint REST GET /helloasso/members/{id} : toutes les informations
