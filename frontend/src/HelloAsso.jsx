@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clubLogo from './assets/club-logo.png'
 import { useAuth } from './Auth.jsx'
 import { CancelMembershipDialog, isCanceled } from './CancelMembership.jsx'
-import { MemberMailDialog, MemberSmsDialog } from './MemberContact.jsx'
+import { CAN_SEND_SMS, MemberMailDialog, MemberSmsDialog } from './MemberContact.jsx'
 import { MemberPanel } from './MemberPanel.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -794,13 +794,16 @@ export function MembersTable({ active }) {
                               ✉ Mail
                               {mailCounts?.[m.id] > 0 && <span className="nav-badge member-contact-badge">{mailCounts[m.id]}</span>}
                             </button>
-                            <button
-                              onClick={() => setContact({ member: m, by: 'sms' })}
-                              title={smsCounts?.[m.id] ? `Envoyer un SMS (${smsCounts[m.id]} déjà préparé${smsCounts[m.id] > 1 ? 's' : ''})` : 'Envoyer un SMS'}
-                            >
-                              💬 SMS
-                              {smsCounts?.[m.id] > 0 && <span className="nav-badge member-contact-badge">{smsCounts[m.id]}</span>}
-                            </button>
+                            {/* Pas de bouton SMS sur ordinateur (pas d'appli SMS). */}
+                            {CAN_SEND_SMS && (
+                              <button
+                                onClick={() => setContact({ member: m, by: 'sms' })}
+                                title={smsCounts?.[m.id] ? `Envoyer un SMS (${smsCounts[m.id]} déjà préparé${smsCounts[m.id] > 1 ? 's' : ''})` : 'Envoyer un SMS'}
+                              >
+                                💬 SMS
+                                {smsCounts?.[m.id] > 0 && <span className="nav-badge member-contact-badge">{smsCounts[m.id]}</span>}
+                              </button>
+                            )}
                           </span>
                         </td>
                         {canViewAccounts && (

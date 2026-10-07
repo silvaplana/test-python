@@ -127,6 +127,11 @@ export function MemberMailDialog({ member, onClose, onSent }) {
   )
 }
 
+// L'appareil a-t-il une appli SMS ? Vrai sur telephone et tablette (Android,
+// iPhone, iPad), faux sur ordinateur : le bouton SMS n'y est pas propose,
+// son lien "sms:" n'y ouvrirait rien.
+export const CAN_SEND_SMS = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+
 // "06 12 34 56 78" -> "+33612345678" (meme regle que le backend,
 // helloasso/mails.py), pour le lien "sms:" ; null si pas de numero utilisable.
 function smsNumber(value) {
