@@ -3042,3 +3042,19 @@ tr.member-canceled td:last-child {
 .cancel-membership p {
   margin: 0.5rem 0;
 }
+
+/* Tableau des adherents : il defile dans un cadre a la hauteur de l'ecran
+   (au lieu d'allonger la page), si bien que sa barre de defilement
+   horizontale, en bas du cadre, reste toujours visible. En-tete fige. */
+.members-scroll {
+  /* Hauteur ajustee a l'ecran par useFillHeight (HelloAsso.jsx) ; valeur de
+     repli avant ce calcul. */
+  max-height: 70svh;
+  overflow: auto;
+}
+
+.members-scroll th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}

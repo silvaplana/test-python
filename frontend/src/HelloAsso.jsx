@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import clubLogo from './assets/club-logo.png'
 import { useAuth } from './Auth.jsx'
 import { CancelMembershipDialog, isCanceled } from './CancelMembership.jsx'
@@ -397,6 +397,32 @@ function promoCodeError(promoCode, seniority) {
   return `Ancienneté insuffisante pour ${promoCode} : ${seniority} saison${seniority > 1 ? 's' : ''} trouvée${seniority > 1 ? 's' : ''} (${required}+ requise${required > 1 ? 's' : ''})`
 }
 
+// Limite la hauteur d'un cadre defilant a ce qui reste d'ecran sous son bord
+// haut (moins la barre du bas sur telephone) : le bas du cadre, donc sa barre
+// de defilement horizontale, est toujours visible sans faire defiler la page.
+// Recalcule a chaque rendu (le cadre descend quand les filtres passent a la
+// ligne) et au redimensionnement ; `active` : l'onglet vient d'etre affiche.
+function useFillHeight(active) {
+  const ref = useRef(null)
+  useEffect(() => {
+    function fit() {
+      const el = ref.current
+      if (!el) return
+      const top = el.getBoundingClientRect().top + window.scrollY
+      const bottomNav = document.querySelector('.bottom-nav')
+      // Barre du bas : fixee a l'ecran sur telephone, masquee sur grand ecran.
+      const reserved = (bottomNav && getComputedStyle(bottomNav).display !== 'none' ? bottomNav.offsetHeight : 0) + 16
+      el.style.maxHeight = `${Math.max(260, window.innerHeight - top - reserved)}px`
+    }
+    fit()
+    window.addEventListener('resize', fit)
+    return () => window.removeEventListener('resize', fit)
+  })
+  // `active` n'est lu que pour relancer le calcul quand l'onglet s'affiche.
+  void active
+  return ref
+}
+
 export function MembersTable({ active }) {
   const { data: members, error, refetch: refetchMembers } = useHelloAssoFetch('/helloasso/members')
   const showPhotos = useShowPhotos()
@@ -547,6 +573,9 @@ export function MembersTable({ active }) {
   // de passe "comptes" ; membre dont la fenetre de resiliation est ouverte.
   const { canViewAccounts } = useAuth()
   const [cancelMember, setCancelMember] = useState(null)
+  // Cadre du tableau : sa hauteur s'arrete au bas de l'ecran (voir
+  // useFillHeight), pour garder sa barre de defilement horizontale visible.
+  const tableFrame = useFillHeight(active)
 
   const membresVisibles = (members ?? []).filter((m) => {
     const filtre = AGE_FILTERS.find((f) => f.value === filtreAge)
@@ -606,7 +635,9 @@ export function MembersTable({ active }) {
           {membresVisibles.length === 0 ? (
             <p className="empty-state">Aucun adhérent ne correspond à ces critères</p>
           ) : (
-            <div className="table-wrapper">
+            // members-scroll : le tableau defile dans son cadre, pour que
+            // la barre de defilement horizontale reste toujours a l'ecran.
+            <div className="table-wrapper members-scroll" ref={tableFrame}>
               <table>
                 <thead>
                   <tr>
