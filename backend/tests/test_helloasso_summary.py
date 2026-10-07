@@ -148,3 +148,67 @@ def test_cancel_order_api():
     assert fake.canceled == [7]
     assert http.post("/helloasso/orders/7/cancel").status_code == 400
     assert fake.canceled == [7]
+
+
+def test_member_detail_and_document_api(monkeypatch):
+    """Fiche d'un adherent (toutes ses informations HelloAsso) et relais de
+    ses documents, limite aux fichiers heberges par HelloAsso."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from helloasso import HelloAsso, HelloAssoReceiver
+
+    order = {
+        "id": 7,
+        "date": "2026-09-01T10:00:00+02:00",
+        "payer": {"firstName": "Alice", "lastName": "Martin", "email": "alice@example.org", "city": "La Ciotat"},
+        "payments": [
+            {"id": 1, "date": "2026-09-01", "state": "Authorized", "paymentMeans": "Card", "installmentNumber": 1},
+            {"id": 2, "date": "2026-10-01", "state": "Pending", "paymentMeans": "Card", "installmentNumber": 2},
+        ],
+        "items": [
+            {
+                "id": 42,
+                "type": "Membership",
+                "state": "Processed",
+                "name": "Cotisation annuelle",
+                "amount": 20000,
+                "initialAmount": 30000,
+                "discount": {"code": "ANCIEN_2"},
+                "user": {"firstName": "Léo", "lastName": "Martin"},
+                "payments": [{"id": 1, "shareAmount": 10000}, {"id": 2, "shareAmount": 10000}],
+                "customFields": [
+                    {"name": "date de naissance", "type": "Date", "answer": "01/02/2015"},
+                    {"name": "Certificat médical d'aptitude", "type": "File", "answer": "https://docs.helloasso.com/customFieldsAnswer/123"},
+                ],
+            }
+        ],
+    }
+    client = HelloAsso(client_id="x", client_secret="y", organization_slug="club")
+    monkeypatch.setattr(client, "get_form_orders", lambda form_slug, form_type="Membership": [order])
+    fetched = []
+    monkeypatch.setattr(client, "get_document", lambda url: fetched.append(url) or (b"%PDF-1.4", "application/pdf"))
+    app = FastAPI()
+    HelloAssoReceiver(client=client, app=app, form_slug="club")
+    http = TestClient(app)
+
+    member = http.get("/helloasso/members/42").json()
+    assert (member["firstName"], member["tierName"], member["amount"], member["initialAmount"], member["promoCode"]) == (
+        "Léo",
+        "Cotisation annuelle",
+        200.0,
+        300.0,
+        "ANCIEN_2",
+    )
+    assert member["payer"]["email"] == "alice@example.org" and member["orderId"] == 7
+    assert [(p["installmentNumber"], p["amount"], p["state"]) for p in member["payments"]] == [(1, 100.0, "Authorized"), (2, 100.0, "Pending")]
+    assert member["fields"][1] == {"name": "Certificat médical d'aptitude", "type": "File", "answer": "https://docs.helloasso.com/customFieldsAnswer/123"}
+    assert http.get("/helloasso/members/999").status_code == 404
+
+    document = http.get("/helloasso/document", params={"url": "https://docs.helloasso.com/customFieldsAnswer/123"})
+    assert document.status_code == 200 and document.headers["content-type"] == "application/pdf"
+    assert "no-store" in document.headers["cache-control"]
+    # Jamais une autre adresse : le relais porte les identifiants du club.
+    for url in ("https://example.org/customFieldsAnswer/123", "https://docs.helloasso.com/autre/123", "http://docs.helloasso.com/customFieldsAnswer/123"):
+        assert http.get("/helloasso/document", params={"url": url}).status_code == 400
+    assert fetched == ["https://docs.helloasso.com/customFieldsAnswer/123"]

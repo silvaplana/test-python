@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import clubLogo from './assets/club-logo.png'
 import { useAuth } from './Auth.jsx'
 import { CancelMembershipDialog, isCanceled } from './CancelMembership.jsx'
+import { MemberPanel } from './MemberPanel.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -573,6 +574,16 @@ export function MembersTable({ active }) {
   // de passe "comptes" ; membre dont la fenetre de resiliation est ouverte.
   const { canViewAccounts } = useAuth()
   const [cancelMember, setCancelMember] = useState(null)
+  // Adherent dont la fiche est ouverte (clic sur sa ligne, voir MemberPanel.jsx).
+  const [openMemberId, setOpenMemberId] = useState(null)
+  // Un clic sur une ligne ouvre la fiche, sauf sur un bouton, un lien, une
+  // photo ou un champ de la ligne, et sauf si du texte vient d'etre
+  // selectionne (pour copier un e-mail).
+  function openMember(event, member) {
+    if (event.target.closest('button, a, input, select, img, label')) return
+    if (String(window.getSelection?.() ?? '') !== '') return
+    setOpenMemberId(member.id)
+  }
   // Cadre du tableau : sa hauteur s'arrete au bas de l'ecran (voir
   // useFillHeight), pour garder sa barre de defilement horizontale visible.
   const tableFrame = useFillHeight(active)
@@ -678,7 +689,12 @@ export function MembersTable({ active }) {
                     const seniority = anciennete(historyByIdentifier.get(payerIdentifier), currentSeason)
                     const promoError = history ? promoCodeError(m.promoCode, seniority) : null
                     return (
-                      <tr key={i} className={isCanceled(m) ? 'member-canceled' : undefined}>
+                      <tr
+                        key={i}
+                        className={isCanceled(m) ? 'member-row member-canceled' : 'member-row'}
+                        onClick={(e) => openMember(e, m)}
+                        title="Ouvrir la fiche"
+                      >
                         <td>{m.lastName}</td>
                         <td>{m.firstName}</td>
                         <td>{m.email}</td>
@@ -777,6 +793,8 @@ export function MembersTable({ active }) {
           )}
         </>
       )}
+
+      {openMemberId != null && <MemberPanel key={openMemberId} memberId={openMemberId} onClose={() => setOpenMemberId(null)} />}
 
       {cancelMember && (
         <CancelMembershipDialog

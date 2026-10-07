@@ -56,6 +56,8 @@ class HelloAssoReceiver:
         self.app.get("/helloasso/orders/{order_id}/cancellation", dependencies=admin)(self.getCancellation)
         self.app.post("/helloasso/orders/{order_id}/cancel", dependencies=admin)(self.cancelOrder)
         self.app.get("/helloasso/photo")(self.getPhoto)
+        self.app.get("/helloasso/document")(self.getDocument)
+        self.app.get("/helloasso/members/{item_id}")(self.getMember)
 
     def getCampaign(self) -> dict:
         """Endpoint REST GET /helloasso/campaign. Retourne le titre de la campagne."""
@@ -135,6 +137,46 @@ class HelloAssoReceiver:
             raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
         return cancellation_preview(self._order(order_id))
 
+    def getMember(self, item_id: int) -> dict:
+        """Endpoint REST GET /helloasso/members/{id} : toutes les informations
+        HelloAsso d'un adherent (voir HelloAsso.get_member_detail), pour sa
+        fiche dans l'onglet Adherents."""
+        member = self.client.get_member_detail(self.form_slug, item_id, self.form_type)
+        if member is None:
+            raise HTTPException(status_code=404, detail="Adhérent inconnu")
+        return member
+
+    @staticmethod
+    def _check_file_url(url: str) -> None:
+        """Refuse (400) toute URL qui n'est pas un fichier depose dans un
+        formulaire HelloAsso (docs.helloasso.com, voir PHOTO_URL_PATH_RE) :
+        sans cette restriction, les relais /helloasso/photo et /document
+        authentifieraient n'importe quelle URL avec les identifiants du club
+        (SSRF)."""
+        parsed = urlparse(url)
+        if parsed.scheme != "https" or parsed.netloc != "docs.helloasso.com" or not PHOTO_URL_PATH_RE.match(parsed.path):
+            raise HTTPException(status_code=400, detail="URL de fichier invalide")
+
+    def getDocument(self, url: str) -> Response:
+        """Endpoint REST GET /helloasso/document?url=... : relaie (avec
+        authentification) un fichier depose par un adherent -- certificat
+        medical, autorisation parentale, photo d'origine -- tel qu'il a ete
+        envoye (image ou PDF), pour l'afficher depuis sa fiche. Meme
+        restriction d'URL que /helloasso/photo. Pas de cache navigateur
+        partage : ce sont des documents personnels."""
+        self._check_file_url(url)
+        try:
+            content, media_type = self.client.get_document(url)
+        except HelloAssoAuthError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"Échec de récupération du fichier : {exc}") from exc
+        return Response(
+            content=content,
+            media_type=media_type,
+            headers={"Content-Disposition": "inline", "Cache-Control": "private, no-store"},
+        )
+
     def getPhoto(self, url: str, size: int = Query(default=128, ge=32, le=640)) -> Response:
         """Endpoint REST GET /helloasso/photo?url=...&size=... . Relaie (avec
         authentification) une photo hebergee par HelloAsso -- typiquement
@@ -152,13 +194,7 @@ class HelloAssoReceiver:
         Bornes (32-640) : evite qu'une taille absurde fasse redimensionner
         inutilement une image demesuree.
         """
-        parsed = urlparse(url)
-        if (
-            parsed.scheme != "https"
-            or parsed.netloc != "docs.helloasso.com"
-            or not PHOTO_URL_PATH_RE.match(parsed.path)
-        ):
-            raise HTTPException(status_code=400, detail="URL de photo invalide")
+        self._check_file_url(url)
         try:
             thumbnail = self.client.get_photo_thumbnail(url, size=size)
         except HelloAssoAuthError as exc:

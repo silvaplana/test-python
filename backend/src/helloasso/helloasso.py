@@ -295,6 +295,73 @@ class HelloAsso:
         cache_path.write_bytes(thumbnail)
         return thumbnail
 
+    def get_document(self, url: str) -> tuple[bytes, str]:
+        """Fichier depose par un adherent dans le formulaire (certificat
+        medical, autorisation parentale, photo d'origine...), heberge par
+        HelloAsso et protege par le jeton de l'API comme les photos (voir
+        get_photo_thumbnail) : (contenu, type MIME). Jamais mis en cache sur
+        disque -- un certificat medical est une donnee de sante."""
+        response = httpx.get(url, headers=self._headers(), follow_redirects=True, timeout=30)
+        response.raise_for_status()
+        return response.content, response.headers.get("content-type", "application/octet-stream").split(";")[0].strip()
+
+    def get_member_detail(self, form_slug: str, item_id: int, form_type: str = "Membership") -> dict | None:
+        """Toutes les informations HelloAsso d'un adherent (item `item_id`),
+        pour sa fiche dans l'onglet Adherents : identite, adhesion, payeur,
+        reponses au formulaire (avec leur type : "File" pour un fichier
+        depose, voir get_document) et paiements. None si inconnu.
+
+        Retour : {"id", "orderId", "orderDate", "firstName", "lastName",
+        "state", "tierName", "amount", "initialAmount", "promoCode",
+        "membershipCardUrl", "payer": {"firstName", "lastName", "email",
+        "address", "zipCode", "city", "country"}, "fields": [{"name", "type",
+        "answer"}], "payments": [{"amount", "date", "state", "paymentMeans",
+        "installmentNumber", "cashOutState", "cashOutDate"}]} (montants en
+        euros).
+        """
+        for order in self.get_form_orders(form_slug, form_type):
+            payer = order.get("payer", {})
+            payments_by_id = {p["id"]: p for p in order.get("payments", [])}
+            for item in order.get("items", []):
+                if item.get("id") != item_id or item.get("type") != "Membership":
+                    continue
+                user = item.get("user", {})
+                payments = []
+                for ref in item.get("payments", []):
+                    payment = payments_by_id.get(ref.get("id"))
+                    if payment is not None:
+                        payments.append(
+                            {
+                                "amount": ref.get("shareAmount", 0) / 100,
+                                "date": payment.get("date"),
+                                "state": payment.get("state"),
+                                "paymentMeans": payment.get("paymentMeans"),
+                                "installmentNumber": payment.get("installmentNumber"),
+                                "cashOutState": payment.get("cashOutState"),
+                                "cashOutDate": payment.get("cashOutDate"),
+                            }
+                        )
+                return {
+                    "id": item.get("id"),
+                    "orderId": order.get("id"),
+                    "orderDate": order.get("date"),
+                    "firstName": user.get("firstName") or payer.get("firstName"),
+                    "lastName": user.get("lastName") or payer.get("lastName"),
+                    "state": item.get("state"),
+                    "tierName": item.get("name"),
+                    "amount": item.get("amount", 0) / 100,
+                    "initialAmount": item.get("initialAmount", item.get("amount", 0)) / 100,
+                    "promoCode": (item.get("discount") or {}).get("code"),
+                    "membershipCardUrl": item.get("membershipCardUrl"),
+                    "payer": {key: payer.get(key) for key in ("firstName", "lastName", "email", "address", "zipCode", "city", "country")},
+                    "fields": [
+                        {"name": field.get("name"), "type": field.get("type"), "answer": field.get("answer")}
+                        for field in item.get("customFields", [])
+                    ],
+                    "payments": payments,
+                }
+        return None
+
     def get_member_payments(self, form_slug: str, form_type: str = "Membership") -> list[dict]:
         """Retourne chaque adherent avec le detail de ses paiements.
 
