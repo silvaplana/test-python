@@ -217,9 +217,8 @@ export function MemberSmsDialog({ member, onClose, onPrepared }) {
   )
 }
 
-// Liste des SMS prepares (journal), le plus recent d'abord. withName :
-// affiche aussi le destinataire (journal de tous les adherents).
-export function SmsHistory({ sms, withName = false }) {
+// Liste des SMS prepares pour un adherent (journal), le plus recent d'abord.
+export function SmsHistory({ sms }) {
   if (sms.length === 0) return <p className="member-panel-note">Aucun SMS préparé.</p>
   return (
     <>
@@ -230,7 +229,6 @@ export function SmsHistory({ sms, withName = false }) {
               <summary>
                 <span className="mail-history-date">{dateTimeFr(one.sentAt)}</span>
                 <span className="mail-history-subject">
-                  {withName && `${one.firstName} ${one.lastName} : `}
                   {one.body.length > 60 ? `${one.body.slice(0, 60)}…` : one.body}
                 </span>
               </summary>
@@ -251,10 +249,10 @@ function dateTimeFr(iso) {
   return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-// Liste de mails du journal (voir backend helloasso/mails.py), le plus recent
-// d'abord ; un clic sur un mail montre son texte. withName : affiche aussi
-// le destinataire (journal de tous les adherents).
-export function MailHistory({ mails, withName = false }) {
+// Liste des mails envoyes a un adherent (journal, voir backend
+// helloasso/mails.py), le plus recent d'abord ; un clic sur un mail montre
+// son texte.
+export function MailHistory({ mails }) {
   if (mails.length === 0) return <p className="member-panel-note">Aucun mail envoyé.</p>
   return (
     <ul className="mail-history">
@@ -264,7 +262,6 @@ export function MailHistory({ mails, withName = false }) {
             <summary>
               <span className="mail-history-date">{dateTimeFr(mail.sentAt)}</span>
               <span className="mail-history-subject">
-                {withName && `${mail.firstName} ${mail.lastName} : `}
                 {mail.subject}
               </span>
               {!mail.sent && <span className="mail-history-failed">non envoyé</span>}
@@ -280,51 +277,5 @@ export function MailHistory({ mails, withName = false }) {
         </li>
       ))}
     </ul>
-  )
-}
-
-// Demande d'ouverture venue du menu ⋮ (voir requestSentMails).
-const SENT_MAILS_EVENT = 'member-mails-open'
-
-// Entree "Mails et SMS envoyés" du menu ⋮ (voir App.jsx).
-export function requestSentMails() {
-  window.dispatchEvent(new Event(SENT_MAILS_EVENT))
-}
-
-// Journal de tous les mails envoyes et SMS prepares, ouvert depuis le menu ⋮.
-export function SentMails() {
-  const [open, setOpen] = useState(false)
-  const [mails, setMails] = useState(null)
-  const [sms, setSms] = useState(null)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    const show = () => setOpen(true)
-    window.addEventListener(SENT_MAILS_EVENT, show)
-    return () => window.removeEventListener(SENT_MAILS_EVENT, show)
-  }, [])
-
-  useEffect(() => {
-    if (!open) return
-    setMails(null)
-    setError(null)
-    callApi('/helloasso/mails')
-      .then(setMails)
-      .catch((err) => setError(err.message))
-    callApi('/helloasso/sms')
-      .then(setSms)
-      .catch(() => setSms([]))
-  }, [open])
-
-  if (!open) return null
-  return (
-    <ContactDialog title="Mails et SMS envoyés" onClose={() => setOpen(false)}>
-      <h4 className="member-contact-history">Mails</h4>
-      {error && <p className="error">{error}</p>}
-      {!mails && !error && <p>Chargement…</p>}
-      {mails && <MailHistory mails={mails} withName />}
-      <h4 className="member-contact-history">SMS préparés</h4>
-      {sms ? <SmsHistory sms={sms} withName /> : <p className="member-panel-note">Chargement…</p>}
-    </ContactDialog>
   )
 }
