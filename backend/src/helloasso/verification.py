@@ -54,7 +54,7 @@ MAX_SIDE = 1400
 INSTRUCTIONS = """Tu aides le secrétaire d'un club de sambo (sport de combat), l'association Alliance Sambo Combat La Ciotat, à contrôler les dossiers d'inscription de ses adhérents.
 On te donne les réponses d'un adhérent au formulaire d'inscription et les documents qu'il a déposés, en images. Pour chaque élément, dis s'il est correct ("ok": true) ou non ("ok": false), avec dans "raison" une phrase courte en français qui explique le problème (vide si tout va bien).
 
-- photo : la photo d'identité doit montrer un être humain dont on voit le visage. Refuse un objet, un animal, un logo, un dessin, un document, une image vide ou illisible.
+- photo : sois très tolérant. La photo est correcte dès qu'on y voit une personne, quels que soient le cadrage, la qualité, la tenue ou le décor : un selfie, une photo de groupe, une photo de vacances, et même la photo d'une carte d'identité, d'un passeport ou d'un autre document sur lequel figure le portrait de quelqu'un, sont acceptés. Ne refuse que s'il n'y a personne du tout sur l'image : un objet, un animal, un logo, un texte sans portrait, une image vide ou illisible.
 - certificat : ce doit être un certificat médical (ou une attestation médicale) qui autorise la pratique du sport, établi pour cet adhérent (nom et prénom concordants, en tolérant la casse, les accents et l'ordre), daté, et signé ou tamponné par un médecin. Signale un certificat daté de plus d'un an avant la date du jour, un document qui n'est pas un certificat médical, un autre nom, ou un document illisible.
 - autorisation : ce doit être une autorisation parentale pour un mineur, signée par un parent ou un représentant légal, et qui concerne cet adhérent. Signale un document qui n'en est pas une, non signé, ou illisible.
 - donnees : signale seulement une anomalie nette dans les réponses (date de naissance impossible, téléphone ou e-mail manifestement faux, nom et prénom inversés ou fantaisistes). Ne signale ni les fautes de frappe mineures ni les différences de casse.
@@ -256,6 +256,26 @@ class MemberChecks:
             "modelLabel": MODELS[self.model]["label"],
             "run": run,
         }
+
+    def problems(self) -> list[dict]:
+        """Dossiers a regarder parmi les adherents actuels (adhesions
+        resiliees exclues) : [{"memberId", "name", "status", "issues"}], par
+        nom."""
+        active = {m["id"] for m in self.members() if m.get("state") not in CANCELED_ITEM_STATES}
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM member_checks WHERE status != ? ORDER BY last_name COLLATE NOCASE, first_name COLLATE NOCASE", (OK,)
+            ).fetchall()
+        return [
+            {
+                "memberId": row["member_id"],
+                "name": f"{row['first_name']} {row['last_name']}".strip(),
+                "status": row["status"],
+                "issues": json.loads(row["issues"]),
+            }
+            for row in rows
+            if row["member_id"] in active
+        ]
 
     def _status(self, member_id: int) -> str | None:
         with self.db.connect() as connection:

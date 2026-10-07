@@ -278,6 +278,7 @@ class HelloAssoReceiver:
         self.app.get("/helloasso/checks")(self.getChecks)
         self.app.post("/helloasso/checks/run", dependencies=admin)(self.runChecks)
         self.app.put("/helloasso/checks/{member_id}/ok", dependencies=admin)(self.markCheckOk)
+        self.app.post("/helloasso/checks/report", dependencies=admin)(self.sendChecksReport)
 
     def getChecks(self) -> dict:
         """Endpoint REST GET /helloasso/checks : statut de verification de
@@ -295,6 +296,41 @@ class HelloAssoReceiver:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
         except httpx.HTTPError as exc:
             raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
+
+    def sendChecksReport(self) -> dict:
+        """Endpoint REST POST /helloasso/checks/report : envoie a
+        l'association (CONTACT_ASSOCIATION) un mail qui recapitule tous les
+        dossiers a regarder, adherent par adherent."""
+        if not self.contact:
+            raise HTTPException(status_code=400, detail="L'adresse de l'association (CONTACT_ASSOCIATION) n'est pas configurée")
+        if not self.mailer.enabled:
+            raise HTTPException(status_code=503, detail="L'envoi de mails n'est pas configuré sur le serveur")
+        try:
+            problems = self.checks.problems()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
+        if not problems:
+            raise HTTPException(status_code=400, detail="Aucun dossier à signaler")
+        count = len(problems)
+        title = f"{count} dossier{'s' if count > 1 else ''} d'adhérent à vérifier"
+        blocks = "".join(
+            f"<p><b>{html.escape(p['name'])}</b></p><ul>" + "".join(f"<li>{html.escape(issue)}</li>" for issue in p["issues"]) + "</ul>"
+            for p in problems
+        )
+        text = "\n\n".join(p["name"] + "\n" + "\n".join(f"- {issue}" for issue in p["issues"]) for p in problems)
+        try:
+            self.mailer.send(
+                self.contact,
+                "",
+                f"Adhérents : {title}",
+                f"<p>Vérification des dossiers HelloAsso par IA : {title}.</p>{blocks}"
+                "<p>À voir dans sambo-admin, onglet HelloAsso › Adhérents.</p>",
+                f"Vérification des dossiers HelloAsso par IA : {title}.\n\n{text}\n\nÀ voir dans sambo-admin, onglet HelloAsso > Adhérents.",
+                sender=self.mail_sender,
+            )
+        except MailError as exc:
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {"sent": True, "to": self.contact, "count": count}
 
     def markCheckOk(self, member_id: int) -> dict:
         """Endpoint REST PUT /helloasso/checks/{id}/ok : dossier valide a la

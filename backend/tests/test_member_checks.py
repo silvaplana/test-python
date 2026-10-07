@@ -165,3 +165,25 @@ def test_api(setup):
     assert http.put("/helloasso/checks/4/ok").json() == {"status": "ok"}
     assert http.get("/helloasso/checks").json()["checks"]["4"]["manual"] is True
     assert http.put("/helloasso/checks/99/ok").status_code == 404
+
+    # Mail recapitulatif a l'association : les dossiers a regarder, sans
+    # celui valide a la main ni ceux qui sont bons.
+    class FakeMailer:
+        enabled = True
+        sender = "club@example.org"
+
+        def __init__(self):
+            self.sent = []
+
+        def send(self, to_email, to_name, subject, html, text, **options):
+            self.sent.append((to_email, subject, text, options))
+
+    mailer = FakeMailer()
+    receiver.enable_member_mail(mailer, contact="contact@example.org", sender="sambo-admin@silvaplana.cloud")
+    report = http.post("/helloasso/checks/report").json()
+    assert report == {"sent": True, "to": "contact@example.org", "count": 1}
+    to, subject, text, options = mailer.sent[0]
+    assert (to, subject, options["sender"]) == ("contact@example.org", "Adhérents : 1 dossier d'adhérent à vérifier", "sambo-admin@silvaplana.cloud")
+    assert "Tom Martin\n- Autorisation parentale manquante (adhérent mineur)" in text and "Ana" not in text
+    http.put("/helloasso/checks/3/ok")
+    assert http.post("/helloasso/checks/report").status_code == 400  # plus rien a signaler

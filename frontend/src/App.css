@@ -3409,3 +3409,30 @@ tr.member-row {
   font-size: 0.85rem;
   cursor: pointer;
 }
+
+/* Panneau de verification : envoi du recapitulatif a l'association. */
+.member-checks-report {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.8rem;
+  margin: 0.7rem 0;
+}
+
+.member-checks-report button {
+  min-height: 44px;
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.member-checks-report button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -106,9 +106,26 @@ const RUN_STATES = {
   erreur: 'erreur',
 }
 
-// Panneau d'avancement de la verification : une ligne par adherent.
+// Panneau d'avancement de la verification : une ligne par adherent. A la
+// fin, un bouton envoie a l'association le recapitulatif des dossiers a
+// regarder (POST /helloasso/checks/report).
 export function MemberChecksPanel({ state, onClose }) {
   const dialogRef = useRef(null)
+  const [sending, setSending] = useState(false)
+  const [reported, setReported] = useState(null)
+
+  async function sendReport() {
+    setSending(true)
+    try {
+      const sent = await callApi('/helloasso/checks/report', { method: 'POST' })
+      setReported(sent)
+      showToast(`Récapitulatif envoyé à ${sent.to}`)
+    } catch (err) {
+      showToast(err.message, 'warning')
+    }
+    setSending(false)
+  }
+
   useEffect(() => {
     dialogRef.current.showModal()
   }, [])
@@ -117,6 +134,8 @@ export function MemberChecksPanel({ state, onClose }) {
   const toCheck = items.filter((item) => item.state !== 'deja')
   const done = toCheck.filter((item) => !['attente', 'encours'].includes(item.state))
   const problems = done.filter((item) => item.state !== 'ok')
+  // Tous les dossiers a regarder, y compris ceux des verifications precedentes.
+  const toFix = Object.values(state?.checks ?? {}).filter((check) => check.status !== 'ok').length
 
   return (
     <dialog ref={dialogRef} className="trial-dialog member-checks" onClose={onClose}>
@@ -153,6 +172,14 @@ export function MemberChecksPanel({ state, onClose }) {
           </p>
           {run.running && <div className="reports-progress" />}
           <p className="member-panel-note">Tu peux fermer cette fenêtre : la vérification continue.</p>
+          {!run.running && toFix > 0 && (
+            <div className="member-checks-report">
+              <button type="button" onClick={sendReport} disabled={sending}>
+                {sending ? 'Envoi…' : `Envoyer par mail à l'association les ${toFix} dossier${toFix > 1 ? 's' : ''} à vérifier`}
+              </button>
+              {reported && <span className="member-panel-note">Envoyé à {reported.to}.</span>}
+            </div>
+          )}
           <ul className="member-checks-list">
             {items.map((item) => (
               <li key={item.memberId} className={`member-checks-${item.state}`}>
