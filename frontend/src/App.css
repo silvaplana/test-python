@@ -3060,6 +3060,35 @@ tr.member-canceled td:has(.member-contact) {
   z-index: 1;
 }
 
+/* 1re colonne (le nom) figee a gauche pendant le defilement horizontal. Son
+   fond doit etre opaque, sinon les colonnes qui passent dessous
+   transparaissent. */
+.members-scroll th:first-child,
+.members-scroll td:first-child {
+  position: sticky;
+  left: 0;
+  box-shadow: 1px 0 0 var(--border);
+}
+
+.members-scroll th:first-child {
+  z-index: 2;
+}
+
+.members-scroll td:first-child {
+  z-index: 1;
+  background: var(--bg);
+}
+
+.members-scroll tbody tr:hover td:first-child {
+  background: color-mix(in srgb, var(--accent) 15%, var(--bg));
+}
+
+/* Adhesion resiliee : le nom fige reste opaque, grise par sa couleur. */
+.members-scroll tr.member-canceled td:first-child {
+  opacity: 1;
+  color: color-mix(in srgb, var(--text) 45%, var(--bg));
+}
+
 /* Adherents : une ligne ouvre la fiche de l'adherent (voir MemberPanel.jsx). */
 tr.member-row {
   cursor: pointer;
