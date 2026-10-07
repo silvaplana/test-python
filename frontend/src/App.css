@@ -3018,3 +3018,27 @@ td button + .ffst-role-picker,
 .reports-settings-body {
   padding-bottom: 0.4rem;
 }
+
+/* Adherents : adhesion resiliee (grisee, voir CancelMembership.jsx) et
+   bouton de resiliation. */
+tr.member-canceled td {
+  opacity: 0.45;
+  text-decoration: line-through;
+}
+
+tr.member-canceled td:last-child {
+  text-decoration: none;
+}
+
+.member-cancel {
+  color: #f87171;
+}
+
+.cancel-membership ul {
+  margin: 0.4rem 0;
+  padding-left: 1.2rem;
+}
+
+.cancel-membership p {
+  margin: 0.5rem 0;
+}

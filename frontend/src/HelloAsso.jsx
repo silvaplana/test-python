@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import clubLogo from './assets/club-logo.png'
+import { useAuth } from './Auth.jsx'
+import { CancelMembershipDialog, isCanceled } from './CancelMembership.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -541,6 +543,10 @@ export function MembersTable({ active }) {
   // (mais reste visible dans "Tous").
   const [recherche, setRecherche] = useState('')
   const [filtreAge, setFiltreAge] = useState('tous')
+  // Resiliation d'une adhesion (voir CancelMembership.jsx) : reservee au mot
+  // de passe "comptes" ; membre dont la fenetre de resiliation est ouverte.
+  const { canViewAccounts } = useAuth()
+  const [cancelMember, setCancelMember] = useState(null)
 
   const membresVisibles = (members ?? []).filter((m) => {
     const filtre = AGE_FILTERS.find((f) => f.value === filtreAge)
@@ -558,7 +564,8 @@ export function MembersTable({ active }) {
   return (
     <section>
       <div className="section-header">
-        <h2>Adhérents ({members?.length ?? '…'})</h2>
+        {/* Les adhesions resiliees restent dans la liste (grisees) mais ne comptent pas. */}
+        <h2>Adhérents ({members ? members.filter((m) => !isCanceled(m)).length : '…'})</h2>
         <button onClick={refetchAll}>Rafraîchir</button>
       </div>
 
@@ -613,6 +620,7 @@ export function MembersTable({ active }) {
                     <th className="col-secondary">Statut HelloAsso</th>
                     <th>Statut FFST</th>
                     <th>Actions FFST</th>
+                    {canViewAccounts && <th>Adhésion</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -639,7 +647,7 @@ export function MembersTable({ active }) {
                     const seniority = anciennete(historyByIdentifier.get(payerIdentifier), currentSeason)
                     const promoError = history ? promoCodeError(m.promoCode, seniority) : null
                     return (
-                      <tr key={i}>
+                      <tr key={i} className={isCanceled(m) ? 'member-canceled' : undefined}>
                         <td>{m.lastName}</td>
                         <td>{m.firstName}</td>
                         <td>{m.email}</td>
@@ -659,7 +667,7 @@ export function MembersTable({ active }) {
                           </td>
                         )}
                         <td className="col-secondary">{history ? `${seniority} saison${seniority > 1 ? 's' : ''}` : '…'}</td>
-                        <td className="col-secondary">{m.state}</td>
+                        <td className="col-secondary">{isCanceled(m) ? 'Résilié' : m.state}</td>
                         <td>{ffstDataLoaded ? ffstStatus : '…'}</td>
                         <td>
                           {ffstDataLoaded && (
@@ -718,6 +726,17 @@ export function MembersTable({ active }) {
                             </>
                           )}
                         </td>
+                        {canViewAccounts && (
+                          <td>
+                            {isCanceled(m) ? (
+                              'Résiliée'
+                            ) : (
+                              <button className="member-cancel" onClick={() => setCancelMember(m)} disabled={!m.orderId}>
+                                Résilier
+                              </button>
+                            )}
+                          </td>
+                        )}
                       </tr>
                     )
                   })}
@@ -726,6 +745,17 @@ export function MembersTable({ active }) {
             </div>
           )}
         </>
+      )}
+
+      {cancelMember && (
+        <CancelMembershipDialog
+          member={cancelMember}
+          onClose={() => setCancelMember(null)}
+          onDone={() => {
+            setCancelMember(null)
+            refetchAll()
+          }}
+        />
       )}
     </section>
   )

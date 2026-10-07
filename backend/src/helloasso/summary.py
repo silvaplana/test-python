@@ -29,6 +29,10 @@ PAID_PAYMENT_STATES = {"Authorized", "Registered", "Corrected"}
 REFUNDED_PAYMENT_STATES = {"Refunded", "Refunding", "Contested"}
 # Tout autre etat (Pending, Waiting...) : echeance a venir.
 
+# Etats d'une adhesion (item) resiliee : elle reste dans HelloAsso, mais ne
+# compte plus parmi les adherents.
+CANCELED_ITEM_STATES = {"Canceled", "Refunded", "Refunding", "Abandoned"}
+
 ADULT_AGE = 18
 _BIRTH_DATE = re.compile(r"^(\d{2})/(\d{2})/(\d{4})$")
 
@@ -55,6 +59,7 @@ def members_summary(members: list[dict], member_payments: list[dict], today: dat
     "totalPrice", "freeMembers", "remaining": [{"month": "AAAA-MM", "amount",
     "payments"}], "remainingTotal", "unpaidTotal"} (montants en euros).
     """
+    members = [m for m in members if m.get("state") not in CANCELED_ITEM_STATES]
     ages = [_age(m.get("customFields", {}).get("date de naissance"), today) for m in members]
     total_cents = sum(round(m.get("amount", 0) * 100) for m in members)
 
@@ -84,4 +89,53 @@ def members_summary(members: list[dict], member_payments: list[dict], today: dat
         "remaining": remaining,
         "remainingTotal": sum(r["amount"] * 100 for r in remaining) / 100,
         "unpaidTotal": unpaid_cents / 100,
+    }
+
+
+def cancellation_preview(order: dict) -> dict:
+    """Ce que resilier une commande HelloAsso (HelloAsso.cancel_order)
+    changerait, a afficher avant de confirmer : ses adherents (tous resilies
+    ensemble), ce qui a deja ete encaisse (non rembourse par la resiliation)
+    et les echeances a venir (annulees).
+
+    Retour : {"orderId", "date", "payer", "members": [{"firstName",
+    "lastName", "amount", "promoCode", "state"}], "paid", "scheduled",
+    "scheduledCount", "unpaid", "canceled"} (montants en euros).
+    """
+    payer = order.get("payer", {})
+    members = []
+    for item in order.get("items", []):
+        if item.get("type") != "Membership":
+            continue
+        user = item.get("user", {})
+        members.append(
+            {
+                "firstName": user.get("firstName") or payer.get("firstName"),
+                "lastName": user.get("lastName") or payer.get("lastName"),
+                "amount": item.get("amount", 0) / 100,
+                "promoCode": (item.get("discount") or {}).get("code"),
+                "state": item.get("state"),
+            }
+        )
+    paid = scheduled = unpaid = scheduled_count = 0
+    for payment in order.get("payments", []):
+        cents, state = payment.get("amount", 0), payment.get("state")
+        if state in PAID_PAYMENT_STATES:
+            paid += cents
+        elif state in FAILED_PAYMENT_STATES:
+            unpaid += cents
+        elif state not in REFUNDED_PAYMENT_STATES:
+            scheduled += cents
+            scheduled_count += 1
+    return {
+        "orderId": order.get("id"),
+        "date": order.get("date"),
+        "payer": " ".join(part for part in (payer.get("firstName"), payer.get("lastName")) if part),
+        "members": members,
+        "paid": paid / 100,
+        "scheduled": scheduled / 100,
+        "scheduledCount": scheduled_count,
+        "unpaid": unpaid / 100,
+        # Deja resiliee : plus rien a faire.
+        "canceled": bool(members) and all(m["state"] in CANCELED_ITEM_STATES for m in members),
     }

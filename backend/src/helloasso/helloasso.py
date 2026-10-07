@@ -101,6 +101,24 @@ class HelloAsso:
         response.raise_for_status()
         return response.json()
 
+    def post(self, path: str, params: dict | None = None) -> None:
+        """Appel POST authentifie sur l'API, sans corps (meme reprise sur un
+        401 que get)."""
+        response = httpx.post(f"{self.base_url}{path}", headers=self._headers(), params=params)
+        if response.status_code == 401:
+            self.authenticate()
+            response = httpx.post(f"{self.base_url}{path}", headers=self._headers(), params=params)
+        response.raise_for_status()
+
+    def cancel_order(self, order_id: int) -> None:
+        """Resilie une commande : annule ses adhesions et ses echeances a
+        venir, SANS rien rembourser (POST /v5/orders/{id}/cancel, droit
+        RefundManagement de la cle d'API). Irreversible ; porte sur toute la
+        commande, donc sur tous ses adherents (ex : fratrie inscrite par un
+        parent). L'API ne permet pas de supprimer une adhesion."""
+        self.post(f"/v5/orders/{order_id}/cancel")
+        print(f"HelloAsso.cancel_order: commande {order_id} resiliee")
+
     def get_organization(self) -> dict:
         """Retourne les informations de l'organisation (necessite organization_slug)."""
         if not self.organization_slug:
@@ -189,6 +207,9 @@ class HelloAsso:
                 members.append(
                     {
                         "id": item.get("id"),
+                        # Commande de l'adherent : la resiliation porte sur
+                        # elle (voir cancel_order).
+                        "orderId": order.get("id"),
                         "firstName": user.get("firstName") or payer.get("firstName"),
                         "lastName": user.get("lastName") or payer.get("lastName"),
                         "email": payer.get("email"),

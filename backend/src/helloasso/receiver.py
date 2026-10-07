@@ -4,11 +4,13 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo
 
 import httpx
-from fastapi import APIRouter, FastAPI, HTTPException, Query
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query
 from fastapi.responses import Response
 
+from auth import require_accounts_auth
+
 from .helloasso import HelloAsso, HelloAssoAuthError
-from .summary import FAILED_PAYMENT_STATES, members_summary
+from .summary import FAILED_PAYMENT_STATES, cancellation_preview, members_summary
 
 # Restreint /helloasso/photo aux URL HelloAsso reelles (voir getPhoto) :
 # sans ca, ce endpoint deviendrait un proxy HTTP generique authentifie
@@ -48,6 +50,11 @@ class HelloAssoReceiver:
         self.app.get("/helloasso/members")(self.getMembers)
         self.app.get("/helloasso/unpaid")(self.getUnpaid)
         self.app.get("/helloasso/summary")(self.getSummary)
+        # Resiliation d'une commande : action irreversible, reservee au mot
+        # de passe "comptes" (en plus de la session exigee par le routeur).
+        admin = [Depends(require_accounts_auth)]
+        self.app.get("/helloasso/orders/{order_id}/cancellation", dependencies=admin)(self.getCancellation)
+        self.app.post("/helloasso/orders/{order_id}/cancel", dependencies=admin)(self.cancelOrder)
         self.app.get("/helloasso/photo")(self.getPhoto)
 
     def getCampaign(self) -> dict:
@@ -95,6 +102,38 @@ class HelloAssoReceiver:
             self.client.get_member_payments(self.form_slug, self.form_type),
             datetime.now(ZoneInfo("Europe/Paris")).date(),
         )
+
+    def _order(self, order_id: int) -> dict:
+        """Commande du formulaire d'adhesion du club (404 sinon : on ne
+        resilie que ses propres commandes)."""
+        for order in self.client.get_form_orders(self.form_slug, self.form_type):
+            if order.get("id") == order_id:
+                return order
+        raise HTTPException(status_code=404, detail="Commande inconnue")
+
+    def getCancellation(self, order_id: int) -> dict:
+        """Endpoint REST GET /helloasso/orders/{id}/cancellation : ce que la
+        resiliation de cette commande changerait (voir cancellation_preview),
+        a afficher avant de confirmer."""
+        return cancellation_preview(self._order(order_id))
+
+    def cancelOrder(self, order_id: int) -> dict:
+        """Endpoint REST POST /helloasso/orders/{id}/cancel : resilie la
+        commande chez HelloAsso (tous ses adherents, echeances a venir
+        annulees, rien de rembourse -- voir HelloAsso.cancel_order).
+        Retourne l'etat de la commande relu apres coup."""
+        before = cancellation_preview(self._order(order_id))
+        if before["canceled"]:
+            raise HTTPException(status_code=400, detail="Cette commande est déjà résiliée")
+        try:
+            self.client.cancel_order(order_id)
+        except httpx.HTTPStatusError as exc:
+            raise HTTPException(
+                status_code=502, detail=f"HelloAsso a refusé la résiliation ({exc.response.status_code}) : {exc.response.text[:300]}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
+        return cancellation_preview(self._order(order_id))
 
     def getPhoto(self, url: str, size: int = Query(default=128, ge=32, le=640)) -> Response:
         """Endpoint REST GET /helloasso/photo?url=...&size=... . Relaie (avec
