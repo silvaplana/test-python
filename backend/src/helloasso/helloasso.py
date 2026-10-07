@@ -17,13 +17,36 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import time
+from datetime import date
 from pathlib import Path
 
 import httpx
 import pymupdf
 from dotenv import load_dotenv
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+
+_SHORT_YEAR_DATE = re.compile(r"^(\d{2}/\d{2})/00(\d{2})$")
+
+
+def fix_short_year(value, today: date | None = None):
+    """Corrige une date du formulaire saisie avec une annee sur 2 chiffres,
+    que HelloAsso enregistre telle quelle : "05/11/0017" -> "05/11/2017".
+    Vecu : une date de naissance en l'an 17 fait refuser la licence par la
+    FFST ("au dela de 99 ans") et fausse l'age. L'annee est mise dans le
+    siecle en cours si elle n'est pas dans le futur ("0017" -> 2017), sinon
+    dans le precedent ("0085" -> 1985). Toute autre valeur est rendue telle
+    quelle."""
+    match = _SHORT_YEAR_DATE.match(value.strip()) if isinstance(value, str) else None
+    if not match:
+        return value
+    current = (today or date.today()).year
+    year = current - current % 100 + int(match.group(2))
+    if year > current:
+        year -= 100
+    return f"{match.group(1)}/{year}"
 
 
 class HelloAssoAuthError(RuntimeError):
@@ -201,8 +224,9 @@ class HelloAsso:
                 if item.get("type") != "Membership":
                     continue
                 user = item.get("user", {})
+                # fix_short_year : annee saisie sur 2 chiffres ("0017" -> 2017).
                 custom_fields = {
-                    field["name"]: field.get("answer") for field in item.get("customFields", [])
+                    field["name"]: fix_short_year(field.get("answer")) for field in item.get("customFields", [])
                 }
                 members.append(
                     {
@@ -355,7 +379,7 @@ class HelloAsso:
                     "membershipCardUrl": item.get("membershipCardUrl"),
                     "payer": {key: payer.get(key) for key in ("firstName", "lastName", "email", "address", "zipCode", "city", "country")},
                     "fields": [
-                        {"name": field.get("name"), "type": field.get("type"), "answer": field.get("answer")}
+                        {"name": field.get("name"), "type": field.get("type"), "answer": fix_short_year(field.get("answer"))}
                         for field in item.get("customFields", [])
                     ],
                     "payments": payments,

@@ -312,3 +312,49 @@ def test_mailer_headers(monkeypatch):
     mailer.send("a@example.org", "A", "Objet", "<p>x</p>", "x")
     assert (sent[0]["Cc"], sent[0]["Reply-To"]) == ("c@example.org", "r@example.org") and "sambo-admin@silvaplana.cloud" in sent[0]["From"]
     assert (sent[1]["Cc"], sent[1]["Reply-To"]) == (None, "defaut@example.org") and "club@example.org" in sent[1]["From"]
+
+
+@pytest.mark.parametrize(
+    "value, expected",
+    [
+        ("05/11/0017", "05/11/2017"),  # annee saisie "17" : un enfant, pas l'an 17
+        ("05/11/0026", "05/11/2026"),
+        ("05/11/0027", "05/11/1927"),  # dans le futur : siecle precedent
+        ("05/11/0085", "05/11/1985"),
+        ("05/11/2017", "05/11/2017"),
+        ("Oui", "Oui"),
+        ("", ""),
+        (None, None),
+    ],
+)
+def test_fix_short_year(value, expected):
+    from helloasso.helloasso import fix_short_year
+
+    assert fix_short_year(value, TODAY) == expected
+
+
+def test_members_get_a_usable_birth_date(monkeypatch):
+    """La date corrigee est celle transmise a la FFST et utilisee pour l'age."""
+    from helloasso import HelloAsso
+
+    order = {
+        "id": 1,
+        "payer": {},
+        "items": [
+            {
+                "id": 5,
+                "type": "Membership",
+                "state": "Processed",
+                "amount": 30000,
+                "user": {"firstName": "Nils", "lastName": "Test"},
+                "customFields": [{"name": "date de naissance", "type": "Date", "answer": "05/11/0017"}, {"name": "Ville", "answer": "La Ciotat"}],
+            }
+        ],
+    }
+    client = HelloAsso(client_id="x", client_secret="y", organization_slug="club")
+    monkeypatch.setattr(client, "get_form_orders", lambda form_slug, form_type="Membership": [order])
+
+    member = client.get_members("club")[0]
+    assert member["customFields"] == {"date de naissance": "05/11/2017", "Ville": "La Ciotat"}
+    assert client.get_member_detail("club", 5)["fields"][0]["answer"] == "05/11/2017"
+    assert members_summary([member], [], TODAY)["minors"] == 1
