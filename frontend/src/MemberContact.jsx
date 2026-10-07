@@ -130,3 +130,78 @@ export function MemberSmsDialog({ member, onClose }) {
     </ContactDialog>
   )
 }
+
+function dateTimeFr(iso) {
+  return new Date(iso).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// Liste de mails du journal (voir backend helloasso/mails.py), le plus recent
+// d'abord ; un clic sur un mail montre son texte. withName : affiche aussi
+// le destinataire (journal de tous les adherents).
+export function MailHistory({ mails, withName = false }) {
+  if (mails.length === 0) return <p className="member-panel-note">Aucun mail envoyé.</p>
+  return (
+    <ul className="mail-history">
+      {mails.map((mail) => (
+        <li key={mail.id}>
+          <details>
+            <summary>
+              <span className="mail-history-date">{dateTimeFr(mail.sentAt)}</span>
+              <span className="mail-history-subject">
+                {withName && `${mail.firstName} ${mail.lastName} : `}
+                {mail.subject}
+              </span>
+              {!mail.sent && <span className="mail-history-failed">non envoyé</span>}
+            </summary>
+            <p className="mail-history-meta">
+              À {mail.to}
+              {mail.cc ? `, copie à ${mail.cc}` : ''}
+              {mail.sender ? `, de ${mail.sender}` : ''}
+            </p>
+            {mail.error && <p className="error">{mail.error}</p>}
+            <p className="mail-history-body">{mail.body}</p>
+          </details>
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+// Demande d'ouverture venue du menu ⋮ (voir requestSentMails).
+const SENT_MAILS_EVENT = 'member-mails-open'
+
+// Entree "Mails envoyés" du menu ⋮ (voir App.jsx).
+export function requestSentMails() {
+  window.dispatchEvent(new Event(SENT_MAILS_EVENT))
+}
+
+// Journal de tous les mails envoyes aux adherents, ouvert depuis le menu ⋮.
+export function SentMails() {
+  const [open, setOpen] = useState(false)
+  const [mails, setMails] = useState(null)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    const show = () => setOpen(true)
+    window.addEventListener(SENT_MAILS_EVENT, show)
+    return () => window.removeEventListener(SENT_MAILS_EVENT, show)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    setMails(null)
+    setError(null)
+    callApi('/helloasso/mails')
+      .then(setMails)
+      .catch((err) => setError(err.message))
+  }, [open])
+
+  if (!open) return null
+  return (
+    <ContactDialog title="Mails envoyés" onClose={() => setOpen(false)}>
+      {error && <p className="error">{error}</p>}
+      {!mails && !error && <p>Chargement…</p>}
+      {mails && <MailHistory mails={mails} withName />}
+    </ContactDialog>
+  )
+}

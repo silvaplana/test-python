@@ -245,6 +245,27 @@ MIGRATIONS: list[str] = [
     """
     ALTER TABLE forecasts ADD COLUMN settings_open INTEGER NOT NULL DEFAULT 1;
     """,
+    # 13 : journal des mails envoyes aux adherents (voir helloasso/mails.py).
+    # member_id : identifiant HelloAsso de l'adhesion (les adherents ne sont
+    # pas en base) ; nom et adresse copies au moment de l'envoi. status :
+    # "envoye" ou "echec" (error : la raison).
+    """
+    CREATE TABLE member_mails (
+        id INTEGER PRIMARY KEY,
+        member_id INTEGER NOT NULL,
+        first_name TEXT NOT NULL,
+        last_name TEXT NOT NULL,
+        to_email TEXT NOT NULL,
+        cc TEXT,
+        sender TEXT,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        status TEXT NOT NULL,
+        error TEXT,
+        sent_at TEXT NOT NULL
+    );
+    CREATE INDEX member_mails_member ON member_mails (member_id);
+    """,
 ]
 
 

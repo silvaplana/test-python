@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { MailHistory } from './MemberContact.jsx'
 import { showToast } from './Toast.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -113,6 +114,15 @@ export function MemberPanel({ memberId, onClose }) {
   const dialogRef = useRef(null)
   const [member, setMember] = useState(null)
   const [error, setError] = useState(null)
+  // Mails deja envoyes a cet adherent depuis l'appli (journal en base).
+  const [mails, setMails] = useState(null)
+
+  useEffect(() => {
+    fetch(`${API_URL}/helloasso/members/${memberId}/mails`, { credentials: 'include' })
+      .then((response) => (response.ok ? response.json() : []))
+      .then(setMails)
+      .catch(() => setMails([]))
+  }, [memberId])
 
   useEffect(() => {
     dialogRef.current.showModal()
@@ -205,6 +215,9 @@ export function MemberPanel({ memberId, onClose }) {
               </tbody>
             </table>
           )}
+
+          <h4>Mails envoyés</h4>
+          {mails ? <MailHistory mails={mails} /> : <p className="member-panel-note">Chargement…</p>}
 
           {member.membershipCardUrl && (
             <p className="member-panel-note">

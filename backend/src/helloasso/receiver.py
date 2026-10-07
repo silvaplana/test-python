@@ -149,17 +149,21 @@ class HelloAssoReceiver:
             raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
         return cancellation_preview(self._order(order_id))
 
-    def enable_member_mail(self, mailer, contact: str | None, sender: str | None) -> None:
+    def enable_member_mail(self, mailer, contact: str | None, sender: str | None, journal=None) -> None:
         """Active l'envoi d'un mail a un adherent (POST
         /helloasso/members/{id}/mail). mailer : voir mailer/mailer.py ;
         contact : adresse de l'association, mise en copie et en adresse de
-        reponse ; sender : adresse d'expedition de ces mails. Appele par
+        reponse ; sender : adresse d'expedition de ces mails ; journal :
+        trace des mails envoyes (helloasso.mails.MemberMails). Appele par
         app/main.py une fois le mailer cree."""
         self.mailer = mailer
+        self.journal = journal
         self.contact = contact or None
         self.mail_sender = sender or None
         self.app.get("/helloasso/mail-settings")(self.getMailSettings)
         self.app.post("/helloasso/members/{item_id}/mail")(self.sendMemberMail)
+        self.app.get("/helloasso/mails")(self.getMails)
+        self.app.get("/helloasso/members/{item_id}/mails")(self.getMemberMails)
 
     def getMailSettings(self) -> dict:
         """Endpoint REST GET /helloasso/mail-settings : ce que l'ecran affiche
@@ -188,6 +192,7 @@ class HelloAssoReceiver:
         paragraphs = "".join(
             f"<p>{html.escape(block).replace(chr(10), '<br>')}</p>" for block in re.split(r"\n\s*\n", text) if block.strip()
         )
+        sender = self.mail_sender or self.mailer.sender
         try:
             self.mailer.send(
                 to_email,
@@ -200,9 +205,24 @@ class HelloAssoReceiver:
                 sender=self.mail_sender,
             )
         except MailError as exc:
+            # L'echec est garde aussi : on sait qu'un mail n'est pas parti.
+            if self.journal is not None:
+                self.journal.record(member, to_email, self.contact, sender, subject, text, error=str(exc))
             raise HTTPException(status_code=502, detail=str(exc)) from exc
+        if self.journal is not None:
+            self.journal.record(member, to_email, self.contact, sender, subject, text)
         print(f"HelloAsso.sendMemberMail: mail « {subject} » envoye a l'adherent {item_id}")
         return {"sent": True, "to": to_email, "cc": self.contact}
+
+    def getMails(self) -> list[dict]:
+        """Endpoint REST GET /helloasso/mails : journal de tous les mails
+        envoyes aux adherents, le plus recent d'abord."""
+        return self.journal.list() if self.journal is not None else []
+
+    def getMemberMails(self, item_id: int) -> list[dict]:
+        """Endpoint REST GET /helloasso/members/{id}/mails : mails envoyes a
+        cet adherent, le plus recent d'abord."""
+        return self.journal.list(item_id) if self.journal is not None else []
 
     def getMember(self, item_id: int) -> dict:
         """Endpoint REST GET /helloasso/members/{id} : toutes les informations

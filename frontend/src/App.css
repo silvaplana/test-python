@@ -3212,3 +3212,58 @@ tr.member-row {
   color: var(--text-h);
   overflow-wrap: anywhere;
 }
+
+/* Journal des mails envoyes aux adherents (voir MailHistory, MemberContact.jsx). */
+.mail-history {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mail-history li {
+  border-bottom: 1px solid var(--border);
+}
+
+.mail-history summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.7rem;
+  padding: 0.5rem 0;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.mail-history-date {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.mail-history-subject {
+  flex: 1 1 10rem;
+  min-width: 0;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.mail-history-failed {
+  color: #f87171;
+  font-size: 0.8rem;
+}
+
+.mail-history-meta {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.mail-history-body {
+  margin: 0 0 0.7rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font-size: 0.9rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

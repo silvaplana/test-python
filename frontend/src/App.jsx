@@ -2,6 +2,7 @@ import './App.css'
 import { AuthGate, useAuth } from './Auth.jsx'
 import { BankAccounts, hasBankCallback } from './BankAccounts.jsx'
 import { requestStatementImport } from './BankHistory.jsx'
+import { requestSentMails, SentMails } from './MemberContact.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
@@ -45,9 +46,13 @@ function AppContent() {
                 <>
                   <MembersTable active={active} />
                   <MembersSummary />
+                  <SentMails />
                 </>
               ),
-              menu: [{ label: 'Chiffres des adhérents', onSelect: requestMembersSummary }],
+              menu: [
+                { label: 'Chiffres des adhérents', onSelect: requestMembersSummary },
+                { label: 'Mails envoyés', onSelect: requestSentMails },
+              ],
             },
             { label: 'Impayés', content: () => <UnpaidTable /> },
             { label: 'Historique', content: () => <MembersHistoryTable /> },

@@ -214,7 +214,7 @@ def test_member_detail_and_document_api(monkeypatch):
     assert fetched == ["https://docs.helloasso.com/customFieldsAnswer/123"]
 
 
-def test_member_mail(monkeypatch):
+def test_member_mail(monkeypatch, tmp_path):
     """Mail a un adherent : destinataire relu chez HelloAsso, association en
     copie et en adresse de reponse, expediteur dedie."""
     from fastapi import FastAPI
@@ -244,7 +244,12 @@ def test_member_mail(monkeypatch):
     mailer = FakeMailer()
     app = FastAPI()
     receiver = HelloAssoReceiver(client=client, app=app, form_slug="club")
-    receiver.enable_member_mail(mailer, contact="contact@example.org", sender="sambo-admin@silvaplana.cloud")
+    from database import Database
+    from helloasso.mails import MemberMails
+
+    db = Database(str(tmp_path / "test.db"))
+    db.migrate()
+    receiver.enable_member_mail(mailer, contact="contact@example.org", sender="sambo-admin@silvaplana.cloud", journal=MemberMails(db))
     http = TestClient(app)
 
     assert http.get("/helloasso/mail-settings").json() == {"enabled": True, "sender": "sambo-admin@silvaplana.cloud", "contact": "contact@example.org"}
@@ -261,6 +266,28 @@ def test_member_mail(monkeypatch):
     mailer.enabled = False
     assert http.post("/helloasso/members/42/mail", json={"subject": "a", "message": "x"}).status_code == 503
     assert len(mailer.sent) == 1
+
+    # Trace en base : le mail envoye, puis un echec d'envoi.
+    journal = http.get("/helloasso/members/42/mails").json()
+    assert [(m["subject"], m["to"], m["cc"], m["sender"], m["sent"]) for m in journal] == [
+        ("Certificat", "alice@example.org", "contact@example.org", "sambo-admin@silvaplana.cloud", True)
+    ]
+    assert journal[0]["body"].startswith("Bonjour,") and (journal[0]["firstName"], journal[0]["lastName"]) == ("Léo", "Martin")
+    from mailer import MailError
+
+    mailer.enabled = True
+
+    def refuse(*args, **options):
+        raise MailError("Envoi du mail impossible : quota dépassé")
+
+    mailer.send = refuse
+    assert http.post("/helloasso/members/42/mail", json={"subject": "Relance", "message": "x"}).status_code == 502
+    everything = http.get("/helloasso/mails").json()
+    assert [(m["subject"], m["sent"], m["error"]) for m in everything] == [
+        ("Relance", False, "Envoi du mail impossible : quota dépassé"),
+        ("Certificat", True, None),
+    ]
+    assert http.get("/helloasso/members/7/mails").json() == []
 
 
 def test_mailer_headers(monkeypatch):
