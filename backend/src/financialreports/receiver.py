@@ -6,6 +6,14 @@ from .exports import to_pdf, to_xlsx
 from .financialreports import FinancialReports, ReportError, ReportNotFoundError
 
 
+class OrderRequest(BaseModel):
+    """Corps de POST /financial-reports/reorder : identifiants des cartes de la saison, dans
+    l'ordre voulu."""
+
+    seasonId: int
+    ids: list[int]
+
+
 class ReportRequest(BaseModel):
     """Corps de POST /financial-reports et PUT /financial-reports/{id}.
     state : "brouillon", "valide" ou "officiel" ; model : "haiku", "sonnet"
@@ -55,6 +63,7 @@ class FinancialReportsReceiver:
     def _register_routes(self) -> None:
         self.app.get("/financial-reports")(self.listReports)
         self.app.post("/financial-reports")(self.createReport)
+        self.app.post("/financial-reports/reorder")(self.reorderReports)
         self.app.get("/financial-reports/{report_id}")(self.getReport)
         self.app.put("/financial-reports/{report_id}")(self.updateReport)
         self.app.delete("/financial-reports/{report_id}")(self.deleteReport)
@@ -63,6 +72,11 @@ class FinancialReportsReceiver:
         self.app.post("/financial-reports/{report_id}/prompts")(self.savePrompt)
         self.app.delete("/financial-reports/{report_id}/prompts/{prompt_id}")(self.deletePrompt)
         self.app.get("/financial-reports/{report_id}/download")(self.downloadReport)
+
+    def reorderReports(self, request: OrderRequest) -> dict:
+        """Endpoint REST POST /financial-reports/reorder : nouvel ordre des cartes de
+        la saison (poignee de chaque carte)."""
+        return {"reports": self.client.reorder(request.seasonId, request.ids)}
 
     def listReports(self, seasonId: int | None = None) -> dict:
         """Endpoint REST GET /financial-reports?seasonId= : bilans de la

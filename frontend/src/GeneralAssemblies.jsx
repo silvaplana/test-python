@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AiSettings } from './AiSettings.jsx'
+import { CardGrip, useCardOrder } from './CardOrder.jsx'
 import { showToast } from './Toast.jsx'
 import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 
@@ -118,6 +119,24 @@ export function GeneralAssemblies({ active }) {
     if (active) load()
   }, [active, load])
 
+  const assemblies = listing?.assemblies ?? []
+  const shown = assemblies.filter((a) => filter === 'all' || a.state === filter)
+  // Ordre fige en base : seule la poignee d'une carte le change.
+  const cards = useCardOrder({
+    all: assemblies,
+    shown,
+    onReorder: async (ids) => {
+      const byId = new Map(assemblies.map((item) => [item.id, item]))
+      setListing((current) => ({ ...current, assemblies: ids.map((id) => byId.get(id)) }))
+      try {
+        await sendJson('/general-assemblies/reorder', 'POST', { seasonId, ids })
+      } catch (err) {
+        showToast(`Ordre non enregistré : ${err.message}`, 'warning')
+        load()
+      }
+    },
+  })
+
   if (error) return <p className="error">{error}</p>
   if (!seasons) return <p>Chargement…</p>
   if (seasons.length === 0)
@@ -130,8 +149,6 @@ export function GeneralAssemblies({ active }) {
     )
 
   const season = seasons.find((s) => s.id === seasonId)
-  const assemblies = listing?.assemblies ?? []
-  const shown = assemblies.filter((a) => filter === 'all' || a.state === filter)
 
   async function remove(assembly) {
     if (!window.confirm(`Supprimer « ${assembly.name} » ?\n\nSes PPT, son prompt et son coût IA sont effacés. Le bilan financier n'est pas touché.`)) return
@@ -204,10 +221,16 @@ export function GeneralAssemblies({ active }) {
           <p>{assemblies.length === 0 ? `Aucun PPT d'AG pour ${season?.name} : lancez un nouveau calcul.` : 'Aucun calcul dans cet état.'}</p>
         </div>
       ) : (
-        <ul className="reports-list">
-          {shown.map((a) => (
+        <ul className="reports-list" ref={cards.list}>
+          {cards.ordered.map((a) => (
             // Toute la carte ouvre le calcul, comme le crayon.
-            <li key={a.id} className="reports-item-open" onClick={() => setEditing(a.id)}>
+            <li
+              key={a.id}
+              data-card-id={a.id}
+              className={`reports-item-open${cards.draggingId === a.id ? ' reports-item-dragging' : ''}`}
+              onClick={() => setEditing(a.id)}
+            >
+              <CardGrip name={a.name} {...cards.handle(a.id)} />
               <div className="reports-item-main">
                 <span className="reports-item-name">{a.name}</span>
                 <span className="reports-item-meta">

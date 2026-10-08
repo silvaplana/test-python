@@ -9,6 +9,14 @@ from .generalassemblies import AssemblyError, AssemblyNotFoundError, GeneralAsse
 PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
+class OrderRequest(BaseModel):
+    """Corps de POST /general-assemblies/reorder : identifiants des cartes de la saison, dans
+    l'ordre voulu."""
+
+    seasonId: int
+    ids: list[int]
+
+
 class AssemblyRequest(BaseModel):
     """Corps de POST /general-assemblies et PUT /general-assemblies/{id}.
     state : "brouillon", "valide" ou "officiel" ; model : "haiku", "sonnet"
@@ -59,6 +67,7 @@ class GeneralAssembliesReceiver:
     def _register_routes(self) -> None:
         self.app.get("/general-assemblies")(self.listAssemblies)
         self.app.post("/general-assemblies")(self.createAssembly)
+        self.app.post("/general-assemblies/reorder")(self.reorderAssemblies)
         self.app.post("/general-assemblies/template")(self.uploadTemplate)
         # Avant /general-assemblies/{assembly_id} : sinon pris pour un id.
         self.app.get("/general-assemblies/model-sources")(self.getModelSources)
@@ -73,6 +82,11 @@ class GeneralAssembliesReceiver:
         self.app.get("/general-assemblies/{assembly_id}/download")(self.download)
         self.app.get("/general-assemblies/{assembly_id}/files/{kind}/slides")(self.getSlides)
         self.app.get("/general-assemblies/{assembly_id}/files/{kind}/slides/{image}.png")(self.getThumbnail)
+
+    def reorderAssemblies(self, request: OrderRequest) -> dict:
+        """Endpoint REST POST /general-assemblies/reorder : nouvel ordre des cartes de
+        la saison (poignee de chaque carte)."""
+        return {"assemblies": self.client.reorder(request.seasonId, request.ids)}
 
     def _call(self, action, *args):
         try:

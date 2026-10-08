@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { niceTicks } from './BalanceChart.jsx'
 import { AiSettings } from './AiSettings.jsx'
+import { CardGrip, useCardOrder } from './CardOrder.jsx'
 import { showToast } from './Toast.jsx'
 import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 
@@ -127,6 +128,24 @@ export function Forecasts({ active }) {
     if (active) loadForecasts()
   }, [active, loadForecasts])
 
+  const forecasts = listing?.forecasts ?? []
+  const shown = forecasts.filter((f) => filter === 'all' || f.state === filter)
+  // Ordre fige en base : seule la poignee d'une carte le change.
+  const cards = useCardOrder({
+    all: forecasts,
+    shown,
+    onReorder: async (ids) => {
+      const byId = new Map(forecasts.map((item) => [item.id, item]))
+      setListing((current) => ({ ...current, forecasts: ids.map((id) => byId.get(id)) }))
+      try {
+        await sendJson('/forecasts/reorder', 'POST', { seasonId, ids })
+      } catch (err) {
+        showToast(`Ordre non enregistré : ${err.message}`, 'warning')
+        loadForecasts()
+      }
+    },
+  })
+
   if (error) return <p className="error">{error}</p>
   if (!seasonsData) return <p>Chargement…</p>
   const seasons = seasonsData.seasons
@@ -140,8 +159,6 @@ export function Forecasts({ active }) {
     )
 
   const season = seasons.find((s) => s.id === seasonId)
-  const forecasts = listing?.forecasts ?? []
-  const shown = forecasts.filter((f) => filter === 'all' || f.state === filter)
 
   async function remove(forecast) {
     if (
@@ -220,10 +237,16 @@ export function Forecasts({ active }) {
           <p>{forecasts.length === 0 ? `Aucun prévisionnel pour ${season?.name} : créez-en un.` : 'Aucun prévisionnel dans cet état.'}</p>
         </div>
       ) : (
-        <ul className="reports-list">
-          {shown.map((f) => (
+        <ul className="reports-list" ref={cards.list}>
+          {cards.ordered.map((f) => (
             // Toute la carte ouvre le calcul, comme le crayon.
-            <li key={f.id} className="reports-item-open" onClick={() => setEditing(f.id)}>
+            <li
+              key={f.id}
+              data-card-id={f.id}
+              className={`reports-item-open${cards.draggingId === f.id ? ' reports-item-dragging' : ''}`}
+              onClick={() => setEditing(f.id)}
+            >
+              <CardGrip name={f.name} {...cards.handle(f.id)} />
               <div className="reports-item-main">
                 <span className="reports-item-name">{f.name}</span>
                 <span className="reports-item-meta">

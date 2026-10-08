@@ -286,3 +286,56 @@ def test_saved_prompts_belong_to_their_report(db, seasons):
     reports.delete(first)
     with db.connect() as connection:
         assert connection.execute("SELECT COUNT(*) FROM financial_report_prompts").fetchone()[0] == 0
+
+
+def test_card_order_is_fixed_until_reordered(db, seasons):
+    reports = make_reports(db, seasons, analyst=None)
+    sid = season_id(seasons, "2025-2026")
+    other = season_id(seasons, "2024-2025")
+    a = reports.create({"seasonId": sid, "name": "A", "prompt": ""})["id"]
+    b = reports.create({"seasonId": sid, "name": "B", "prompt": ""})["id"]
+    c = reports.create({"seasonId": sid, "name": "C", "prompt": ""})["id"]
+    foreign = reports.create({"seasonId": other, "name": "Autre saison", "prompt": ""})["id"]
+    order = lambda: [r["id"] for r in reports.list(sid)]
+    assert order() == [c, b, a]  # une nouvelle carte se place en tete
+
+    # Modifier une carte ne la deplace plus.
+    reports.update(a, {"name": "A modifié", "state": "valide", "prompt": "x"})
+    assert order() == [c, b, a]
+
+    # Poignee : nouvel ordre ; identifiant d'une autre saison ou inconnu ignore.
+    assert [r["id"] for r in reports.reorder(sid, [a, foreign, 999, c])] == [a, c, b]
+    assert order() == [a, c, b]
+    assert [r["id"] for r in reports.list(other)] == [foreign]
+
+    d = reports.create({"seasonId": sid, "name": "D", "prompt": ""})["id"]
+    assert order() == [d, a, c, b]
+
+
+def test_migration_keeps_the_order_shown_before(tmp_path):
+    """Migration 17 : chaque saison garde l'ordre affiche jusque-la (carte
+    modifiee le plus recemment en premier)."""
+    import sqlite3
+
+    from database import Database
+    from database.database import MIGRATIONS
+
+    path = str(tmp_path / "old.db")
+    connection = sqlite3.connect(path)
+    for script in MIGRATIONS[:16]:
+        connection.executescript(script)
+    connection.execute("PRAGMA user_version = 16")
+    connection.execute("PRAGMA foreign_keys = OFF")  # la saison elle-meme n'importe pas ici
+    for ident, updated in ((1, "2026-01-01"), (2, "2026-03-01"), (3, "2026-02-01")):
+        connection.execute(
+            "INSERT INTO financial_reports (id, season_id, name, model, created_at, updated_at) VALUES (?, 1, 'x', 'sonnet', ?, ?)",
+            (ident, updated, updated),
+        )
+    connection.commit()
+    connection.close()
+
+    database = Database(path)
+    database.migrate()
+    with database.connect() as migrated:
+        rows = migrated.execute("SELECT id FROM financial_reports ORDER BY position, id DESC").fetchall()
+    assert [row[0] for row in rows] == [2, 3, 1]

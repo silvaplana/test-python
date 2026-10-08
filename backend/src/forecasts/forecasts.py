@@ -28,6 +28,8 @@ from datetime import date, datetime, timedelta, timezone
 
 from financialreports.ai import AnalysisError
 
+from database import ordering
+
 from . import data as forecast_data
 from . import exports
 from .ai import DEFAULT_MODEL, MODELS, Coder, Formula, defaults
@@ -87,6 +89,14 @@ class Forecasts:
             "states": [{"id": key, "label": label} for key, label in STATES.items()],
         }
 
+    def reorder(self, season_id: int, ids: list[int]) -> list[dict]:
+        """Range les cartes de la saison dans l'ordre de `ids` (poignee de
+        l'ecran) ; simple reglage d'affichage, la date de modification ne
+        change pas."""
+        with self.db.connect() as connection:
+            ordering.reorder(connection, "forecasts", season_id, ids)
+        return self.list(season_id)
+
     def counts(self) -> dict[int, int]:
         """Nombre de previsionnels par saison (affiche dans le choix de la saison)."""
         with self.db.connect() as connection:
@@ -96,7 +106,7 @@ class Forecasts:
     def list(self, season_id: int) -> list[dict]:
         with self.db.connect() as connection:
             rows = connection.execute(
-                "SELECT * FROM forecasts WHERE season_id = ? ORDER BY updated_at DESC, id DESC", (season_id,)
+                "SELECT * FROM forecasts WHERE season_id = ? ORDER BY position, id DESC", (season_id,)
             ).fetchall()
         return [self._summary(row) for row in rows]
 
@@ -173,9 +183,9 @@ class Forecasts:
         now = _now()
         with self.db.connect() as connection:
             cursor = connection.execute(
-                """INSERT INTO forecasts (season_id, name, state, prompt, model, start_date, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-                (season["id"], name, state, prompt, model, start, now, now),
+                """INSERT INTO forecasts (season_id, name, state, prompt, model, start_date, created_at, updated_at, position)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (season["id"], name, state, prompt, model, start, now, now, ordering.top_position(connection, "forecasts", season["id"])),
             )
         return self.get(cursor.lastrowid)
 

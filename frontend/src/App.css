@@ -4193,3 +4193,42 @@ span.webmail-attachment {
 .reports-prompt-input .reports-prompt-menu-track {
   background: var(--bg);
 }
+
+/* Poignee d'une carte (Bilan, AG, Previsionnel) : la tirer change l'ordre des
+   cartes de la saison (voir CardOrder.jsx). */
+.reports-grip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  flex: 0 0 1.6rem;
+  margin: -0.6rem 0 -0.6rem -0.9rem;
+  padding-left: 0.3rem;
+  color: var(--text);
+  opacity: 0.6;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.reports-grip:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
+.reports-grip svg {
+  width: 0.6rem;
+  height: 1rem;
+}
+
+.reports-list .reports-item-dragging {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+  box-shadow: var(--shadow);
+}
+
+.reports-item-dragging .reports-grip {
+  cursor: grabbing;
+  opacity: 1;
+  color: var(--accent);
+}

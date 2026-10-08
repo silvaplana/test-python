@@ -313,6 +313,34 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX financial_report_prompts_report ON financial_report_prompts (report_id);
     """,
+    # 17 : ordre d'affichage fige des cartes d'une saison (voir
+    # database/ordering.py) : position, la plus petite en premier. Jusqu'ici
+    # les cartes etaient triees par date de modification (la carte modifiee
+    # remontait en tete) : chaque saison garde l'ordre affiche au moment de la
+    # migration.
+    """
+    ALTER TABLE financial_reports ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+    UPDATE financial_reports SET position = (
+        SELECT COUNT(*) FROM financial_reports AS other
+        WHERE other.season_id = financial_reports.season_id
+          AND (other.updated_at > financial_reports.updated_at
+               OR (other.updated_at = financial_reports.updated_at AND other.id > financial_reports.id))
+    );
+    ALTER TABLE general_assemblies ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+    UPDATE general_assemblies SET position = (
+        SELECT COUNT(*) FROM general_assemblies AS other
+        WHERE other.season_id = general_assemblies.season_id
+          AND (other.updated_at > general_assemblies.updated_at
+               OR (other.updated_at = general_assemblies.updated_at AND other.id > general_assemblies.id))
+    );
+    ALTER TABLE forecasts ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+    UPDATE forecasts SET position = (
+        SELECT COUNT(*) FROM forecasts AS other
+        WHERE other.season_id = forecasts.season_id
+          AND (other.updated_at > forecasts.updated_at
+               OR (other.updated_at = forecasts.updated_at AND other.id > forecasts.id))
+    );
+    """,
 ]
 
 

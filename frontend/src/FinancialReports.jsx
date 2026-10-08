@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { CardGrip, useCardOrder } from './CardOrder.jsx'
 import { showToast } from './Toast.jsx'
 import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 import { AiSettings } from './AiSettings.jsx'
@@ -99,6 +100,24 @@ export function FinancialReports({ active }) {
     if (active) loadReports()
   }, [active, loadReports])
 
+  const reports = listing?.reports ?? []
+  const shown = reports.filter((r) => filter === 'all' || r.state === filter)
+  // Ordre fige en base : seule la poignee d'une carte le change.
+  const cards = useCardOrder({
+    all: reports,
+    shown,
+    onReorder: async (ids) => {
+      const byId = new Map(reports.map((item) => [item.id, item]))
+      setListing((current) => ({ ...current, reports: ids.map((id) => byId.get(id)) }))
+      try {
+        await sendJson('/financial-reports/reorder', 'POST', { seasonId, ids })
+      } catch (err) {
+        showToast(`Ordre non enregistré : ${err.message}`, 'warning')
+        loadReports()
+      }
+    },
+  })
+
   if (error) return <p className="error">{error}</p>
   if (!seasons) return <p>Chargement…</p>
   if (seasons.length === 0)
@@ -111,8 +130,6 @@ export function FinancialReports({ active }) {
     )
 
   const season = seasons.find((s) => s.id === seasonId)
-  const reports = listing?.reports ?? []
-  const shown = reports.filter((r) => filter === 'all' || r.state === filter)
 
   async function remove(report) {
     if (!window.confirm(`Supprimer le bilan « ${report.name} » ?\n\nSon prompt, son résultat et son coût IA sont effacés. Les opérations bancaires ne sont pas touchées.`)) return
@@ -185,10 +202,16 @@ export function FinancialReports({ active }) {
           <p>{reports.length === 0 ? `Aucun bilan pour ${season?.name} : lancez un nouveau calcul.` : 'Aucun bilan dans cet état.'}</p>
         </div>
       ) : (
-        <ul className="reports-list">
-          {shown.map((r) => (
+        <ul className="reports-list" ref={cards.list}>
+          {cards.ordered.map((r) => (
             // Toute la carte ouvre le calcul, comme le crayon.
-            <li key={r.id} className="reports-item-open" onClick={() => setEditing(r.id)}>
+            <li
+              key={r.id}
+              data-card-id={r.id}
+              className={`reports-item-open${cards.draggingId === r.id ? ' reports-item-dragging' : ''}`}
+              onClick={() => setEditing(r.id)}
+            >
+              <CardGrip name={r.name} {...cards.handle(r.id)} />
               <div className="reports-item-main">
                 <span className="reports-item-name">{r.name}</span>
                 <span className="reports-item-meta">

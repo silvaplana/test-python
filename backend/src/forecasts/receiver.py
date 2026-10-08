@@ -6,6 +6,14 @@ from .forecasts import ForecastError, ForecastNotFoundError, Forecasts
 from .sandbox import FormulaError
 
 
+class OrderRequest(BaseModel):
+    """Corps de POST /forecasts/reorder : identifiants des cartes de la saison, dans
+    l'ordre voulu."""
+
+    seasonId: int
+    ids: list[int]
+
+
 class ForecastRequest(BaseModel):
     """Corps de POST /forecasts et PUT /forecasts/{id}. state : "brouillon",
     "valide" ou "officiel" ; model : "haiku", "sonnet" ou "fable" ;
@@ -59,6 +67,7 @@ class ForecastsReceiver:
     def _register_routes(self) -> None:
         self.app.get("/forecasts")(self.listForecasts)
         self.app.post("/forecasts")(self.createForecast)
+        self.app.post("/forecasts/reorder")(self.reorderForecasts)
         self.app.get("/forecasts/{forecast_id}")(self.getForecast)
         self.app.put("/forecasts/{forecast_id}")(self.updateForecast)
         self.app.delete("/forecasts/{forecast_id}")(self.deleteForecast)
@@ -67,6 +76,11 @@ class ForecastsReceiver:
         self.app.put("/forecasts/{forecast_id}/explanation")(self.setExplanationOpen)
         self.app.put("/forecasts/{forecast_id}/settings")(self.setSettingsOpen)
         self.app.get("/forecasts/{forecast_id}/download")(self.downloadForecast)
+
+    def reorderForecasts(self, request: OrderRequest) -> dict:
+        """Endpoint REST POST /forecasts/reorder : nouvel ordre des cartes de
+        la saison (poignee de chaque carte)."""
+        return {"forecasts": self.client.reorder(request.seasonId, request.ids)}
 
     def _call(self, action, *args):
         try:
