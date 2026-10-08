@@ -793,7 +793,8 @@ td button + .ffst-role-picker,
     display: flex;
     flex-direction: column;
     gap: 0.15rem;
-    width: 180px;
+    /* Assez large pour "Messagerie" en gras avec son icone. */
+    width: 196px;
     flex-shrink: 0;
     box-sizing: border-box;
     padding: 0.5rem 0.6rem 0;
@@ -3454,4 +3455,33 @@ tr.member-row {
   color: var(--text-h);
   font-size: 1.15rem;
   font-weight: 600;
+}
+
+/* Icones des onglets (voir NavIcons.jsx) : a gauche du libelle dans la barre
+   laterale et les sous-onglets, au-dessus dans la barre du bas (mobile). */
+.nav-icon {
+  width: 1.15em;
+  height: 1.15em;
+  flex-shrink: 0;
+  vertical-align: -0.2em;
+  margin-right: 0.45em;
+}
+
+/* Libelles alignes en bas, avec ou sans icone au-dessus. */
+.bottom-nav button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.sidebar button {
+  white-space: nowrap;
+}
+
+.bottom-nav .nav-icon {
+  display: block;
+  width: 1.35em;
+  height: 1.35em;
+  margin: 0 auto 0.2rem;
 }

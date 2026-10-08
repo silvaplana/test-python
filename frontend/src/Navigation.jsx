@@ -95,8 +95,11 @@ function Navigation({ header, sections, forcedSection = null, forcedTool = null 
             className={i === activeSection ? 'sidebar-active' : undefined}
             onClick={() => selectSection(i)}
           >
-            {section.label}
-            {section.badge}
+            {section.icon}
+            <span className="nav-label">
+              {section.label}
+              {section.badge}
+            </span>
           </button>
         ))}
       </nav>
@@ -123,6 +126,7 @@ function Navigation({ header, sections, forcedSection = null, forcedTool = null 
                 {/* .tab-label-short remplace .tab-label-full sur mobile (voir
                     App.css) -- reprend tool.label si aucun raccourci fourni,
                     pour que les outils sans shortLabel restent lisibles. */}
+                {tool.icon}
                 <span className="tab-label-full">{tool.label}</span>
                 <span className="tab-label-short">{tool.shortLabel ?? tool.label}</span>
                 {tool.badge}
@@ -157,8 +161,11 @@ function Navigation({ header, sections, forcedSection = null, forcedTool = null 
             className={i === activeSection ? 'bottom-nav-active' : undefined}
             onClick={() => selectSection(i)}
           >
-            {section.label}
-            {section.badge}
+            {section.icon}
+            <span className="nav-label">
+              {section.label}
+              {section.badge}
+            </span>
           </button>
         ))}
       </nav>

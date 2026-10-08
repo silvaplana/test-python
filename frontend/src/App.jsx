@@ -5,6 +5,7 @@ import { requestStatementImport } from './BankHistory.jsx'
 import { requestMemberChecks } from './MemberChecks.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
 import { MessagingChat, MessagingMail } from './Messaging.jsx'
+import { ChatIcon, FinancesIcon, MailIcon, MessagingIcon, TrialIcon } from './NavIcons.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialReports } from './FinancialReports.jsx'
@@ -71,11 +72,13 @@ function AppContent() {
         {
           key: 'essai',
           label: 'Essai',
+          icon: <TrialIcon />,
           tools: [{ label: "Élèves à l'essai", content: () => <TrialsTable /> }],
         },
         {
           key: 'finances',
           label: 'Finances',
+          icon: <FinancesIcon />,
           alwaysShowTabs: true,
           tools: [
             // Outils des finances (donnees bancaires) : uniquement avec le mot
@@ -129,10 +132,11 @@ function AppContent() {
               {
                 key: 'messagerie',
                 label: 'Messagerie',
+                icon: <MessagingIcon />,
                 alwaysShowTabs: true,
                 tools: [
-                  { label: 'Mail', content: () => <MessagingMail /> },
-                  { label: 'Tchat', content: () => <MessagingChat /> },
+                  { label: 'Mail', icon: <MailIcon />, content: () => <MessagingMail /> },
+                  { label: 'Tchat', icon: <ChatIcon />, content: () => <MessagingChat /> },
                 ],
               },
             ]
