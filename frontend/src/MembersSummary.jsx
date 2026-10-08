@@ -29,12 +29,19 @@ function dayLabel(day) {
   return Number.isNaN(t) ? 'date inconnue' : dayFormat.format(t)
 }
 
+// "2026-10-07" -> "07/10/2026".
+function shortDay(day) {
+  const [year, month, date] = (day || '').split('-')
+  return date ? `${date}/${month}/${year}` : 'date inconnue'
+}
+
 // Ou en est l'argent des adhesions (summary.cash, voir cash_summary du
 // backend), dans l'ordre de son trajet : echeances a venir (jour par jour),
-// encaisse par HelloAsso sans versement lance, en transit vers le compte
-// courant (versement demande : l'argent n'est plus chez HelloAsso et pas
-// encore a la banque), puis verse sur le compte courant. En tete, le total
-// qui doit encore arriver sur le compte.
+// encaisse par HelloAsso sans versement lance, en transit (versement lance,
+// pas encore vu a la banque), puis arrive sur le compte courant. C'est le
+// releve des comptes qui dit si un versement est arrive (HelloAsso reste "en
+// attente de confirmation" bien apres). En tete, le total qui doit encore
+// arriver sur le compte.
 function CashSummary({ cash }) {
   // Echeances a venir regroupees par mois, chaque jour detaille.
   const months = []
@@ -52,20 +59,30 @@ function CashSummary({ cash }) {
         <b>{euros(cash.toReceive)}</b>
       </div>
 
-      <CashBlock title="Déjà versé sur le compte courant" total={cash.onAccount.total} empty="Aucun versement pour l'instant.">
+      <CashBlock title="Déjà arrivé sur le compte courant" total={cash.onAccount.total} empty="Aucun versement pour l'instant.">
         {cash.onAccount.rows.map((row) => (
-          <CashRow key={row.date} label={`Versé le ${dayLabel(row.date)}`} count={plural(row.payments, 'paiement')} amount={row.amount} />
+          <CashRow
+            key={row.date + (row.requested ?? '')}
+            // Avec les comptes : jour d'arrivee a la banque, et date du versement chez HelloAsso.
+            label={row.requested ? `Reçu le ${dayLabel(row.date)} (versement HelloAsso du ${shortDay(row.requested)})` : `Versé le ${dayLabel(row.date)}`}
+            count={plural(row.payments, 'paiement')}
+            amount={row.amount}
+          />
         ))}
       </CashBlock>
 
       <CashBlock
         title="En transit vers le compte courant"
         total={cash.inTransit.total}
-        empty="Aucun versement en cours."
-        hint="Versement demandé à HelloAsso : l'argent n'est plus chez HelloAsso et pas encore sur le compte (quelques jours de délai bancaire)."
+        empty="Aucun versement en transit."
+        hint={
+          cash.bankAsOf
+            ? `Versement lancé par HelloAsso, pas encore vu sur le compte courant (opérations connues jusqu'au ${shortDay(cash.bankAsOf)}).`
+            : "Versement demandé à HelloAsso, pas encore confirmé (comptes non consultés : l'argent est peut-être déjà arrivé)."
+        }
       >
         {cash.inTransit.rows.map((row) => (
-          <CashRow key={row.date} label={`Versement demandé le ${dayLabel(row.date)}`} count={plural(row.payments, 'paiement')} amount={row.amount} />
+          <CashRow key={row.date} label={`Versement HelloAsso du ${dayLabel(row.date)}`} count={plural(row.payments, 'paiement')} amount={row.amount} />
         ))}
       </CashBlock>
 

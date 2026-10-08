@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from helloasso.summary import members_summary
+from helloasso.summary import bank_cash_outs, members_summary
 
 TODAY = date(2026, 10, 6)
 
@@ -99,6 +99,44 @@ def test_cash_from_account_to_upcoming_installments():
     ]}
     # Encore a recevoir sur le compte courant : en cours + chez HelloAsso + a venir.
     assert cash["toReceive"] == 530.0
+
+
+def test_bank_decides_what_has_arrived():
+    """HelloAsso garde "en attente de confirmation" apres l'arrivee de
+    l'argent : c'est le virement vu a la banque qui compte."""
+    def paid(amount, cash_out, cash_out_date):
+        return {"amount": amount, "state": "Authorized", "date": "2026-09-01T10:00:00+02:00", "paymentMeans": "Card",
+                "cashOutState": cash_out, "cashOutDate": cash_out_date}
+
+    payments = [{"payments": [
+        paid(300, "CashedOut", "2026-09-03T08:00:00+02:00"),
+        paid(6000, "WaitingForCashOutConfirmation", "2026-10-07T08:00:00+02:00"),
+        paid(746.2, "WaitingForCashOutConfirmation", "2026-10-07T08:00:00+02:00"),
+        paid(50, "CashedOut", "2026-10-08T08:00:00+02:00"),  # verse selon HelloAsso, pas encore vu a la banque
+        paid(120, "Transfered", None),
+    ]}]
+    ledger = {"rows": [
+        {"date": "2026-09-07", "amount": 300.0, "label": "VIR HELLOASSOPAY R4WOXYY6WK2XP0Q HELLOASSO 3591881 03-09-2026"},
+        {"date": "2026-10-08", "amount": 6746.2, "label": "VIR HELLOASSOPAY DVMQXO4Y7VJX70Y HELLOASSO 3711911 07-10-2026"},
+        {"date": "2026-10-08", "amount": -45.0, "label": "PRLV HELLOASSO 01-10-2026"},   # un debit n'est pas un versement
+        {"date": "2026-10-09", "amount": 20.0, "label": "VIR M DUPONT COTISATION"},
+    ]}
+    bank = bank_cash_outs(ledger)
+    assert bank == {"asOf": "2026-10-09", "received": {
+        "2026-09-03": {"date": "2026-09-07", "amount": 300.0},
+        "2026-10-07": {"date": "2026-10-08", "amount": 6746.2},
+    }}
+    cash = members_summary([], payments, TODAY, bank)["cash"]
+    assert cash["onAccount"] == {"total": 7046.2, "payments": 3, "rows": [
+        {"date": "2026-09-07", "requested": "2026-09-03", "amount": 300.0, "payments": 1},
+        {"date": "2026-10-08", "requested": "2026-10-07", "amount": 6746.2, "payments": 2},
+    ]}
+    assert cash["inTransit"]["rows"] == [{"date": "2026-10-08", "amount": 50.0, "payments": 1}]
+    assert (cash["held"]["total"], cash["toReceive"], cash["bankAsOf"]) == (120.0, 170.0, "2026-10-09")
+
+    # Sans les comptes : on se fie a HelloAsso.
+    alone = members_summary([], payments, TODAY)["cash"]
+    assert (alone["onAccount"]["total"], alone["inTransit"]["total"], alone["bankAsOf"]) == (350.0, 6746.2, None)
 
 
 def test_no_members():

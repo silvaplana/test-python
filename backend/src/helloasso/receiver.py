@@ -15,7 +15,7 @@ from mailer import MailError
 from .mails import TemplateError, normalize_phone
 
 from .helloasso import HelloAsso, HelloAssoAuthError
-from .summary import FAILED_PAYMENT_STATES, cancellation_preview, members_summary
+from .summary import FAILED_PAYMENT_STATES, bank_cash_outs, cancellation_preview, members_summary
 
 # Restreint /helloasso/photo aux URL HelloAsso reelles (voir getPhoto) :
 # sans ca, ce endpoint deviendrait un proxy HTTP generique authentifie
@@ -72,6 +72,9 @@ class HelloAssoReceiver:
         self.app = app
         self.form_slug = form_slug
         self.form_type = form_type
+        # Operations des comptes (BankStatements.get_ledger), branchees par
+        # app/main.py : servent a voir les virements HelloAsso arrives a la banque.
+        self.bank_ledger = None
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -128,10 +131,19 @@ class HelloAssoReceiver:
         """Endpoint REST GET /helloasso/summary. Chiffres des adherents de la
         campagne : majeurs et mineurs, prix moyen de la licence, et ce qui
         reste a encaisser mois par mois (voir members_summary)."""
+        # Virements HelloAsso vus a la banque (voir bank_cash_outs) : sans eux
+        # (comptes illisibles), le panneau se fie a l'etat declare par HelloAsso.
+        bank = None
+        if self.bank_ledger is not None:
+            try:
+                bank = bank_cash_outs(self.bank_ledger())
+            except Exception as exc:  # les statistiques ne doivent pas en dependre
+                print(f"HelloAssoReceiver.getSummary: comptes illisibles ({exc})")
         return members_summary(
             self.client.get_members(self.form_slug, self.form_type),
             self.client.get_member_payments(self.form_slug, self.form_type),
             datetime.now(ZoneInfo("Europe/Paris")).date(),
+            bank,
         )
 
     def _order(self, order_id: int) -> dict:

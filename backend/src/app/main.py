@@ -265,6 +265,9 @@ bank_accounts_receiver = BankAccountsReceiver(client=bank_accounts_client, app=a
 # operations sont stockees dans la base SQLite, les PDF ne sont pas gardes.
 # Lecture des PDF en Python (texte du PDF), sans IA : gratuit et exact.
 bank_statements_client = BankStatements(db=database)
+# Statistiques des adherents : un versement HelloAsso n'est compte "sur le
+# compte courant" que si son virement est vu dans les operations des comptes.
+helloasso_receiver.bank_ledger = bank_statements_client.get_ledger
 bank_statements_receiver = BankStatementsReceiver(
     client=bank_statements_client,
     app=accounts_router,
