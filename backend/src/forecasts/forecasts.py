@@ -15,7 +15,8 @@ Executer un calcul (voir run) :
 3. l'appli verifie et execute la formule a part (voir sandbox.py).
 Ensuite, bouger un curseur rejoue la formule (voir set_params), sans
 rappeler l'IA. Le calcul tourne en arriere-plan ; son cout s'ajoute a celui
-du previsionnel et a celui de la saison.
+du previsionnel et a celui de la saison EN COURS (pas a celle du
+previsionnel, qui peut etre passee).
 """
 
 from __future__ import annotations
@@ -55,21 +56,23 @@ class Forecasts:
         db,
         ledger: Callable[[], dict],
         seasons: Callable[[], list[dict]],
-        add_season_ai_cost: Callable[[int, float], None],
+        add_ai_cost: Callable[[float], object],
         members: Callable[[], dict] | None = None,
         today: Callable[[], date] = date.today,
         coder: Coder | None = None,
         background: bool = True,
     ) -> None:
         """ledger : BankStatements.get_ledger ; seasons : fiches de
-        Seasons.get_seasons, la plus ancienne en premier ; members : chiffres
+        Seasons.get_seasons, la plus ancienne en premier ; add_ai_cost(euros) :
+        ajoute un cout d'IA a la saison en cours (Seasons.add_current_ai_cost) ;
+        members : chiffres
         des adherents HelloAsso (HelloAssoReceiver.getSummary), lus seulement
         pour une date de depart recente. background=False : calcul execute
         directement (tests)."""
         self.db = db
         self.ledger = ledger
         self.seasons = seasons
-        self.add_season_ai_cost = add_season_ai_cost
+        self.add_ai_cost = add_ai_cost
         self.members = members
         self.today = today
         self.coder = coder or Coder()
@@ -314,7 +317,7 @@ class Forecasts:
                     (message, cost, _now(), forecast_id),
                 )
         if cost:
-            self.add_season_ai_cost(row["season_id"], cost)
+            self.add_ai_cost(cost)
 
     @staticmethod
     def _points(data: dict, balances: list[float]) -> list[dict]:

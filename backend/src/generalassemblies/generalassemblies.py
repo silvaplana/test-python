@@ -23,7 +23,8 @@ Executer un calcul (voir run), en arriere-plan :
 3. l'IA ecrit le texte des diapos du tresorier (voir ai.py) ;
 4. l'appli place ce texte dans le modele (voir slides.fill) et verifie que
    chaque montant ecrit vient bien du bilan.
-Le cout s'ajoute a celui du calcul et a celui de la saison.
+Le cout s'ajoute a celui du calcul et a celui de la saison EN COURS (pas a
+celle du calcul, qui peut etre passee).
 """
 
 from __future__ import annotations
@@ -80,20 +81,21 @@ class GeneralAssemblies:
         seasons: Callable[[], list[dict]],
         reports: Callable[[int], list[dict]],
         report: Callable[[int], dict],
-        add_season_ai_cost: Callable[[int, float], None],
+        add_ai_cost: Callable[[float], object],
         writer: Writer | None = None,
         background: bool = True,
     ) -> None:
         """seasons : les saisons, la plus ancienne en premier (Seasons) ;
         reports / report : liste des bilans d'une saison et bilan complet
-        (FinancialReports.list / get) ; add_season_ai_cost : Seasons.add_ai_cost.
+        (FinancialReports.list / get) ; add_ai_cost(euros) : ajoute un cout d'IA a la saison en cours
+        (Seasons.add_current_ai_cost).
         background=False : calcul execute directement (tests)."""
         self.db = db
         self.storage = Path(storage_dir)
         self.seasons = seasons
         self.reports = reports
         self.report = report
-        self.add_season_ai_cost = add_season_ai_cost
+        self.add_ai_cost = add_ai_cost
         self.writer = writer or Writer()
         self.background = background
 
@@ -561,7 +563,7 @@ class GeneralAssemblies:
                     (message, cost, _now(), assembly_id),
                 )
         if cost:
-            self.add_season_ai_cost(row["season_id"], cost)
+            self.add_ai_cost(cost)
 
     @staticmethod
     def _known_amounts(result: dict) -> set[float]:

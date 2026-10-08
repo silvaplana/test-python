@@ -88,7 +88,7 @@ def make_reports(db, seasons, analyst):
         db=db,
         ledger=BankStatements(db).get_ledger,
         seasons=lambda: seasons.get_seasons()["seasons"],
-        add_season_ai_cost=seasons.add_ai_cost,
+        add_ai_cost=seasons.add_current_ai_cost,
         analyst=analyst,
         background=False,
     )
@@ -152,11 +152,12 @@ def test_run_classifies_others_and_adds_cost(db, seasons):
     assert result["analysis"] == ["Ligne 1", "Ligne 2"]
     assert result["modelLabel"] == "Claude Fable 5.1"
 
-    # Cout cumule du bilan et de la saison (en centimes pour la saison).
+    # Cout cumule du bilan, et de la saison EN COURS (2026-2027 au 06/10/2026)
+    # -- pas de la saison du bilan (2025-2026), deja terminee.
     reports.run(created["id"], {})
     assert reports.get(created["id"])["aiCost"] == pytest.approx(0.18)
-    season = next(s for s in seasons.get_seasons()["seasons"] if s["id"] == sid)
-    assert season["aiCost"] == 0.18
+    costs = {s["name"]: s["aiCost"] for s in seasons.get_seasons()["seasons"]}
+    assert costs == {"2024-2025": None, "2025-2026": None, "2026-2027": pytest.approx(0.18)}
 
 
 def test_run_error_is_reported_and_cost_kept(db, seasons):

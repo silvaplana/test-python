@@ -145,7 +145,8 @@ def setup(tmp_path):
         seasons=lambda: SEASONS,
         reports=reports.list,
         report=reports.get,
-        add_season_ai_cost=lambda season_id, euros: costs.append((season_id, euros)),
+        # Saison en cours : le cout n'est plus rattache a la saison du calcul.
+        add_ai_cost=costs.append,
         writer=writer,
         background=False,
     )
@@ -184,7 +185,7 @@ def test_run_fills_the_template_with_the_official_report(setup):
     assert result["warnings"] == []
     assert result["summary"] == ["Diapos du trésorier remplies."]
     assert done["aiCost"] == pytest.approx(0.12)
-    assert costs == [(2, 0.12)]
+    assert costs == [0.12]
 
     model, data, prompt = writer.calls[0]
     assert (model, prompt) == ("haiku", "Ton simple")
@@ -280,7 +281,7 @@ def test_ai_error_keeps_cost_and_no_version(setup):
     done = client.run(assembly["id"], {})
     assert (done["status"], done["error"]) == ("error", "L'IA a refusé de préparer cette AG.")
     assert done["hasPpt"] is False
-    assert costs == [(2, 0.02)]
+    assert costs == [0.02]
 
 
 def test_api_upload_download_and_slides(setup, monkeypatch):

@@ -276,12 +276,13 @@ seasons_receiver = SeasonsReceiver(
 # Bilans financiers d'une saison (/financial-reports/...), onglet Finances >
 # Bilan financier : meme protection que les comptes. Tableau calcule depuis
 # l'historique des comptes, analyse par l'API Claude (ANTHROPIC_API_KEY), cout
-# ajoute a celui de la saison.
+# ajoute a celui de la saison en cours.
 financial_reports_client = FinancialReports(
     db=database,
     ledger=bank_statements_client.get_ledger,
     seasons=lambda: seasons_client.get_seasons()["seasons"],
-    add_season_ai_cost=seasons_client.add_ai_cost,
+    # Cout de chaque appel a l'IA : a la saison en cours, pas a celle du calcul.
+    add_ai_cost=seasons_client.add_current_ai_cost,
 )
 financial_reports_receiver = FinancialReportsReceiver(client=financial_reports_client, app=accounts_router)
 
@@ -295,7 +296,8 @@ general_assemblies_client = GeneralAssemblies(
     seasons=lambda: seasons_client.get_seasons()["seasons"],
     reports=financial_reports_client.list,
     report=financial_reports_client.get,
-    add_season_ai_cost=seasons_client.add_ai_cost,
+    # Cout de chaque appel a l'IA : a la saison en cours, pas a celle du calcul.
+    add_ai_cost=seasons_client.add_current_ai_cost,
 )
 general_assemblies_receiver = GeneralAssembliesReceiver(client=general_assemblies_client, app=accounts_router)
 
@@ -303,12 +305,13 @@ general_assemblies_receiver = GeneralAssembliesReceiver(client=general_assemblie
 # Prévisionnel : meme protection que les comptes. L'API Claude ecrit une
 # formule Python (executee a part, voir forecasts/sandbox.py) a partir de
 # l'historique des comptes et des adherents HelloAsso ; cout ajoute a celui
-# de la saison.
+# de la saison en cours.
 forecasts_client = Forecasts(
     db=database,
     ledger=bank_statements_client.get_ledger,
     seasons=lambda: seasons_client.get_seasons()["seasons"],
-    add_season_ai_cost=seasons_client.add_ai_cost,
+    # Cout de chaque appel a l'IA : a la saison en cours, pas a celle du calcul.
+    add_ai_cost=seasons_client.add_current_ai_cost,
     members=helloasso_receiver.getSummary,
     today=lambda: datetime.now(ZoneInfo("Europe/Paris")).date(),
 )

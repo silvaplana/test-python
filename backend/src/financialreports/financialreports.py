@@ -13,7 +13,9 @@ Executer un calcul (voir run) :
    debut + recettes - depenses = solde reel a la fin.
 Le calcul tourne en arriere-plan (jusqu'a quelques minutes selon le
 modele) : l'ecran relit le bilan jusqu'a ce qu'il soit termine. Son cout
-s'ajoute a celui du bilan et a celui de la saison (voir Seasons.add_ai_cost).
+s'ajoute a celui du bilan et a celui de la saison EN COURS -- pas a celle du
+bilan : un bilan de 2023-2024 refait aujourd'hui coute a la saison
+d'aujourd'hui (voir Seasons.add_current_ai_cost).
 """
 
 from __future__ import annotations
@@ -54,18 +56,19 @@ class FinancialReports:
         db: Database,
         ledger: Callable[[], dict],
         seasons: Callable[[], list[dict]],
-        add_season_ai_cost: Callable[[int, float], None],
+        add_ai_cost: Callable[[float], object],
         analyst: Analyst | None = None,
         background: bool = True,
     ) -> None:
         """ledger : historique des comptes (BankStatements.get_ledger) ;
         seasons : les saisons, la plus ancienne en premier (fiches de
-        Seasons.get_seasons) ; add_season_ai_cost : Seasons.add_ai_cost.
+        Seasons.get_seasons) ; add_ai_cost(euros) : ajoute un cout d'IA a la saison
+        en cours (Seasons.add_current_ai_cost).
         background=False : calcul execute directement (tests)."""
         self.db = db
         self.ledger = ledger
         self.seasons = seasons
-        self.add_season_ai_cost = add_season_ai_cost
+        self.add_ai_cost = add_ai_cost
         self.analyst = analyst or Analyst()
         self.background = background
 
@@ -261,7 +264,7 @@ class FinancialReports:
                     (message, cost, _now(), report_id),
                 )
         if cost:
-            self.add_season_ai_cost(row["season_id"], cost)
+            self.add_ai_cost(cost)
 
     def _official_classifications(self, season_id: int) -> dict[int, str]:
         """Classement des operations "Autres" du bilan officiel de la saison,
