@@ -436,22 +436,6 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
             >
               Prompt donné à l'IA <span aria-hidden="true">▾</span>
             </button>
-            <button
-              type="button"
-              className="reports-prompt-button"
-              onClick={savePrompt}
-              disabled={!reportId || !form.prompt.trim() || Boolean(selectedPrompt)}
-              title={
-                !reportId
-                  ? 'Crée d\u2019abord le calcul pour enregistrer son prompt'
-                  : selectedPrompt
-                    ? 'Ce prompt est déjà enregistré'
-                    : 'Enregistrer ce prompt dans les prompts de ce bilan'
-              }
-              aria-label="Enregistrer ce prompt dans les prompts de ce bilan"
-            >
-              <SaveIcon />
-            </button>
             {promptMenuOpen && (
               <div className="reports-prompt-menu" role="menu">
                 {savedPrompts.length === 0 && (
@@ -476,12 +460,31 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
               </div>
             )}
           </div>
-          <textarea
-            rows={4}
-            value={form.prompt}
-            onChange={update('prompt')}
-            placeholder="Ex : mets en avant la hausse des cotisations, ton simple pour l'AG."
-          />
+          {/* Disquette dans le coin du champ : enregistre ce prompt pour ce bilan. */}
+          <div className="reports-prompt-input">
+            <textarea
+              rows={4}
+              value={form.prompt}
+              onChange={update('prompt')}
+              placeholder="Ex : mets en avant la hausse des cotisations, ton simple pour l'AG."
+            />
+            <button
+              type="button"
+              className="reports-prompt-button reports-prompt-save"
+              onClick={savePrompt}
+              disabled={!reportId || !form.prompt.trim() || Boolean(selectedPrompt)}
+              title={
+                !reportId
+                  ? 'Crée d\u2019abord le calcul pour enregistrer son prompt'
+                  : selectedPrompt
+                    ? 'Ce prompt est déjà enregistré'
+                    : 'Enregistrer ce prompt dans les prompts de ce bilan'
+              }
+              aria-label="Enregistrer ce prompt dans les prompts de ce bilan"
+            >
+              <SaveIcon />
+            </button>
+          </div>
           <span className="reports-hint">
             S'ajoute aux consignes fixes : l'appli calcule le tableau au centime, l'IA classe les opérations « Autres » et écrit
             l'analyse en 5 lignes (faits marquants, comparaison avec les saisons précédentes).

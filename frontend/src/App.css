@@ -4134,3 +4134,21 @@ span.webmail-attachment {
   width: 1.15rem;
   height: 1.15rem;
 }
+
+/* Disquette posee dans le champ du prompt, coin en haut a droite (la poignee
+   d'agrandissement du champ est en bas a droite). */
+.reports-prompt-input {
+  position: relative;
+}
+
+.reports-prompt-input textarea {
+  display: block;
+  padding-right: 2.9rem;
+}
+
+.reports-prompt-save {
+  position: absolute;
+  top: 0.4rem;
+  right: 0.4rem;
+  background: var(--bg);
+}
