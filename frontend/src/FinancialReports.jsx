@@ -297,6 +297,31 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
       })
   }
 
+  // Prompts enregistres de ce bilan (disquette) ; celui qui correspond au
+  // texte en cours, s'il y en a un.
+  const savedPrompts = report?.savedPrompts ?? []
+  const selectedPrompt = savedPrompts.find((p) => p.prompt === form.prompt.trim())
+
+  async function savePrompt() {
+    try {
+      const body = await sendJson(`/financial-reports/${reportId}/prompts`, 'POST', { prompt: form.prompt })
+      setReport((current) => ({ ...current, savedPrompts: body.savedPrompts }))
+      showToast('Prompt enregistré pour ce bilan', 'success')
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  async function deleteSelectedPrompt() {
+    if (!window.confirm('Retirer ce prompt des prompts enregistrés de ce bilan ?\n\nLe texte reste dans le champ du prompt.')) return
+    try {
+      const body = await callApi(`/financial-reports/${reportId}/prompts/${selectedPrompt.id}`, { method: 'DELETE' })
+      setReport((current) => ({ ...current, savedPrompts: body.savedPrompts }))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
   function update(key) {
     return (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
   }
@@ -386,30 +411,62 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
           onToggle={toggleSettings}
           summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${aiCost(report?.aiCost ?? 0)}`}
         >
-        {options.presetPrompts?.length > 0 && (
-          <label className="trial-form-wide">
-            Prompt préenregistré
-            <select
-              value={options.presetPrompts.find((p) => p.prompt === form.prompt)?.id ?? ''}
-              onChange={(e) => {
-                const preset = options.presetPrompts.find((p) => p.id === e.target.value)
-                if (!preset) return
-                const known = !form.prompt.trim() || options.presetPrompts.some((p) => p.prompt === form.prompt)
-                if (!known && !window.confirm('Remplacer le prompt actuel par ce prompt préenregistré ?')) return
-                setForm((current) => ({ ...current, prompt: preset.prompt }))
-              }}
-            >
-              <option value="">— Prompt personnalisé —</option>
-              {options.presetPrompts.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.label} : {p.prompt.split('\n')[0].slice(0, 50)}
-                </option>
-              ))}
-            </select>
-          </label>
+        {savedPrompts.length > 0 && (
+          <div className="trial-form-wide reports-saved-prompts">
+            <label>
+              Prompts enregistrés de ce bilan
+              <select
+                value={selectedPrompt?.id ?? ''}
+                onChange={(e) => {
+                  const saved = savedPrompts.find((p) => String(p.id) === e.target.value)
+                  if (!saved) return
+                  const known = !form.prompt.trim() || savedPrompts.some((p) => p.prompt === form.prompt.trim())
+                  if (!known && !window.confirm('Remplacer le prompt actuel par ce prompt enregistré ?')) return
+                  setForm((current) => ({ ...current, prompt: saved.prompt }))
+                }}
+              >
+                <option value="">— Choisir un prompt enregistré —</option>
+                {savedPrompts.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.prompt.split('\n')[0].slice(0, 60)}
+                    {p.prompt.length > 60 || p.prompt.includes('\n') ? '…' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {selectedPrompt && (
+              <button
+                type="button"
+                className="reports-prompt-button reports-prompt-delete"
+                onClick={deleteSelectedPrompt}
+                title="Retirer ce prompt des prompts enregistrés"
+                aria-label="Retirer ce prompt des prompts enregistrés"
+              >
+                <TrashIcon />
+              </button>
+            )}
+          </div>
         )}
         <label className="trial-form-wide">
-          Prompt donné à l'IA
+          <span className="reports-prompt-title">
+            Prompt donné à l'IA
+            <button
+              type="button"
+              className="reports-prompt-button"
+              onClick={savePrompt}
+              disabled={!reportId || !form.prompt.trim() || Boolean(selectedPrompt)}
+              title={
+                !reportId
+                  ? 'Crée d\u2019abord le calcul pour enregistrer son prompt'
+                  : selectedPrompt
+                    ? 'Ce prompt est déjà enregistré'
+                    : 'Enregistrer ce prompt dans les prompts de ce bilan'
+              }
+              aria-label="Enregistrer ce prompt dans les prompts de ce bilan"
+            >
+              <SaveIcon />
+            </button>
+          </span>
           <textarea
             rows={4}
             value={form.prompt}
@@ -640,5 +697,16 @@ function MonthTable({ result }) {
         </table>
       </div>
     </>
+  )
+}
+
+// Disquette (enregistrer) et corbeille : traits Lucide (licence ISC).
+function SaveIcon() {
+  return (
+    <svg className="reports-prompt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+      <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+      <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+    </svg>
   )
 }

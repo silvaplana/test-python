@@ -25,6 +25,13 @@ class SettingsRequest(BaseModel):
     open: bool
 
 
+class PromptRequest(BaseModel):
+    """Corps de POST /financial-reports/{id}/prompts : prompt a enregistrer
+    dans la liste du bilan."""
+
+    prompt: str
+
+
 class RunRequest(BaseModel):
     """Corps de POST /financial-reports/{id}/run : prompt et modele du
     calcul (enregistres dans le bilan)."""
@@ -53,6 +60,8 @@ class FinancialReportsReceiver:
         self.app.delete("/financial-reports/{report_id}")(self.deleteReport)
         self.app.post("/financial-reports/{report_id}/run")(self.runReport)
         self.app.put("/financial-reports/{report_id}/settings")(self.setSettingsOpen)
+        self.app.post("/financial-reports/{report_id}/prompts")(self.savePrompt)
+        self.app.delete("/financial-reports/{report_id}/prompts/{prompt_id}")(self.deletePrompt)
         self.app.get("/financial-reports/{report_id}/download")(self.downloadReport)
 
     def listReports(self, seasonId: int | None = None) -> dict:
@@ -111,6 +120,21 @@ class FinancialReportsReceiver:
             return self.client.set_settings_open(report_id, request.open)
         except ReportNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Bilan inconnu") from exc
+
+    def savePrompt(self, report_id: int, request: PromptRequest) -> dict:
+        """Endpoint REST POST /financial-reports/{id}/prompts : enregistre ce
+        prompt dans la liste du bilan (disquette de l'ecran)."""
+        try:
+            return {"savedPrompts": self.client.save_prompt(report_id, request.prompt)}
+        except ReportError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except ReportNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Bilan inconnu") from exc
+
+    def deletePrompt(self, report_id: int, prompt_id: int) -> dict:
+        """Endpoint REST DELETE /financial-reports/{id}/prompts/{n} : retire
+        un prompt enregistre du bilan."""
+        return {"savedPrompts": self.client.delete_prompt(report_id, prompt_id)}
 
     def downloadReport(self, report_id: int, format: str = "xlsx") -> Response:
         """Endpoint REST GET /financial-reports/{id}/download?format=xlsx|pdf :

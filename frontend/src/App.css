@@ -3966,3 +3966,51 @@ span.webmail-attachment {
     border-radius: 0;
   }
 }
+
+/* Bilan financier : prompts enregistres du bilan (menu, disquette, corbeille). */
+.reports-saved-prompts {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.reports-saved-prompts label {
+  flex: 1;
+  min-width: 0;
+}
+
+.reports-prompt-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.reports-prompt-button {
+  display: inline-flex;
+  padding: 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.reports-prompt-button:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+
+.reports-prompt-button:disabled {
+  color: var(--text);
+  opacity: 0.45;
+  cursor: default;
+}
+
+.reports-prompt-delete {
+  color: #f87171;
+}
+
+.reports-prompt-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}

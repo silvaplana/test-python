@@ -300,6 +300,19 @@ MIGRATIONS: list[str] = [
         checked_at TEXT NOT NULL
     );
     """,
+    # 16 : prompts enregistres d'un bilan financier (voir financialreports/) :
+    # la disquette a cote du prompt l'ajoute a la liste du bilan, reproposee
+    # dans un menu deroulant. Propres a chaque bilan ; supprimer le bilan
+    # supprime ses prompts.
+    """
+    CREATE TABLE financial_report_prompts (
+        id INTEGER PRIMARY KEY,
+        report_id INTEGER NOT NULL REFERENCES financial_reports (id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX financial_report_prompts_report ON financial_report_prompts (report_id);
+    """,
 ]
 
 

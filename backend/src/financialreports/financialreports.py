@@ -31,14 +31,6 @@ from database import Database
 from .ai import DEFAULT_MODEL, MODELS, Analysis, AnalysisError, Analyst
 from .report import compute_report, unclassified
 
-# Prompts preenregistres, communs a tous les bilans : proposes dans un menu
-# deroulant au-dessus du prompt (le choisir remplace le texte du prompt, qui
-# reste modifiable). En dur pour l'instant.
-PRESET_PROMPTS = [
-    "SKJSKJDSKDJSKDCN?D?D?DKDLSKKLSLKLKD",
-    "sqslqmqmlqmlqmqlqqlqlqlq\nmmxmsùùsùs\nxxxxxxxx",
-]
-
 STATES = {"brouillon": "Brouillon", "valide": "Validé", "officiel": "Officiel"}
 # Nombre de saisons precedentes comparees par l'IA.
 PREVIOUS_SEASONS = 3
@@ -87,10 +79,6 @@ class FinancialReports:
             "models": [{"id": key, "label": spec["label"]} for key, spec in MODELS.items()],
             "defaultModel": DEFAULT_MODEL,
             "states": [{"id": key, "label": label} for key, label in STATES.items()],
-            "presetPrompts": [
-                {"id": f"preset-{index}", "label": f"Prompt {index}", "prompt": prompt}
-                for index, prompt in enumerate(PRESET_PROMPTS, start=1)
-            ],
         }
 
     def counts(self) -> dict[int, int]:
@@ -114,7 +102,43 @@ class FinancialReports:
             "result": json.loads(row["result"]) if row["result"] else None,
             # Zone "Réglages de l'IA" depliee dans l'ecran.
             "settingsOpen": bool(row["settings_open"]),
+            "savedPrompts": self.saved_prompts(report_id),
         }
+
+    # ----- prompts enregistres du bilan -----
+
+    def saved_prompts(self, report_id: int) -> list[dict]:
+        """Prompts enregistres de ce bilan (disquette de l'ecran), du plus
+        recent au plus ancien."""
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, prompt FROM financial_report_prompts WHERE report_id = ? ORDER BY id DESC", (report_id,)
+            ).fetchall()
+        return [{"id": row["id"], "prompt": row["prompt"]} for row in rows]
+
+    def save_prompt(self, report_id: int, prompt: str) -> list[dict]:
+        """Ajoute ce prompt a ceux du bilan (sans doublon)."""
+        prompt = (prompt or "").strip()
+        if not prompt:
+            raise ReportError("Le prompt est vide")
+        self._row(report_id)
+        with self.db.connect() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM financial_report_prompts WHERE report_id = ? AND prompt = ?", (report_id, prompt)
+            ).fetchone()
+            if not exists:
+                connection.execute(
+                    "INSERT INTO financial_report_prompts (report_id, prompt, created_at) VALUES (?, ?, ?)",
+                    (report_id, prompt, _now()),
+                )
+        return self.saved_prompts(report_id)
+
+    def delete_prompt(self, report_id: int, prompt_id: int) -> list[dict]:
+        with self.db.connect() as connection:
+            connection.execute(
+                "DELETE FROM financial_report_prompts WHERE id = ? AND report_id = ?", (prompt_id, report_id)
+            )
+        return self.saved_prompts(report_id)
 
     def set_settings_open(self, report_id: int, is_open: bool) -> dict:
         """Retient si la zone "Réglages de l'IA" est depliee dans l'ecran

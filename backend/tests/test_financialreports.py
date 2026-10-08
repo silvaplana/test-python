@@ -262,7 +262,27 @@ def test_settings_open_is_kept(db, seasons):
     assert again["settingsOpen"] is False and again["updatedAt"] == created["updatedAt"]
 
 
-def test_preset_prompts_common_to_all_reports(db, seasons):
-    presets = make_reports(db, seasons, analyst=None).models()["presetPrompts"]
-    assert [p["id"] for p in presets] == ["preset-1", "preset-2"]
-    assert presets[1]["prompt"] == "sqslqmqmlqmlqmqlqqlqlqlq\nmmxmsùùsùs\nxxxxxxxx"
+def test_saved_prompts_belong_to_their_report(db, seasons):
+    reports = make_reports(db, seasons, analyst=None)
+    sid = season_id(seasons, "2025-2026")
+    first = reports.create({"seasonId": sid, "name": "A", "prompt": ""})["id"]
+    second = reports.create({"seasonId": sid, "name": "B", "prompt": ""})["id"]
+    assert reports.get(first)["savedPrompts"] == []
+
+    reports.save_prompt(first, "  Ton simple  ")
+    reports.save_prompt(first, "Ton simple")  # doublon ignore
+    saved = reports.save_prompt(first, "Insiste sur les cotisations")
+    assert [p["prompt"] for p in saved] == ["Insiste sur les cotisations", "Ton simple"]
+    assert reports.get(second)["savedPrompts"] == []  # propres a chaque bilan
+    with pytest.raises(ReportError):
+        reports.save_prompt(first, "   ")
+
+    # Un autre bilan ne peut pas supprimer ce prompt.
+    assert len(reports.delete_prompt(second, saved[0]["id"])) == 0
+    assert len(reports.saved_prompts(first)) == 2
+    assert [p["prompt"] for p in reports.delete_prompt(first, saved[0]["id"])] == ["Ton simple"]
+
+    # Supprimer le bilan supprime ses prompts.
+    reports.delete(first)
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM financial_report_prompts").fetchone()[0] == 0
