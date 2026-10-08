@@ -455,31 +455,19 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
               </div>
             )}
           </div>
-          {/* Disquette dans le coin du champ : enregistre ce prompt pour ce bilan. */}
-          <div className="reports-prompt-input">
-            <textarea
-              rows={4}
-              value={form.prompt}
-              onChange={update('prompt')}
-              placeholder="Ex : mets en avant la hausse des cotisations, ton simple pour l'AG."
-            />
-            <button
-              type="button"
-              className="reports-prompt-button reports-prompt-save"
-              onClick={savePrompt}
-              disabled={!reportId || !form.prompt.trim() || Boolean(selectedPrompt)}
-              title={
-                !reportId
-                  ? 'Crée d\u2019abord le calcul pour enregistrer son prompt'
-                  : selectedPrompt
-                    ? 'Ce prompt est déjà enregistré'
-                    : 'Enregistrer ce prompt dans les prompts de ce bilan'
-              }
-              aria-label="Enregistrer ce prompt dans les prompts de ce bilan"
-            >
-              <SaveIcon />
-            </button>
-          </div>
+          <PromptInput
+            value={form.prompt}
+            onChange={update('prompt')}
+            onSave={savePrompt}
+            saveDisabled={!reportId || !form.prompt.trim() || Boolean(selectedPrompt)}
+            saveTitle={
+              !reportId
+                ? 'Crée d\u2019abord le calcul pour enregistrer son prompt'
+                : selectedPrompt
+                  ? 'Ce prompt est déjà enregistré'
+                  : 'Enregistrer ce prompt dans les prompts de ce bilan'
+            }
+          />
           <span className="reports-hint">
             S'ajoute aux consignes fixes : l'appli calcule le tableau au centime, l'IA classe les opérations « Autres » et écrit
             l'analyse en 5 lignes (faits marquants, comparaison avec les saisons précédentes).
@@ -707,35 +695,24 @@ function MonthTable({ result }) {
   )
 }
 
-// Prompt enregistre dans le menu : cliquer sur le texte l'utilise. A droite,
-// sur une meme colonne : la corbeille, puis, si le prompt ne tient pas dans
-// PROMPT_PREVIEW_PX de haut, un ascenseur (fait maison, pour s'aligner avec
-// le reste) et une poignee a tirer (souris ou doigt) pour agrandir le cadre.
-const PROMPT_PREVIEW_PX = 96
-
-function SavedPrompt({ prompt, current, onChoose, onDelete }) {
-  const box = useRef(null)
+// Colonne a droite d'un texte qui defile (prompt en cours ou prompt
+// enregistre) : un bouton en haut, puis un ascenseur et une poignee, tous sur
+// la meme verticale. L'ascenseur est fait maison (la barre native du texte
+// est masquee) pour s'aligner avec le reste et se tirer au doigt ; la poignee
+// agrandit le cadre entre min et max() pixels.
+function useRail(box, { initial, min, max }) {
   const track = useRef(null)
   const drag = useRef(null)
-  const [full, setFull] = useState(null)
-  const [height, setHeight] = useState(PROMPT_PREVIEW_PX)
+  const [height, setHeight] = useState(initial)
   // Curseur de l'ascenseur : position et taille, en fraction de la piste.
   const [thumb, setThumb] = useState({ top: 0, size: 1 })
 
-  const long = full != null && full > PROMPT_PREVIEW_PX + 4
-
-  function measure() {
+  const measure = useCallback(() => {
     const el = box.current
     if (!el) return
-    setThumb({ top: el.scrollTop / el.scrollHeight, size: Math.min(1, el.clientHeight / el.scrollHeight) })
-  }
-
-  // Hauteur du texte entier, mesuree une fois affiche.
-  useEffect(() => {
-    setFull(box.current.scrollHeight)
-  }, [prompt])
-
-  useEffect(measure, [full, height])
+    const next = { top: el.scrollTop / el.scrollHeight, size: Math.min(1, el.clientHeight / el.scrollHeight) }
+    setThumb((current) => (current.top === next.top && current.size === next.size ? current : next))
+  }, [box])
 
   function start(kind) {
     return (event) => {
@@ -750,7 +727,7 @@ function SavedPrompt({ prompt, current, onChoose, onDelete }) {
     if (!from) return
     const delta = event.clientY - from.y
     if (from.kind === 'resize') {
-      setHeight(Math.min(full, Math.max(PROMPT_PREVIEW_PX, from.height + delta)))
+      setHeight(Math.min(max(), Math.max(min, from.height + delta)))
     } else {
       // Curseur : un pixel de piste vaut scrollHeight / hauteur de piste.
       box.current.scrollTop = from.scroll + (delta * box.current.scrollHeight) / track.current.clientHeight
@@ -761,9 +738,93 @@ function SavedPrompt({ prompt, current, onChoose, onDelete }) {
     drag.current = null
   }
 
+  const handlers = (kind) => ({ onPointerDown: start(kind), onPointerMove: move, onPointerUp: stop, onPointerCancel: stop })
+  return { track, height, thumb, measure, handlers }
+}
+
+function RailControls({ rail, label }) {
+  return (
+    <>
+      <div ref={rail.track} className="reports-prompt-menu-track" aria-hidden="true">
+        {rail.thumb.size < 1 && (
+          <span
+            className="reports-prompt-menu-thumb"
+            style={{ top: `${rail.thumb.top * 100}%`, height: `${rail.thumb.size * 100}%` }}
+            {...rail.handlers('scroll')}
+          />
+        )}
+      </div>
+      <span className="reports-prompt-menu-handle" role="separator" aria-orientation="horizontal" aria-label={label} title={label} {...rail.handlers('resize')}>
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M11 4 4 11M11 8l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+        </svg>
+      </span>
+    </>
+  )
+}
+
+// Champ "Prompt donné à l'IA" : a droite, la disquette (enregistre le prompt
+// pour ce bilan), l'ascenseur et la poignee.
+const PROMPT_INPUT_PX = 132
+
+function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle }) {
+  const box = useRef(null)
+  const rail = useRail(box, { initial: PROMPT_INPUT_PX, min: PROMPT_INPUT_PX, max: () => Math.round(window.innerHeight * 0.7) })
+  const { measure } = rail
+
+  useEffect(measure, [measure, value, rail.height])
+
+  return (
+    <div className="reports-prompt-input">
+      <textarea
+        ref={box}
+        className="reports-prompt-menu-clip"
+        style={{ height: rail.height }}
+        value={value}
+        onChange={onChange}
+        onScroll={measure}
+        placeholder="Ex : mets en avant la hausse des cotisations, ton simple pour l'AG."
+      />
+      <div className="reports-prompt-menu-rail">
+        <button
+          type="button"
+          className="reports-prompt-button"
+          onClick={onSave}
+          disabled={saveDisabled}
+          title={saveTitle}
+          aria-label="Enregistrer ce prompt dans les prompts de ce bilan"
+        >
+          <SaveIcon />
+        </button>
+        <RailControls rail={rail} label="Tirer pour agrandir ou réduire le champ" />
+      </div>
+    </div>
+  )
+}
+
+// Prompt enregistre dans le menu : cliquer sur le texte l'utilise. A droite :
+// la corbeille, puis, si le prompt ne tient pas dans PROMPT_PREVIEW_PX de
+// haut, l'ascenseur et la poignee.
+const PROMPT_PREVIEW_PX = 96
+
+function SavedPrompt({ prompt, current, onChoose, onDelete }) {
+  const box = useRef(null)
+  const [full, setFull] = useState(null)
+  const rail = useRail(box, { initial: PROMPT_PREVIEW_PX, min: PROMPT_PREVIEW_PX, max: () => full })
+  const { measure } = rail
+
+  // Hauteur du texte entier, mesuree une fois affiche.
+  useEffect(() => {
+    setFull(box.current.scrollHeight)
+  }, [prompt])
+
+  useEffect(measure, [measure, full, rail.height])
+
+  const long = full != null && full > PROMPT_PREVIEW_PX + 4
+
   return (
     <div className={`reports-prompt-menu-item${current ? ' reports-prompt-menu-current' : ''}`}>
-      <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(height, full) } : undefined} onScroll={measure}>
+      <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(rail.height, full) } : undefined} onScroll={measure}>
         <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={onChoose} title="Utiliser ce prompt">
           {prompt}
         </button>
@@ -778,37 +839,7 @@ function SavedPrompt({ prompt, current, onChoose, onDelete }) {
         >
           <TrashIcon />
         </button>
-        {long && (
-          <>
-            <div ref={track} className="reports-prompt-menu-track" aria-hidden="true">
-              {thumb.size < 1 && (
-                <span
-                  className="reports-prompt-menu-thumb"
-                  style={{ top: `${thumb.top * 100}%`, height: `${thumb.size * 100}%` }}
-                  onPointerDown={start('scroll')}
-                  onPointerMove={move}
-                  onPointerUp={stop}
-                  onPointerCancel={stop}
-                />
-              )}
-            </div>
-            <span
-              className="reports-prompt-menu-handle"
-              role="separator"
-              aria-orientation="horizontal"
-              aria-label="Tirer pour agrandir ou réduire le prompt"
-              title="Tirer pour agrandir ou réduire le prompt"
-              onPointerDown={start('resize')}
-              onPointerMove={move}
-              onPointerUp={stop}
-              onPointerCancel={stop}
-            >
-              <svg viewBox="0 0 12 12" aria-hidden="true">
-                <path d="M11 4 4 11M11 8l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-              </svg>
-            </span>
-          </>
-        )}
+        {long && <RailControls rail={rail} label="Tirer pour agrandir ou réduire le prompt" />}
       </div>
     </div>
   )

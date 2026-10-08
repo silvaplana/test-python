@@ -4167,20 +4167,29 @@ span.webmail-attachment {
   height: 1.15rem;
 }
 
-/* Disquette posee dans le champ du prompt, coin en haut a droite (la poignee
-   d'agrandissement du champ est en bas a droite). */
+/* Champ du prompt : le texte a gauche, et a droite la meme colonne que les
+   prompts enregistres (disquette, ascenseur, poignee) -- voir PromptInput. */
 .reports-prompt-input {
-  position: relative;
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--code-bg);
 }
 
-.reports-prompt-input textarea {
+.reports-prompt-input:focus-within {
+  border-color: var(--accent-border);
+}
+
+.trial-form-grid .reports-prompt-input textarea {
   display: block;
-  padding-right: 2.9rem;
+  min-width: 0;
+  border: none;
+  background: none;
+  resize: none;
+  outline: none;
 }
 
-.reports-prompt-save {
-  position: absolute;
-  top: 0.4rem;
-  right: 0.4rem;
+.reports-prompt-input .reports-prompt-menu-track {
   background: var(--bg);
 }
