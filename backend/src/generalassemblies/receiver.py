@@ -9,6 +9,13 @@ from .generalassemblies import AssemblyError, AssemblyNotFoundError, GeneralAsse
 PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
 
+class PromptRequest(BaseModel):
+    """Corps de POST /general-assemblies/{id}/prompts : prompt a enregistrer dans la
+    liste du calcul."""
+
+    prompt: str
+
+
 class OrderRequest(BaseModel):
     """Corps de POST /general-assemblies/reorder : identifiants des cartes de la saison, dans
     l'ordre voulu."""
@@ -76,6 +83,8 @@ class GeneralAssembliesReceiver:
         self.app.delete("/general-assemblies/{assembly_id}")(self.deleteAssembly)
         self.app.post("/general-assemblies/{assembly_id}/run")(self.runAssembly)
         self.app.put("/general-assemblies/{assembly_id}/settings")(self.setSettingsOpen)
+        self.app.post("/general-assemblies/{assembly_id}/prompts")(self.savePrompt)
+        self.app.delete("/general-assemblies/{assembly_id}/prompts/{prompt_id}")(self.deletePrompt)
         self.app.post("/general-assemblies/{assembly_id}/upload")(self.uploadModified)
         self.app.post("/general-assemblies/{assembly_id}/model")(self.uploadModel)
         self.app.put("/general-assemblies/{assembly_id}/model")(self.copyModel)
@@ -123,6 +132,16 @@ class GeneralAssembliesReceiver:
         """Endpoint REST POST /general-assemblies/{id}/run : lance le calcul
         du PPT en arriere-plan, voir GeneralAssemblies.run."""
         return self._call(self.client.run, assembly_id, request.model_dump())
+
+    def savePrompt(self, assembly_id: int, request: PromptRequest) -> dict:
+        """Endpoint REST POST /general-assemblies/{id}/prompts : enregistre ce prompt
+        dans la liste du calcul (disquette de l'ecran)."""
+        return {"savedPrompts": self._call(self.client.save_prompt, assembly_id, request.prompt)}
+
+    def deletePrompt(self, assembly_id: int, prompt_id: int) -> dict:
+        """Endpoint REST DELETE /general-assemblies/{id}/prompts/{n} : retire un prompt
+        enregistre du calcul."""
+        return {"savedPrompts": self.client.delete_prompt(assembly_id, prompt_id)}
 
     def setSettingsOpen(self, assembly_id: int, request: SettingsRequest) -> dict:
         """Endpoint REST PUT /general-assemblies/{id}/settings : retient si la

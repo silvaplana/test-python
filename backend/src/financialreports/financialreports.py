@@ -27,6 +27,7 @@ from datetime import datetime, timedelta, timezone
 
 from bankstatements.categories import CATEGORY_NAMES, INTERNAL_TRANSFER, OTHER
 from database import Database, ordering
+from database import prompts as saved_prompts
 
 from .ai import DEFAULT_MODEL, MODELS, Analysis, AnalysisError, Analyst
 from .report import compute_report, unclassified
@@ -113,40 +114,21 @@ class FinancialReports:
             "savedPrompts": self.saved_prompts(report_id),
         }
 
-    # ----- prompts enregistres du bilan -----
+    # ----- prompts enregistres du calcul -----
 
     def saved_prompts(self, report_id: int) -> list[dict]:
-        """Prompts enregistres de ce bilan (disquette de l'ecran), du plus
-        recent au plus ancien."""
-        with self.db.connect() as connection:
-            rows = connection.execute(
-                "SELECT id, prompt FROM financial_report_prompts WHERE report_id = ? ORDER BY id DESC", (report_id,)
-            ).fetchall()
-        return [{"id": row["id"], "prompt": row["prompt"]} for row in rows]
+        return saved_prompts.saved(self.db, "financial_report_prompts", "report_id", report_id)
 
     def save_prompt(self, report_id: int, prompt: str) -> list[dict]:
-        """Ajoute ce prompt a ceux du bilan (sans doublon)."""
+        """Ajoute ce prompt a ceux du calcul (disquette de l'ecran)."""
         prompt = (prompt or "").strip()
         if not prompt:
             raise ReportError("Le prompt est vide")
         self._row(report_id)
-        with self.db.connect() as connection:
-            exists = connection.execute(
-                "SELECT 1 FROM financial_report_prompts WHERE report_id = ? AND prompt = ?", (report_id, prompt)
-            ).fetchone()
-            if not exists:
-                connection.execute(
-                    "INSERT INTO financial_report_prompts (report_id, prompt, created_at) VALUES (?, ?, ?)",
-                    (report_id, prompt, _now()),
-                )
-        return self.saved_prompts(report_id)
+        return saved_prompts.save(self.db, "financial_report_prompts", "report_id", report_id, prompt)
 
     def delete_prompt(self, report_id: int, prompt_id: int) -> list[dict]:
-        with self.db.connect() as connection:
-            connection.execute(
-                "DELETE FROM financial_report_prompts WHERE id = ? AND report_id = ?", (prompt_id, report_id)
-            )
-        return self.saved_prompts(report_id)
+        return saved_prompts.delete(self.db, "financial_report_prompts", "report_id", report_id, prompt_id)
 
     def set_settings_open(self, report_id: int, is_open: bool) -> dict:
         """Retient si la zone "Réglages de l'IA" est depliee dans l'ecran

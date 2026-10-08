@@ -3,6 +3,7 @@ import { CardGrip, useCardOrder } from './CardOrder.jsx'
 import { showToast } from './Toast.jsx'
 import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
 import { AiSettings } from './AiSettings.jsx'
+import { PromptField } from './PromptField.jsx'
 
 // Finances > Bilan financier : calculs de bilan d'une saison (voir
 // backend/src/financialreports). Chaque calcul a un nom, un etat (brouillon,
@@ -308,55 +309,6 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
       })
   }
 
-  // Prompts enregistres de ce bilan (disquette) ; celui qui correspond au
-  // texte en cours, s'il y en a un.
-  // Menu ouvert d'un clic sur "Prompt donné à l'IA" ; ferme d'un clic ailleurs.
-  const [promptMenuOpen, setPromptMenuOpen] = useState(false)
-  const promptMenuRef = useRef(null)
-  useEffect(() => {
-    if (!promptMenuOpen) return
-    function close(event) {
-      if (event.type === 'keydown' ? event.key === 'Escape' : !promptMenuRef.current?.contains(event.target)) {
-        setPromptMenuOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', close)
-    return () => {
-      document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', close)
-    }
-  }, [promptMenuOpen])
-  const savedPrompts = report?.savedPrompts ?? []
-  const selectedPrompt = savedPrompts.find((p) => p.prompt === form.prompt.trim())
-
-  async function savePrompt() {
-    try {
-      const body = await sendJson(`/financial-reports/${reportId}/prompts`, 'POST', { prompt: form.prompt })
-      setReport((current) => ({ ...current, savedPrompts: body.savedPrompts }))
-      showToast('Prompt enregistré pour ce bilan', 'success')
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
-  function choosePrompt(saved) {
-    const known = !form.prompt.trim() || savedPrompts.some((p) => p.prompt === form.prompt.trim())
-    if (!known && !window.confirm('Remplacer le prompt actuel par ce prompt enregistré ?')) return
-    setForm((current) => ({ ...current, prompt: saved.prompt }))
-    setPromptMenuOpen(false)
-  }
-
-  async function deletePrompt(saved) {
-    if (!window.confirm('Retirer ce prompt des prompts enregistrés de ce bilan ?')) return
-    try {
-      const body = await callApi(`/financial-reports/${reportId}/prompts/${saved.id}`, { method: 'DELETE' })
-      setReport((current) => ({ ...current, savedPrompts: body.savedPrompts }))
-    } catch (err) {
-      setError(err.message)
-    }
-  }
-
   function update(key) {
     return (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }))
   }
@@ -446,56 +398,19 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
           onToggle={toggleSettings}
           summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${aiCost(report?.aiCost ?? 0)}`}
         >
-        <div className="trial-form-wide reports-prompt-field">
-          <div className="reports-prompt-title" ref={promptMenuRef}>
-            {/* Clic sur le titre : menu des prompts enregistres de ce bilan. */}
-            <button
-              type="button"
-              className="reports-prompt-menu-button"
-              aria-haspopup="menu"
-              aria-expanded={promptMenuOpen}
-              onClick={() => setPromptMenuOpen((open) => !open)}
-              title="Prompts enregistrés de ce bilan"
-            >
-              Prompt donné à l'IA <span aria-hidden="true">▾</span>
-            </button>
-            {promptMenuOpen && (
-              <div className="reports-prompt-menu" role="menu">
-                {savedPrompts.length === 0 && (
-                  <p className="reports-prompt-menu-empty">
-                    Aucun prompt enregistré pour ce bilan. La disquette enregistre le prompt en cours.
-                  </p>
-                )}
-                {savedPrompts.map((p) => (
-                  <SavedPrompt
-                    key={p.id}
-                    prompt={p.prompt}
-                    current={p.id === selectedPrompt?.id}
-                    onChoose={() => choosePrompt(p)}
-                    onDelete={() => deletePrompt(p)}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-          <PromptInput
-            value={form.prompt}
-            onChange={update('prompt')}
-            onSave={savePrompt}
-            saveDisabled={!reportId || !form.prompt.trim() || Boolean(selectedPrompt)}
-            saveTitle={
-              !reportId
-                ? 'Crée d\u2019abord le calcul pour enregistrer son prompt'
-                : selectedPrompt
-                  ? 'Ce prompt est déjà enregistré'
-                  : 'Enregistrer ce prompt dans les prompts de ce bilan'
-            }
-          />
-          <span className="reports-hint">
+        <PromptField
+          value={form.prompt}
+          onChange={(prompt) => setForm((current) => ({ ...current, prompt }))}
+          basePath={reportId ? `/financial-reports/${reportId}` : null}
+          savedPrompts={report?.savedPrompts}
+          onSavedPrompts={(savedPrompts) => setReport((current) => ({ ...current, savedPrompts }))}
+          owner="ce bilan"
+          placeholder="Ex : mets en avant la hausse des cotisations, ton simple pour l'AG."
+        >
+          
             S'ajoute aux consignes fixes : l'appli calcule le tableau au centime, l'IA classe les opérations « Autres » et écrit
             l'analyse en 5 lignes (faits marquants, comparaison avec les saisons précédentes).
-          </span>
-        </div>
+        </PromptField>
         <label>
           Modèle
           <select value={form.model} onChange={update('model')}>
@@ -715,166 +630,5 @@ function MonthTable({ result }) {
         </table>
       </div>
     </>
-  )
-}
-
-// Colonne a droite d'un texte qui defile (prompt en cours ou prompt
-// enregistre) : un bouton en haut, puis un ascenseur et une poignee, tous sur
-// la meme verticale. L'ascenseur est fait maison (la barre native du texte
-// est masquee) pour s'aligner avec le reste et se tirer au doigt ; la poignee
-// agrandit le cadre entre min et max() pixels.
-function useRail(box, { initial, min, max }) {
-  const track = useRef(null)
-  const drag = useRef(null)
-  const [height, setHeight] = useState(initial)
-  // Curseur de l'ascenseur : position et taille, en fraction de la piste.
-  const [thumb, setThumb] = useState({ top: 0, size: 1 })
-
-  const measure = useCallback(() => {
-    const el = box.current
-    if (!el) return
-    const next = { top: el.scrollTop / el.scrollHeight, size: Math.min(1, el.clientHeight / el.scrollHeight) }
-    setThumb((current) => (current.top === next.top && current.size === next.size ? current : next))
-  }, [box])
-
-  function start(kind) {
-    return (event) => {
-      event.preventDefault()
-      event.currentTarget.setPointerCapture(event.pointerId)
-      drag.current = { kind, y: event.clientY, height: box.current.clientHeight, scroll: box.current.scrollTop }
-    }
-  }
-
-  function move(event) {
-    const from = drag.current
-    if (!from) return
-    const delta = event.clientY - from.y
-    if (from.kind === 'resize') {
-      setHeight(Math.min(max(), Math.max(min, from.height + delta)))
-    } else {
-      // Curseur : un pixel de piste vaut scrollHeight / hauteur de piste.
-      box.current.scrollTop = from.scroll + (delta * box.current.scrollHeight) / track.current.clientHeight
-    }
-  }
-
-  function stop() {
-    drag.current = null
-  }
-
-  const handlers = (kind) => ({ onPointerDown: start(kind), onPointerMove: move, onPointerUp: stop, onPointerCancel: stop })
-  return { track, height, thumb, measure, handlers }
-}
-
-function RailControls({ rail, label }) {
-  return (
-    <>
-      <div ref={rail.track} className="reports-prompt-menu-track" aria-hidden="true">
-        {rail.thumb.size < 1 && (
-          <span
-            className="reports-prompt-menu-thumb"
-            style={{ top: `${rail.thumb.top * 100}%`, height: `${rail.thumb.size * 100}%` }}
-            {...rail.handlers('scroll')}
-          />
-        )}
-      </div>
-      <span className="reports-prompt-menu-handle" role="separator" aria-orientation="horizontal" aria-label={label} title={label} {...rail.handlers('resize')}>
-        <svg viewBox="0 0 12 12" aria-hidden="true">
-          <path d="M11 4 4 11M11 8l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-        </svg>
-      </span>
-    </>
-  )
-}
-
-// Champ "Prompt donné à l'IA" : a droite, la disquette (enregistre le prompt
-// pour ce bilan), l'ascenseur et la poignee.
-const PROMPT_INPUT_PX = 132
-
-function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle }) {
-  const box = useRef(null)
-  const rail = useRail(box, { initial: PROMPT_INPUT_PX, min: PROMPT_INPUT_PX, max: () => Math.round(window.innerHeight * 0.7) })
-  const { measure } = rail
-
-  useEffect(measure, [measure, value, rail.height])
-
-  return (
-    <div className="reports-prompt-input">
-      <textarea
-        ref={box}
-        className="reports-prompt-menu-clip"
-        style={{ height: rail.height }}
-        value={value}
-        onChange={onChange}
-        onScroll={measure}
-        placeholder="Ex : mets en avant la hausse des cotisations, ton simple pour l'AG."
-      />
-      <div className="reports-prompt-menu-rail">
-        <button
-          type="button"
-          className="reports-prompt-button"
-          onClick={onSave}
-          disabled={saveDisabled}
-          title={saveTitle}
-          aria-label="Enregistrer ce prompt dans les prompts de ce bilan"
-        >
-          <SaveIcon />
-        </button>
-        <RailControls rail={rail} label="Tirer pour agrandir ou réduire le champ" />
-      </div>
-    </div>
-  )
-}
-
-// Prompt enregistre dans le menu : cliquer sur le texte l'utilise. A droite :
-// la corbeille, puis, si le prompt ne tient pas dans PROMPT_PREVIEW_PX de
-// haut, l'ascenseur et la poignee.
-const PROMPT_PREVIEW_PX = 96
-
-function SavedPrompt({ prompt, current, onChoose, onDelete }) {
-  const box = useRef(null)
-  const [full, setFull] = useState(null)
-  const rail = useRail(box, { initial: PROMPT_PREVIEW_PX, min: PROMPT_PREVIEW_PX, max: () => full })
-  const { measure } = rail
-
-  // Hauteur du texte entier, mesuree une fois affiche.
-  useEffect(() => {
-    setFull(box.current.scrollHeight)
-  }, [prompt])
-
-  useEffect(measure, [measure, full, rail.height])
-
-  const long = full != null && full > PROMPT_PREVIEW_PX + 4
-
-  return (
-    <div className={`reports-prompt-menu-item${current ? ' reports-prompt-menu-current' : ''}`}>
-      <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(rail.height, full) } : undefined} onScroll={measure}>
-        <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={onChoose} title="Utiliser ce prompt">
-          {prompt}
-        </button>
-      </div>
-      <div className="reports-prompt-menu-rail">
-        <button
-          type="button"
-          className="reports-prompt-button reports-prompt-delete"
-          onClick={onDelete}
-          title="Retirer ce prompt des prompts enregistrés"
-          aria-label="Retirer ce prompt des prompts enregistrés"
-        >
-          <TrashIcon />
-        </button>
-        {long && <RailControls rail={rail} label="Tirer pour agrandir ou réduire le prompt" />}
-      </div>
-    </div>
-  )
-}
-
-// Disquette (enregistrer) et corbeille : traits Lucide (licence ISC).
-function SaveIcon() {
-  return (
-    <svg className="reports-prompt-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
-      <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
-      <path d="M7 3v4a1 1 0 0 0 1 1h7" />
-    </svg>
   )
 }

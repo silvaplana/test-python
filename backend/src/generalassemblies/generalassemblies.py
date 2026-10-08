@@ -37,6 +37,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from database import Database, ordering
+from database import prompts as saved_prompts
 
 from .ai import DEFAULT_MODEL, MODELS, AnalysisError, Draft, Writer
 from .slides import (
@@ -152,7 +153,24 @@ class GeneralAssemblies:
             "files": self.files(assembly_id),
             # Zone "Réglages de l'IA" depliee dans l'ecran.
             "settingsOpen": bool(row["settings_open"]),
+            "savedPrompts": self.saved_prompts(assembly_id),
         }
+
+    # ----- prompts enregistres du calcul -----
+
+    def saved_prompts(self, assembly_id: int) -> list[dict]:
+        return saved_prompts.saved(self.db, "general_assembly_prompts", "assembly_id", assembly_id)
+
+    def save_prompt(self, assembly_id: int, prompt: str) -> list[dict]:
+        """Ajoute ce prompt a ceux du calcul (disquette de l'ecran)."""
+        prompt = (prompt or "").strip()
+        if not prompt:
+            raise AssemblyError("Le prompt est vide")
+        self._row(assembly_id)
+        return saved_prompts.save(self.db, "general_assembly_prompts", "assembly_id", assembly_id, prompt)
+
+    def delete_prompt(self, assembly_id: int, prompt_id: int) -> list[dict]:
+        return saved_prompts.delete(self.db, "general_assembly_prompts", "assembly_id", assembly_id, prompt_id)
 
     def set_settings_open(self, assembly_id: int, is_open: bool) -> dict:
         """Retient si la zone "Réglages de l'IA" est depliee dans l'ecran

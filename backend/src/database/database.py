@@ -341,6 +341,25 @@ MIGRATIONS: list[str] = [
                OR (other.updated_at = forecasts.updated_at AND other.id > forecasts.id))
     );
     """,
+    # 18 : prompts enregistres d'une assemblee generale et d'un previsionnel,
+    # comme ceux d'un bilan financier (migration 16, voir database/prompts.py).
+    # Propres a chaque calcul ; le supprimer supprime ses prompts.
+    """
+    CREATE TABLE general_assembly_prompts (
+        id INTEGER PRIMARY KEY,
+        assembly_id INTEGER NOT NULL REFERENCES general_assemblies (id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX general_assembly_prompts_assembly ON general_assembly_prompts (assembly_id);
+    CREATE TABLE forecast_prompts (
+        id INTEGER PRIMARY KEY,
+        forecast_id INTEGER NOT NULL REFERENCES forecasts (id) ON DELETE CASCADE,
+        prompt TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX forecast_prompts_forecast ON forecast_prompts (forecast_id);
+    """,
 ]
 
 

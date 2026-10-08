@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { AiSettings } from './AiSettings.jsx'
+import { PromptField } from './PromptField.jsx'
 import { CardGrip, useCardOrder } from './CardOrder.jsx'
 import { showToast } from './Toast.jsx'
 import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
@@ -507,19 +508,18 @@ function AssemblyPanel({ assemblyId, season, options, onClose, onCreated }) {
           onToggle={toggleSettings}
           summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${aiCost(assembly?.aiCost ?? 0)}`}
         >
-        <label className="trial-form-wide">
-          Prompt donné à l'IA
-          <textarea
-            rows={4}
-            value={form.prompt}
-            onChange={update('prompt')}
-            placeholder="Ex : la cotisation reste à 300 €, l'AG a lieu le 04/07, mets en avant la hausse des licenciés."
-          />
-          <span className="reports-hint">
+        <PromptField
+          value={form.prompt}
+          onChange={(prompt) => setForm((current) => ({ ...current, prompt }))}
+          basePath={assemblyId ? `/general-assemblies/${assemblyId}` : null}
+          savedPrompts={assembly?.savedPrompts}
+          onSavedPrompts={(savedPrompts) => setAssembly((current) => ({ ...current, savedPrompts }))}
+          owner="cette AG"
+          placeholder="Ex : la cotisation reste à 300 €, l'AG a lieu le 04/07, mets en avant la hausse des licenciés."
+        >
             S'ajoute aux consignes fixes : partir du PPT modèle, garder sa mise en page, écrire les diapos du trésorier avec les
             chiffres du bilan, mettre les années à jour et marquer « À compléter » ce qui n'est pas connu.
-          </span>
-        </label>
+        </PromptField>
         <label>
           Modèle d'IA
           <select value={form.model} onChange={update('model')}>

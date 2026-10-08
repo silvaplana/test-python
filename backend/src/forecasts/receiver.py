@@ -6,6 +6,13 @@ from .forecasts import ForecastError, ForecastNotFoundError, Forecasts
 from .sandbox import FormulaError
 
 
+class PromptRequest(BaseModel):
+    """Corps de POST /forecasts/{id}/prompts : prompt a enregistrer dans la
+    liste du calcul."""
+
+    prompt: str
+
+
 class OrderRequest(BaseModel):
     """Corps de POST /forecasts/reorder : identifiants des cartes de la saison, dans
     l'ordre voulu."""
@@ -75,6 +82,8 @@ class ForecastsReceiver:
         self.app.put("/forecasts/{forecast_id}/params")(self.setParams)
         self.app.put("/forecasts/{forecast_id}/explanation")(self.setExplanationOpen)
         self.app.put("/forecasts/{forecast_id}/settings")(self.setSettingsOpen)
+        self.app.post("/forecasts/{forecast_id}/prompts")(self.savePrompt)
+        self.app.delete("/forecasts/{forecast_id}/prompts/{prompt_id}")(self.deletePrompt)
         self.app.get("/forecasts/{forecast_id}/download")(self.downloadForecast)
 
     def reorderForecasts(self, request: OrderRequest) -> dict:
@@ -129,6 +138,16 @@ class ForecastsReceiver:
         """Endpoint REST PUT /forecasts/{id}/explanation : retient si la zone
         "Explication du résultat de l'IA" est depliee."""
         return self._call(self.client.set_explanation_open, forecast_id, request.open)
+
+    def savePrompt(self, forecast_id: int, request: PromptRequest) -> dict:
+        """Endpoint REST POST /forecasts/{id}/prompts : enregistre ce prompt
+        dans la liste du calcul (disquette de l'ecran)."""
+        return {"savedPrompts": self._call(self.client.save_prompt, forecast_id, request.prompt)}
+
+    def deletePrompt(self, forecast_id: int, prompt_id: int) -> dict:
+        """Endpoint REST DELETE /forecasts/{id}/prompts/{n} : retire un prompt
+        enregistre du calcul."""
+        return {"savedPrompts": self.client.delete_prompt(forecast_id, prompt_id)}
 
     def setSettingsOpen(self, forecast_id: int, request: ExplanationRequest) -> dict:
         """Endpoint REST PUT /forecasts/{id}/settings : retient si la zone

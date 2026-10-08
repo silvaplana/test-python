@@ -29,6 +29,7 @@ from datetime import date, datetime, timedelta, timezone
 from financialreports.ai import AnalysisError
 
 from database import ordering
+from database import prompts as saved_prompts
 
 from . import data as forecast_data
 from . import exports
@@ -122,7 +123,24 @@ class Forecasts:
             "explanationOpen": bool(row["explanation_open"]),
             # Zone "Réglages de l'IA" (prompt, modele, cout) depliee.
             "settingsOpen": bool(row["settings_open"]),
+            "savedPrompts": self.saved_prompts(forecast_id),
         }
+
+    # ----- prompts enregistres du calcul -----
+
+    def saved_prompts(self, forecast_id: int) -> list[dict]:
+        return saved_prompts.saved(self.db, "forecast_prompts", "forecast_id", forecast_id)
+
+    def save_prompt(self, forecast_id: int, prompt: str) -> list[dict]:
+        """Ajoute ce prompt a ceux du calcul (disquette de l'ecran)."""
+        prompt = (prompt or "").strip()
+        if not prompt:
+            raise ForecastError("Le prompt est vide")
+        self._row(forecast_id)
+        return saved_prompts.save(self.db, "forecast_prompts", "forecast_id", forecast_id, prompt)
+
+    def delete_prompt(self, forecast_id: int, prompt_id: int) -> list[dict]:
+        return saved_prompts.delete(self.db, "forecast_prompts", "forecast_id", forecast_id, prompt_id)
 
     def set_settings_open(self, forecast_id: int, is_open: bool) -> dict:
         """Retient si la zone "Réglages de l'IA" est depliee dans l'ecran

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { niceTicks } from './BalanceChart.jsx'
 import { AiSettings } from './AiSettings.jsx'
+import { PromptField } from './PromptField.jsx'
 import { CardGrip, useCardOrder } from './CardOrder.jsx'
 import { showToast } from './Toast.jsx'
 import { readSeasonChoice, writeSeasonChoice } from './seasonChoice.js'
@@ -529,21 +530,20 @@ function ForecastPanel({ forecastId, season, seasonsData, options, onClose, onCr
           onToggle={toggleSettings}
           summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${euros(forecast?.aiCost ?? 0)}`}
         >
-        <label className="trial-form-wide">
-          Prompt donné à l'IA
-          <textarea
-            rows={5}
-            value={form.prompt}
-            onChange={update('prompt')}
-            placeholder="Ex : prévois le solde jusqu'à fin juin. Paramètres : nouveaux adhérents d'ici mars (0 à 20, défaut 5), salaire mensuel (400 à 800 €, défaut 580)…"
-          />
-          <span className="reports-hint">
+        <PromptField
+          value={form.prompt}
+          onChange={(prompt) => setForm((current) => ({ ...current, prompt }))}
+          basePath={forecastId ? `/forecasts/${forecastId}` : null}
+          savedPrompts={forecast?.savedPrompts}
+          onSavedPrompts={(savedPrompts) => setForecast((current) => ({ ...current, savedPrompts }))}
+          owner="ce prévisionnel"
+          placeholder="Ex : prévois le solde jusqu'à fin juin. Paramètres : nouveaux adhérents d'ici mars (0 à 20, défaut 5), salaire mensuel (400 à 800 €, défaut 580)…"
+        >
             S'ajoute aux consignes fixes : l'IA écrit une formule Python prevoir(donnees, p) qui donne le solde (courant + Livret
             Bleu) chaque semaine jusqu'à la fin de la saison, et déclare les paramètres nommés dans le prompt (libellé, min, max,
             défaut). L'appli lui prépare les données : solde réel à la date de départ, moyennes mensuelles par catégorie des 12
             derniers mois, adhérents et échéances HelloAsso à venir.
-          </span>
-        </label>
+        </PromptField>
         <label>
           Modèle
           <select value={form.model} onChange={update('model')}>

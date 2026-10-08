@@ -358,3 +358,20 @@ def test_settings_open_is_kept(setup):
     assert http.put(f"/general-assemblies/{created['id']}/settings", json={"open": False}).json() == {"settingsOpen": False}
     assert http.get(f"/general-assemblies/{created['id']}").json()["settingsOpen"] is False
     assert http.put("/general-assemblies/999/settings", json={"open": True}).status_code == 404
+
+
+def test_saved_prompts_belong_to_their_assembly(setup):
+    client, *_ = setup
+    first = client.create({"seasonId": 2, "name": "A"})["id"]
+    second = client.create({"seasonId": 2, "name": "B"})["id"]
+    assert client.get(first)["savedPrompts"] == []
+    client.save_prompt(first, "  Ton simple  ")
+    saved = client.save_prompt(first, "Ton simple")  # doublon ignore
+    assert [p["prompt"] for p in saved] == ["Ton simple"]
+    assert client.get(first)["savedPrompts"] == saved
+    assert client.get(second)["savedPrompts"] == []  # propres a chaque calcul
+    with pytest.raises(AssemblyError):
+        client.save_prompt(first, " ")
+    assert client.delete_prompt(second, saved[0]["id"]) == []  # pas celui d'un autre calcul
+    assert len(client.saved_prompts(first)) == 1
+    assert client.delete_prompt(first, saved[0]["id"]) == []

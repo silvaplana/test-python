@@ -389,3 +389,23 @@ def test_export_keeps_only_chosen_seasons(db, seasons):
 
     text = pymupdf.open(stream=pdf, filetype="pdf")[0].get_text()
     assert "Soldes et résultat" in text and "Formule Python" not in text and "Explication" not in text
+
+
+def test_saved_prompts_belong_to_their_forecast(db, seasons):
+    forecasts = make_forecasts(db, seasons, coder=None)
+    sid = season_id(seasons, "2026-2027")
+    first = forecasts.create({"seasonId": sid, "name": "A", "model": "sonnet"})["id"]
+    second = forecasts.create({"seasonId": sid, "name": "B", "model": "sonnet"})["id"]
+    forecasts.save_prompt(first, "Salaire de 400 à 800 €")
+    saved = forecasts.save_prompt(first, "Prévois jusqu'à fin juin")
+    assert [p["prompt"] for p in forecasts.get(first)["savedPrompts"]] == ["Prévois jusqu'à fin juin", "Salaire de 400 à 800 €"]
+    assert forecasts.get(second)["savedPrompts"] == []  # propres a chaque previsionnel
+    with pytest.raises(ForecastError):
+        forecasts.save_prompt(first, "")
+    with pytest.raises(ForecastNotFoundError):
+        forecasts.save_prompt(9999, "x")
+    assert len(forecasts.delete_prompt(first, saved[0]["id"])) == 1
+    # Supprimer le previsionnel supprime ses prompts.
+    forecasts.delete(first)
+    with db.connect() as connection:
+        assert connection.execute("SELECT COUNT(*) FROM forecast_prompts").fetchone()[0] == 0
