@@ -11,14 +11,6 @@ export function requestMembersSummary() {
 }
 
 const euros = (n) => `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
-const monthYear = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
-
-// "2026-11" -> "novembre 2026" ; echeance sans date : "Date inconnue".
-function monthLabel(month) {
-  const t = Date.parse(`${month}-01T00:00:00Z`)
-  return Number.isNaN(t) ? 'Date inconnue' : monthYear.format(t)
-}
-
 const plural = (n, word) => `${n} ${word}${n > 1 ? 's' : ''}`
 
 const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })
@@ -43,14 +35,6 @@ function shortDay(day) {
 // attente de confirmation" bien apres). En tete, le total qui doit encore
 // arriver sur le compte.
 function CashSummary({ cash }) {
-  // Echeances a venir regroupees par mois, chaque jour detaille.
-  const months = []
-  for (const row of cash.upcoming.rows) {
-    const key = row.date.slice(0, 7)
-    if (months.at(-1)?.key !== key) months.push({ key, amount: 0, rows: [] })
-    months.at(-1).amount += row.amount
-    months.at(-1).rows.push(row)
-  }
   return (
     <>
       <h4 className="members-summary-title">Encaissements</h4>
@@ -93,8 +77,8 @@ function CashSummary({ cash }) {
       </CashBlock>
 
       <CashBlock title="Échéances à venir" total={cash.upcoming.total} empty="Aucune échéance à venir.">
-        {months.map((month) => (
-          <MonthRows key={month.key} month={month} />
+        {cash.upcoming.rows.map((row) => (
+          <CashRow key={row.date} label={dayLabel(row.date)} count={plural(row.payments, 'échéance')} amount={row.amount} />
         ))}
       </CashBlock>
 
@@ -148,21 +132,6 @@ function CashRow({ label, count, amount }) {
       <td className="members-summary-count">{count}</td>
       <td className="members-summary-amount">{euros(amount)}</td>
     </tr>
-  )
-}
-
-// Un mois d'echeances : sa ligne de sous-total, puis chaque jour de prelevement.
-function MonthRows({ month }) {
-  return (
-    <>
-      <tr className="members-summary-month">
-        <td colSpan="2">{monthLabel(month.key)}</td>
-        <td className="members-summary-amount">{euros(month.amount)}</td>
-      </tr>
-      {month.rows.map((row) => (
-        <CashRow key={row.date} label={dayLabel(row.date)} count={plural(row.payments, 'échéance')} amount={row.amount} />
-      ))}
-    </>
   )
 }
 

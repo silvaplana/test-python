@@ -4393,12 +4393,6 @@ span.webmail-attachment {
   text-align: right;
 }
 
-.members-summary-cash .members-summary-month td {
-  padding-top: 0.55rem;
-  color: var(--text-h);
-  font-weight: 600;
-}
-
 .members-summary-cash .members-summary-empty {
   color: var(--text);
   font-size: 0.82rem;
