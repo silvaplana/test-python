@@ -290,6 +290,8 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
   // Menu ouvert d'un clic sur "Prompt donné à l'IA" ; ferme d'un clic ailleurs.
   const [promptMenuOpen, setPromptMenuOpen] = useState(false)
   const promptMenuRef = useRef(null)
+  // Prompt long deplie dans le menu ("Voir tout").
+  const [expandedPrompt, setExpandedPrompt] = useState(null)
   useEffect(() => {
     if (!promptMenuOpen) return
     function close(event) {
@@ -459,22 +461,40 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
                     Aucun prompt enregistré pour ce bilan. La disquette enregistre le prompt en cours.
                   </p>
                 )}
-                {savedPrompts.map((p) => (
-                  <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
-                    <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={() => choosePrompt(p)}>
-                      {p.prompt}
-                    </button>
-                    <button
-                      type="button"
-                      className="reports-prompt-button reports-prompt-delete"
-                      onClick={() => deletePrompt(p)}
-                      title="Retirer ce prompt des prompts enregistrés"
-                      aria-label="Retirer ce prompt des prompts enregistrés"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
-                ))}
+                {savedPrompts.map((p) => {
+                  // Prompt long : 3 lignes, puis "Voir tout" pour le lire en entier.
+                  const long = p.prompt.length > 160 || p.prompt.split('\n').length > 3
+                  const expanded = expandedPrompt === p.id
+                  return (
+                    <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
+                      <div className="reports-prompt-menu-text">
+                        <button
+                          type="button"
+                          role="menuitem"
+                          className={`reports-prompt-menu-choice${expanded ? ' reports-prompt-menu-expanded' : ''}`}
+                          onClick={() => choosePrompt(p)}
+                          title="Utiliser ce prompt"
+                        >
+                          {p.prompt}
+                        </button>
+                        {long && (
+                          <button type="button" className="reports-prompt-menu-more" aria-expanded={expanded} onClick={() => setExpandedPrompt(expanded ? null : p.id)}>
+                            {expanded ? '▴ Réduire' : `▾ Voir tout (${p.prompt.split('\n').length} lignes)`}
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="reports-prompt-button reports-prompt-delete"
+                        onClick={() => deletePrompt(p)}
+                        title="Retirer ce prompt des prompts enregistrés"
+                        aria-label="Retirer ce prompt des prompts enregistrés"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>
