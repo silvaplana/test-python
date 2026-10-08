@@ -55,6 +55,8 @@ INLINE_IMAGE_MAX = 3 * 1024 * 1024
 # Gmail refuse les mails de plus de 25 Mo (encodage compris).
 SEND_MAX_BYTES = 18 * 1024 * 1024
 FOLDER_CACHE_SECONDS = 600
+# Mails traites en une fois (cases cochees de la liste).
+BULK_MAX = 500
 
 
 class WebmailError(Exception):
@@ -674,24 +676,40 @@ class Webmail:
 
     # --- Actions ---------------------------------------------------------
 
-    def set_flags(self, folder: str, uid: int, seen: bool | None = None, starred: bool | None = None) -> dict:
+    # Les actions acceptent un UID ou une liste d'UID (mails coches dans la
+    # liste) : une seule connexion et une seule commande IMAP pour le lot.
+
+    @staticmethod
+    def _uid_set(uid: int | list[int]) -> str:
+        uids = [uid] if isinstance(uid, int) else list(dict.fromkeys(int(item) for item in uid))
+        if not uids:
+            raise WebmailError("Aucun mail choisi")
+        if len(uids) > BULK_MAX:
+            raise WebmailError(f"Trop de mails à la fois ({BULK_MAX} au maximum)")
+        return ",".join(str(item) for item in uids)
+
+    def set_flags(
+        self, folder: str, uid: int | list[int], seen: bool | None = None, starred: bool | None = None
+    ) -> dict:
+        uids = self._uid_set(uid)
         with self._session() as conn:
             name, _criteria = self._target(conn, folder)
             self._select(conn, name, readonly=False)
             for flag, value in (("\\Seen", seen), ("\\Flagged", starred)):
                 if value is None:
                     continue
-                status, _data = conn.uid("STORE", str(uid), "+FLAGS" if value else "-FLAGS", f"({flag})")
+                status, _data = conn.uid("STORE", uids, "+FLAGS" if value else "-FLAGS", f"({flag})")
                 if status != "OK":
                     raise WebmailError("Modification refusée par le serveur")
         return {"uid": uid, "folder": folder, "seen": seen, "starred": starred}
 
-    def move(self, folder: str, uid: int, to: str) -> dict:
+    def move(self, folder: str, uid: int | list[int], to: str) -> dict:
         """Deplace vers inbox, archive (Gmail : "Tous les messages", donc
         retire de la reception), trash ou spam."""
         targets = {"inbox": "inbox", "archive": "all", "trash": "trash", "spam": "spam"}
         if to not in targets:
             raise WebmailError("Destination inconnue")
+        uids = self._uid_set(uid)
         with self._session() as conn:
             name, _criteria = self._target(conn, folder)
             destination, _ = self._target(conn, targets[to])
@@ -699,34 +717,48 @@ class Webmail:
                 return {"uid": uid, "folder": folder, "to": to}
             self._select(conn, name, readonly=False)
             if "MOVE" in conn.capabilities:
-                status, _data = conn.uid("MOVE", str(uid), _quote(destination))
+                status, _data = conn.uid("MOVE", uids, _quote(destination))
             else:
-                status, _data = conn.uid("COPY", str(uid), _quote(destination))
+                status, _data = conn.uid("COPY", uids, _quote(destination))
                 if status == "OK":
-                    conn.uid("STORE", str(uid), "+FLAGS", "(\\Deleted)")
-                    self._expunge(conn, uid)
+                    conn.uid("STORE", uids, "+FLAGS", "(\\Deleted)")
+                    self._expunge(conn, uids)
             if status != "OK":
                 raise WebmailError("Déplacement refusé par le serveur")
         return {"uid": uid, "folder": folder, "to": to}
 
-    def _expunge(self, conn, uid: int) -> None:
+    def _expunge(self, conn, uids: str) -> None:
         if "UIDPLUS" in conn.capabilities:
-            conn.uid("EXPUNGE", str(uid))
+            conn.uid("EXPUNGE", uids)
         else:
             conn.expunge()
 
-    def delete(self, folder: str, uid: int) -> dict:
+    def delete(self, folder: str, uid: int | list[int]) -> dict:
         """Suppression definitive, seulement depuis la corbeille ou le spam."""
         if folder not in ("trash", "spam"):
             raise WebmailError("Supprimer définitivement : seulement depuis la corbeille ou le spam")
+        uids = self._uid_set(uid)
         with self._session() as conn:
             name, _criteria = self._target(conn, folder)
             self._select(conn, name, readonly=False)
-            status, _data = conn.uid("STORE", str(uid), "+FLAGS", "(\\Deleted)")
+            status, _data = conn.uid("STORE", uids, "+FLAGS", "(\\Deleted)")
             if status != "OK":
                 raise WebmailError("Suppression refusée par le serveur")
-            self._expunge(conn, uid)
+            self._expunge(conn, uids)
         return {"uid": uid, "folder": folder, "deleted": True}
+
+    def bulk(self, folder: str, uids: list[int], action: str) -> dict:
+        """Action sur les mails coches : trash, archive, spam, inbox
+        (restaurer), delete (definitif), read ou unread."""
+        if action in ("trash", "archive", "spam", "inbox"):
+            self.move(folder, uids, action)
+        elif action == "delete":
+            self.delete(folder, uids)
+        elif action in ("read", "unread"):
+            self.set_flags(folder, uids, seen=action == "read")
+        else:
+            raise WebmailError("Action inconnue")
+        return {"folder": folder, "uids": uids, "action": action}
 
     # --- Envoi -----------------------------------------------------------
 

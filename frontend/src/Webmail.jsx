@@ -213,6 +213,8 @@ export function Webmail({ active }) {
   const [loadingMore, setLoadingMore] = useState(false)
   const [selected, setSelected] = useState(null)
   const [draft, setDraft] = useState(null)
+  const [checked, setChecked] = useState(() => new Set())
+  const [bulkBusy, setBulkBusy] = useState(false)
   const panes = useFillHeight(settings?.configured && active)
 
   useEffect(() => {
@@ -284,6 +286,7 @@ export function Webmail({ active }) {
 
   function chooseFolder(key) {
     setFolder(key)
+    setChecked(new Set())
     setSelected(null)
     setSearch('')
     setQuery('')
@@ -292,6 +295,7 @@ export function Webmail({ active }) {
 
   function submitSearch(event) {
     event.preventDefault()
+    setChecked(new Set())
     setSelected(null)
     setQuery(search.trim())
   }
@@ -306,6 +310,47 @@ export function Webmail({ active }) {
     setList((current) => (current ? { ...current, messages: current.messages.filter((m) => m.uid !== uid) } : current))
     setSelected(null)
     notifyUnreadChanged()
+  }
+
+  // Mails coches dans la liste : actions groupees (corbeille, lu...).
+  function toggleChecked(uid) {
+    setChecked((current) => {
+      const next = new Set(current)
+      if (next.has(uid)) next.delete(uid)
+      else next.add(uid)
+      return next
+    })
+  }
+
+  const loaded = list?.messages ?? []
+  const checkedUids = loaded.filter((m) => checked.has(m.uid)).map((m) => m.uid)
+  const allChecked = loaded.length > 0 && checkedUids.length === loaded.length
+
+  async function bulk(action, done) {
+    const uids = checkedUids
+    const count = uids.length
+    const mails = count > 1 ? `${count} mails` : 'ce mail'
+    if (action === 'delete' && !window.confirm(`Supprimer définitivement ${mails} ? Impossible de les récupérer ensuite.`)) return
+    setBulkBusy(true)
+    try {
+      await callApi('/webmail/bulk', jsonOptions('POST', { folder, uids, action }))
+      if (action === 'read' || action === 'unread') {
+        setList((current) => ({
+          ...current,
+          messages: current.messages.map((m) => (uids.includes(m.uid) ? { ...m, seen: action === 'read' } : m)),
+        }))
+      } else {
+        setList((current) => ({ ...current, messages: current.messages.filter((m) => !uids.includes(m.uid)) }))
+        if (selected && uids.includes(selected.uid)) setSelected(null)
+      }
+      setChecked(new Set())
+      notifyUnreadChanged()
+      showToast(`${count > 1 ? `${count} mails` : '1 mail'} : ${done}`, 'success')
+    } catch (err) {
+      showToast(err.message, 'error')
+    } finally {
+      setBulkBusy(false)
+    }
   }
 
   async function toggleStar(message, event) {
@@ -386,6 +431,58 @@ export function Webmail({ active }) {
 
       <div className="webmail-panes" ref={panes}>
         <div className="webmail-list">
+          {/* Barre de selection : tout cocher, puis les actions sur les mails coches. */}
+          {loaded.length > 0 && (
+            <div className={`webmail-bulk${checkedUids.length > 0 ? ' webmail-bulk-active' : ''}`}>
+              <label className="webmail-check" title={allChecked ? 'Tout décocher' : 'Tout cocher'}>
+                <input
+                  type="checkbox"
+                  checked={allChecked}
+                  ref={(el) => {
+                    if (el) el.indeterminate = checkedUids.length > 0 && !allChecked
+                  }}
+                  onChange={() => setChecked(allChecked ? new Set() : new Set(loaded.map((m) => m.uid)))}
+                  aria-label={allChecked ? 'Tout décocher' : 'Tout cocher'}
+                />
+              </label>
+              {checkedUids.length === 0 ? (
+                <span className="webmail-bulk-hint">Tout cocher</span>
+              ) : (
+                <>
+                  <span className="webmail-bulk-count">
+                    {checkedUids.length} coché{checkedUids.length > 1 ? 's' : ''}
+                  </span>
+                  {folder === 'trash' || folder === 'spam' ? (
+                    <>
+                      <button type="button" onClick={() => bulk('inbox', 'remis dans la boîte de réception')} disabled={bulkBusy}>
+                        {folder === 'spam' ? 'Pas un spam' : 'Restaurer'}
+                      </button>
+                      <button type="button" className="webmail-danger" onClick={() => bulk('delete', 'supprimé définitivement')} disabled={bulkBusy}>
+                        Supprimer définitivement
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" className="webmail-danger" onClick={() => bulk('trash', 'mis à la corbeille')} disabled={bulkBusy}>
+                        Corbeille
+                      </button>
+                      {folder === 'inbox' && folders.some((f) => f.key === 'all') && (
+                        <button type="button" onClick={() => bulk('archive', 'archivé')} disabled={bulkBusy}>
+                          Archiver
+                        </button>
+                      )}
+                    </>
+                  )}
+                  <button type="button" onClick={() => bulk('read', 'marqué comme lu')} disabled={bulkBusy}>
+                    Lu
+                  </button>
+                  <button type="button" onClick={() => bulk('unread', 'marqué comme non lu')} disabled={bulkBusy}>
+                    Non lu
+                  </button>
+                </>
+              )}
+            </div>
+          )}
           {listError && <p className="error webmail-list-note">{listError}</p>}
           {!list && !listError && <p className="webmail-list-note">Chargement…</p>}
           {list && list.messages.length === 0 && (
@@ -400,6 +497,7 @@ export function Webmail({ active }) {
                 'webmail-row',
                 message.seen ? '' : 'webmail-row-unread',
                 selected?.uid === message.uid ? 'webmail-row-selected' : '',
+                checked.has(message.uid) ? 'webmail-row-checked' : '',
               ].join(' ')}
               onClick={() => {
                 setSelected({ folder, uid: message.uid })
@@ -409,6 +507,15 @@ export function Webmail({ active }) {
                 if (e.key === 'Enter') e.currentTarget.click()
               }}
             >
+              {/* Cocher ne doit pas ouvrir le mail. */}
+              <label className="webmail-check" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={checked.has(message.uid)}
+                  onChange={() => toggleChecked(message.uid)}
+                  aria-label={`Cocher le mail « ${message.subject || 'sans objet'} »`}
+                />
+              </label>
               <button
                 type="button"
                 className={`webmail-star${message.starred ? ' webmail-star-on' : ''}`}

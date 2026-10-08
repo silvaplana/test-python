@@ -16,6 +16,15 @@ class FlagsRequest(BaseModel):
     starred: bool | None = None
 
 
+class BulkRequest(BaseModel):
+    """Corps de POST /webmail/bulk : mails coches dans la liste et action
+    (trash, archive, spam, inbox, delete, read, unread)."""
+
+    folder: str
+    uids: list[int]
+    action: str
+
+
 class MoveRequest(BaseModel):
     """Corps de POST /webmail/messages/{dossier}/{uid}/move : to = inbox,
     archive, trash ou spam."""
@@ -48,6 +57,7 @@ class WebmailReceiver:
         self.app.post("/webmail/messages/{folder}/{uid}/move")(self.moveMessage)
         self.app.delete("/webmail/messages/{folder}/{uid}")(self.deleteMessage)
         self.app.post("/webmail/send")(self.sendMessage)
+        self.app.post("/webmail/bulk")(self.bulkAction)
 
     def _call(self, action, *args, **kwargs):
         try:
@@ -109,6 +119,11 @@ class WebmailReceiver:
         """Endpoint REST DELETE /webmail/messages/{dossier}/{uid} : suppression
         definitive (corbeille ou spam seulement)."""
         return self._call(self.client.delete, folder, uid)
+
+    def bulkAction(self, request: BulkRequest) -> dict:
+        """Endpoint REST POST /webmail/bulk : une action sur tous les mails
+        coches de la liste."""
+        return self._call(self.client.bulk, request.folder, request.uids, request.action)
 
     async def sendMessage(
         self,

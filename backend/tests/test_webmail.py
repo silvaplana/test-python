@@ -158,3 +158,32 @@ def test_send_route_and_attachment_download():
     assert response.headers["content-disposition"].startswith("attachment;")
     assert "filename*=UTF-8''page%20%C3%A9.html" in response.headers["content-disposition"]
     assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_bulk_actions_on_checked_mails():
+    calls = []
+
+    class Recorder(Webmail):
+        def move(self, folder, uid, to):
+            calls.append(("move", folder, self._uid_set(uid), to))
+
+        def delete(self, folder, uid):
+            calls.append(("delete", folder, self._uid_set(uid)))
+
+        def set_flags(self, folder, uid, seen=None, starred=None):
+            calls.append(("flags", folder, self._uid_set(uid), seen))
+
+    webmail = Recorder("club@example.org", "secret")
+    webmail.bulk("inbox", [5, 7, 5], "trash")  # doublon retire
+    webmail.bulk("trash", [9], "delete")
+    webmail.bulk("inbox", [1, 2], "unread")
+    assert calls == [("move", "inbox", "5,7", "trash"), ("delete", "trash", "9"), ("flags", "inbox", "1,2", False)]
+    with pytest.raises(WebmailError):
+        webmail.bulk("inbox", [1], "autre")
+    with pytest.raises(WebmailError):
+        Webmail._uid_set([])
+    with pytest.raises(WebmailError):
+        Webmail._uid_set(list(range(501)))
+    # Suppression definitive refusee hors corbeille et spam, avant toute connexion.
+    with pytest.raises(WebmailError):
+        Webmail("club@example.org", "secret").bulk("inbox", [1], "delete")

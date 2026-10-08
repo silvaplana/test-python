@@ -4269,3 +4269,77 @@ span.webmail-attachment {
 .webmail-toolbar-gap {
   height: 0.6rem;
 }
+
+/* Mail : cases a cocher de la liste et barre d'actions sur les mails coches. */
+.webmail-check {
+  display: flex;
+  align-items: flex-start;
+  padding: 0.2rem 0.15rem 0.2rem 0.35rem;
+  cursor: pointer;
+}
+
+.webmail-check input {
+  width: 1.05rem;
+  height: 1.05rem;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.webmail-bulk {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 2.4rem;
+  padding: 0.3rem 0.5rem 0.3rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 0.82rem;
+}
+
+.webmail-bulk .webmail-check {
+  align-items: center;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.webmail-bulk-active {
+  background: var(--code-bg);
+}
+
+.webmail-bulk-count {
+  margin-right: 0.2rem;
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.webmail-bulk button {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-h);
+  font: inherit;
+  cursor: pointer;
+}
+
+.webmail-bulk button:hover:not(:disabled) {
+  background: var(--accent-bg);
+}
+
+.webmail-bulk button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.webmail-bulk .webmail-danger {
+  color: #f87171;
+}
+
+.webmail-row-checked {
+  background: var(--accent-bg);
+}
