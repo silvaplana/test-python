@@ -4356,3 +4356,74 @@ span.webmail-attachment {
 .trial-dialog .reports-prompt-menu {
   max-height: min(55vh, 24rem);
 }
+
+/* Statistiques des adherents : detail des encaissements (compte courant,
+   transit, HelloAsso, echeances a venir), voir CashSummary. */
+.members-summary-receive {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 0.4rem 0 0.9rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 10px;
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+.members-summary-receive b {
+  font-size: 1.25rem;
+  white-space: nowrap;
+}
+
+.members-summary-cash {
+  margin-bottom: 0.9rem;
+}
+
+.members-summary-cash thead th {
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-h);
+  font-size: 0.92rem;
+  text-align: left;
+}
+
+.members-summary-cash thead .members-summary-amount {
+  text-align: right;
+}
+
+.members-summary-cash .members-summary-month td {
+  padding-top: 0.55rem;
+  color: var(--text-h);
+  font-weight: 600;
+}
+
+.members-summary-cash .members-summary-empty {
+  color: var(--text);
+  font-size: 0.82rem;
+  font-style: italic;
+}
+
+/* Libelles et explications : a la ligne plutot que de deborder du panneau
+   (telephone) ; montants et nombres restent sur une ligne. */
+.members-summary-cash {
+  width: 100%;
+  table-layout: auto;
+}
+
+.members-summary-cash th,
+.members-summary-cash td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.members-summary-cash .members-summary-amount,
+.members-summary-cash .members-summary-count {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+.members-summary-cash .members-summary-amount {
+  padding-left: 0.6rem;
+}

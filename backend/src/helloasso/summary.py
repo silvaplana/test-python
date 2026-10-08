@@ -29,6 +29,18 @@ PAID_PAYMENT_STATES = {"Authorized", "Registered", "Corrected"}
 REFUNDED_PAYMENT_STATES = {"Refunded", "Refunding", "Contested"}
 # Tout autre etat (Pending, Waiting...) : echeance a venir.
 
+# Ou en est l'argent d'un paiement encaisse (cashOutState) :
+# - verse sur le compte courant du club ;
+CASHED_OUT_STATES = {"CashedOut"}
+# - versement vers le compte courant lance, pas encore arrive (cashOutDate :
+#   date de la demande) ;
+CASH_OUT_PENDING_STATES = {"WaitingForCashOutConfirmation", "TransferInProgress"}
+# - tout autre etat (Transfered, MoneyIn...) : chez HelloAsso, versement pas
+#   encore lance, donc sans date connue.
+# Paiements par carte ou prelevement : les seuls qui passent par HelloAsso
+# (un cheque ou des especes arrivent au club directement).
+ONLINE_PAYMENT_MEANS = {"Card", "Sepa", None}
+
 # Etats d'une adhesion (item) resiliee : elle reste dans HelloAsso, mais ne
 # compte plus parmi les adherents.
 CANCELED_ITEM_STATES = {"Canceled", "Refunded", "Refunding", "Abandoned"}
@@ -57,7 +69,8 @@ def members_summary(members: list[dict], member_payments: list[dict], today: dat
 
     Retour : {"members", "adults", "minors", "unknownAge", "averagePrice",
     "totalPrice", "freeMembers", "remaining": [{"month": "AAAA-MM", "amount",
-    "payments"}], "remainingTotal", "unpaidTotal"} (montants en euros).
+    "payments"}], "remainingTotal", "unpaidTotal", "cash": voir
+    cash_summary} (montants en euros).
     """
     members = [m for m in members if m.get("state") not in CANCELED_ITEM_STATES]
     ages = [_age(m.get("customFields", {}).get("date de naissance"), today) for m in members]
@@ -89,7 +102,81 @@ def members_summary(members: list[dict], member_payments: list[dict], today: dat
         "remaining": remaining,
         "remainingTotal": sum(r["amount"] * 100 for r in remaining) / 100,
         "unpaidTotal": unpaid_cents / 100,
+        # Detail des encaissements : compte courant, HelloAsso, a venir.
+        "cash": cash_summary(member_payments),
     }
+
+
+def _by_date(rows: dict[str, list[int]]) -> list[dict]:
+    """{"AAAA-MM-JJ": [centimes]} -> lignes triees par date."""
+    return [
+        {"date": day, "amount": sum(amounts) / 100, "payments": len(amounts)}
+        for day, amounts in sorted(rows.items())
+    ]
+
+
+def cash_summary(member_payments: list[dict]) -> dict:
+    """Ou en est l'argent des adhesions (member_payments :
+    HelloAsso.get_member_payments), du compte courant du club aux echeances
+    a venir.
+
+    Retour (montants en euros, dates "AAAA-MM-JJ") : {
+      "onAccount": deja verse sur le compte courant, par date de versement ;
+      "inTransit": encaisse par HelloAsso, versement lance (date de la
+        demande) mais pas encore arrive ;
+      "held": encaisse par HelloAsso, versement pas encore lance ;
+      "offline": paye hors HelloAsso (cheque, especes...) ;
+      "upcoming": echeances a venir, par jour de prelevement ;
+      "toReceive": ce qui doit encore arriver sur le compte courant
+        (inTransit + held + upcoming) }
+    onAccount, inTransit, upcoming : {"total", "payments", "rows": [{"date",
+    "amount", "payments"}]} ; held, offline : {"total", "payments"}.
+    """
+    on_account: dict[str, list[int]] = {}
+    in_transit: dict[str, list[int]] = {}
+    upcoming: dict[str, list[int]] = {}
+    held: list[int] = []
+    offline: list[int] = []
+    for member in member_payments:
+        for payment in member["payments"]:
+            cents = round(payment["amount"] * 100)
+            state = payment["state"]
+            if state in FAILED_PAYMENT_STATES or state in REFUNDED_PAYMENT_STATES:
+                continue
+            if state not in PAID_PAYMENT_STATES:
+                upcoming.setdefault((payment["date"] or "")[:10], []).append(cents)
+                continue
+            cash_out = payment.get("cashOutState")
+            if cash_out in REFUNDED_PAYMENT_STATES:
+                continue
+            day = (payment.get("cashOutDate") or "")[:10]
+            if payment.get("paymentMeans") not in ONLINE_PAYMENT_MEANS:
+                offline.append(cents)
+            elif cash_out in CASHED_OUT_STATES:
+                on_account.setdefault(day, []).append(cents)
+            elif cash_out in CASH_OUT_PENDING_STATES:
+                in_transit.setdefault(day, []).append(cents)
+            else:
+                held.append(cents)
+
+    def dated(rows: dict[str, list[int]]) -> dict:
+        return {
+            "total": sum(sum(amounts) for amounts in rows.values()) / 100,
+            "payments": sum(len(amounts) for amounts in rows.values()),
+            "rows": _by_date(rows),
+        }
+
+    result = {
+        "onAccount": dated(on_account),
+        "inTransit": dated(in_transit),
+        "held": {"total": sum(held) / 100, "payments": len(held)},
+        "offline": {"total": sum(offline) / 100, "payments": len(offline)},
+        "upcoming": dated(upcoming),
+    }
+    result["toReceive"] = round(
+        (result["inTransit"]["total"] + result["held"]["total"] + result["upcoming"]["total"]) * 100
+    ) / 100
+    return result
 
 
 def cancellation_preview(order: dict) -> dict:

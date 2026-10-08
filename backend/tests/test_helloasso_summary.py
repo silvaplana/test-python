@@ -64,6 +64,43 @@ def test_remaining_by_month():
     assert summary["unpaidTotal"] == 60.0
 
 
+def test_cash_from_account_to_upcoming_installments():
+    def paid(amount, cash_out, cash_out_date=None, means="Card"):
+        return {"amount": amount, "state": "Authorized", "date": "2026-09-01T10:00:00+02:00", "paymentMeans": means,
+                "cashOutState": cash_out, "cashOutDate": cash_out_date}
+
+    payments = [
+        {"payments": [
+            paid(200, "CashedOut", "2026-09-03T08:00:00+02:00"),
+            paid(100.5, "CashedOut", "2026-09-03T08:00:00+02:00"),
+            paid(100, "CashedOut", "2026-09-08T08:00:00+02:00"),
+            paid(150, "WaitingForCashOutConfirmation", "2026-10-07T08:00:00+02:00"),
+            paid(120, "Transfered"),
+            paid(30, "MoneyIn"),
+            paid(60, None, means="Check"),          # cheque : jamais passe par HelloAsso
+            paid(999, "Refunded"),                   # rembourse : nulle part
+            payment(80, "Pending", "2026-11-30T00:00:00+01:00"),
+            payment(80, "Pending", "2026-11-30T00:00:00+01:00"),
+            payment(70, "Pending", "2026-12-13T00:00:00+01:00"),
+            payment(50, "Refused", "2026-10-01T00:00:00+02:00"),  # impaye : compte a part
+        ]},
+    ]
+    cash = members_summary([], payments, TODAY)["cash"]
+    assert cash["onAccount"] == {"total": 400.5, "payments": 3, "rows": [
+        {"date": "2026-09-03", "amount": 300.5, "payments": 2},
+        {"date": "2026-09-08", "amount": 100.0, "payments": 1},
+    ]}
+    assert cash["inTransit"] == {"total": 150.0, "payments": 1, "rows": [{"date": "2026-10-07", "amount": 150.0, "payments": 1}]}
+    assert cash["held"] == {"total": 150.0, "payments": 2}
+    assert cash["offline"] == {"total": 60.0, "payments": 1}
+    assert cash["upcoming"] == {"total": 230.0, "payments": 3, "rows": [
+        {"date": "2026-11-30", "amount": 160.0, "payments": 2},
+        {"date": "2026-12-13", "amount": 70.0, "payments": 1},
+    ]}
+    # Encore a recevoir sur le compte courant : en cours + chez HelloAsso + a venir.
+    assert cash["toReceive"] == 530.0
+
+
 def test_no_members():
     summary = members_summary([], [], TODAY)
 
