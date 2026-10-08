@@ -114,9 +114,17 @@ ffst_receiver = FfstReceiver(client=ffst_client, app=protected_router)
 database = Database(os.environ.get("DATABASE_PATH", "data/sambo.db"))
 database.migrate()
 
-# Envoi de mails par SMTP (voir mailer/mailer.py, ex: compte Gmail avec un
-# mot de passe d'application) : inactif tant que SMTP_USER/SMTP_PASSWORD ne
-# sont pas definis (les mails sont alors juste journalises).
+# Adresse de l'association (CONTACT_ASSOCIATION) : la seule a regler pour
+# tout ce qui revient au club -- reponses des eleves a l'essai et des
+# adherents, copie des mails aux adherents, alertes et recapitulatifs de la
+# verification des dossiers. MAIL_REPLY_TO, son ancien nom pour les reponses,
+# ne sert plus qu'a defaut.
+contact_association = os.environ.get("CONTACT_ASSOCIATION") or os.environ.get("MAIL_REPLY_TO") or None
+
+# Envoi de mails par SMTP (voir mailer/mailer.py, ex: Brevo ou un compte
+# Gmail avec un mot de passe d'application) : inactif tant que
+# SMTP_USER/SMTP_PASSWORD ne sont pas definis (les mails sont alors juste
+# journalises).
 mailer = Mailer(
     host=os.environ.get("SMTP_HOST", "smtp.gmail.com"),
     port=int(os.environ.get("SMTP_PORT", "587")),
@@ -124,16 +132,15 @@ mailer = Mailer(
     password=os.environ.get("SMTP_PASSWORD", ""),
     sender=os.environ.get("MAIL_SENDER", ""),
     sender_name=os.environ.get("MAIL_SENDER_NAME", "Alliance Sambo Combat La Ciotat"),
-    reply_to=os.environ.get("MAIL_REPLY_TO") or None,
+    reply_to=contact_association,
 )
 
 # Mail a un adherent depuis l'onglet HelloAsso > Adherents (voir
 # HelloAssoReceiver.sendMemberMail) : expedie par MEMBERS_MAIL_SENDER,
-# l'association (CONTACT_ASSOCIATION, a defaut MAIL_REPLY_TO) en copie et en
-# adresse de reponse.
+# l'association (contact_association) en copie et en adresse de reponse.
 helloasso_receiver.enable_member_mail(
     mailer,
-    contact=os.environ.get("CONTACT_ASSOCIATION") or os.environ.get("MAIL_REPLY_TO"),
+    contact=contact_association,
     sender=os.environ.get("MEMBERS_MAIL_SENDER", "sambo-admin@silvaplana.cloud"),
     # Trace de chaque mail en base (table member_mails).
     journal=MemberMails(database),

@@ -3,8 +3,8 @@ d'application").
 
 Configuration (backend/.env) : SMTP_HOST, SMTP_PORT, SMTP_USER,
 SMTP_PASSWORD, MAIL_SENDER (adresse d'expedition -- avec Gmail, celle du
-compte), MAIL_SENDER_NAME, MAIL_REPLY_TO (ou arrivent les reponses des
-destinataires, ex: l'adresse du club). Sans SMTP_USER/SMTP_PASSWORD : aucun
+compte), MAIL_SENDER_NAME ; adresse de reponse : CONTACT_ASSOCIATION, l'adresse
+du club (voir app/main.py). Sans SMTP_USER/SMTP_PASSWORD : aucun
 mail n'est envoye (send retourne False), pratique en developpement local.
 
 Gmail : https://myaccount.google.com/apppasswords (validation en 2 etapes
