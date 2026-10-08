@@ -812,13 +812,13 @@ td button + .ffst-role-picker,
     padding-bottom: 2rem;
   }
 
-  /* La sidebar (180px) mange une largeur fixe que "vw" (base sur la
+  /* La sidebar (232px) mange une largeur fixe que "vw" (base sur la
      fenetre entiere) ne peut pas connaitre : sans ce correctif, le
      coefficient mobile (calibre sans sidebar) fait deborder le titre
      juste apres ce point de rupture. Coefficient + soustraction fixe
      ajustes empiriquement (768px a 1920px, cf. .campaign-title). */
   .campaign-title {
-    font-size: clamp(1.3rem, calc(6.3vw - 23px), 2.9rem);
+    font-size: clamp(1.3rem, calc(6.3vw - 23px), 2.7rem);
   }
 }
 

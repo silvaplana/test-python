@@ -6,7 +6,7 @@ import { requestMemberChecks } from './MemberChecks.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
 import { MessagingChat, MessagingMail } from './Messaging.jsx'
 import { MailUnreadBadge } from './Webmail.jsx'
-import { ChatIcon, FinancesIcon, MailIcon, MessagingIcon, TrialIcon } from './NavIcons.jsx'
+import { ChatIcon, FinancesIcon, LicenceIcon, MailIcon, MembersIcon, MessagingIcon, ProfileIcon, TrialIcon } from './NavIcons.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialReports } from './FinancialReports.jsx'
@@ -35,6 +35,7 @@ function AppContent() {
         {
           key: 'helloasso',
           label: 'Adhérents',
+          icon: <MembersIcon />,
           // Badge "nouveaux adherents non consultes" (voir HelloAsso.jsx) :
           // sur la section (sidebar/bottom-nav, visible sans avoir a ouvrir
           // la section) ET sur l'outil "Adherents" precis (sous-onglet, une
@@ -64,6 +65,7 @@ function AppContent() {
         {
           key: 'ffst',
           label: 'Licences',
+          icon: <LicenceIcon />,
           tools: [
             { label: 'Demandes brouillon', shortLabel: 'Brouillon', content: () => <DraftTable /> },
             { label: 'Demandes validées', shortLabel: 'Validées', content: () => <DemandesTable /> },
@@ -147,6 +149,7 @@ function AppContent() {
         {
           key: 'profil',
           label: 'Profil',
+          icon: <ProfileIcon />,
           tools: [{ label: 'Profil', content: () => <Profile /> }],
         },
       ]}

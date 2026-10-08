@@ -31,6 +31,14 @@ from database import Database
 from .ai import DEFAULT_MODEL, MODELS, Analysis, AnalysisError, Analyst
 from .report import compute_report, unclassified
 
+# Prompts preenregistres, communs a tous les bilans : proposes dans un menu
+# deroulant au-dessus du prompt (le choisir remplace le texte du prompt, qui
+# reste modifiable). En dur pour l'instant.
+PRESET_PROMPTS = [
+    "SKJSKJDSKDJSKDCN?D?D?DKDLSKKLSLKLKD",
+    "sqslqmqmlqmlqmqlqqlqlqlq\nmmxmsùùsùs\nxxxxxxxx",
+]
+
 STATES = {"brouillon": "Brouillon", "valide": "Validé", "officiel": "Officiel"}
 # Nombre de saisons precedentes comparees par l'IA.
 PREVIOUS_SEASONS = 3
@@ -79,6 +87,10 @@ class FinancialReports:
             "models": [{"id": key, "label": spec["label"]} for key, spec in MODELS.items()],
             "defaultModel": DEFAULT_MODEL,
             "states": [{"id": key, "label": label} for key, label in STATES.items()],
+            "presetPrompts": [
+                {"id": f"preset-{index}", "label": f"Prompt {index}", "prompt": prompt}
+                for index, prompt in enumerate(PRESET_PROMPTS, start=1)
+            ],
         }
 
     def counts(self) -> dict[int, int]:

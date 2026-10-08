@@ -260,3 +260,9 @@ def test_settings_open_is_kept(db, seasons):
     assert reports.set_settings_open(created["id"], False) == {"settingsOpen": False}
     again = reports.get(created["id"])
     assert again["settingsOpen"] is False and again["updatedAt"] == created["updatedAt"]
+
+
+def test_preset_prompts_common_to_all_reports(db, seasons):
+    presets = make_reports(db, seasons, analyst=None).models()["presetPrompts"]
+    assert [p["id"] for p in presets] == ["preset-1", "preset-2"]
+    assert presets[1]["prompt"] == "sqslqmqmlqmlqmqlqqlqlqlq\nmmxmsùùsùs\nxxxxxxxx"

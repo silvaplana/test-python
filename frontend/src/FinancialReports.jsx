@@ -386,6 +386,28 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
           onToggle={toggleSettings}
           summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${aiCost(report?.aiCost ?? 0)}`}
         >
+        {options.presetPrompts?.length > 0 && (
+          <label className="trial-form-wide">
+            Prompt préenregistré
+            <select
+              value={options.presetPrompts.find((p) => p.prompt === form.prompt)?.id ?? ''}
+              onChange={(e) => {
+                const preset = options.presetPrompts.find((p) => p.id === e.target.value)
+                if (!preset) return
+                const known = !form.prompt.trim() || options.presetPrompts.some((p) => p.prompt === form.prompt)
+                if (!known && !window.confirm('Remplacer le prompt actuel par ce prompt préenregistré ?')) return
+                setForm((current) => ({ ...current, prompt: preset.prompt }))
+              }}
+            >
+              <option value="">— Prompt personnalisé —</option>
+              {options.presetPrompts.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label} : {p.prompt.split('\n')[0].slice(0, 50)}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <label className="trial-form-wide">
           Prompt donné à l'IA
           <textarea

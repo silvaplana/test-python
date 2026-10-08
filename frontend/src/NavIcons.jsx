@@ -19,6 +19,31 @@ function NavIcon({ children }) {
   )
 }
 
+// Adherents : un groupe de personnes.
+export function MembersIcon() {
+  return (
+    <NavIcon>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </NavIcon>
+  )
+}
+
+// Licences : une carte de licencie (photo et lignes).
+export function LicenceIcon() {
+  return (
+    <NavIcon>
+      <rect x="2" y="5" width="20" height="14" rx="2" />
+      <circle cx="9" cy="11" r="2" />
+      <path d="M6.17 15a3 3 0 0 1 5.66 0" />
+      <path d="M15 10h3" />
+      <path d="M15 14h3" />
+    </NavIcon>
+  )
+}
+
 // Essai : un gant de boxe, incline comme pour un coup de poing (reduit
 // pour rester dans le cadre de 24 x 24).
 export function TrialIcon() {
@@ -71,6 +96,16 @@ export function ChatIcon() {
   return (
     <NavIcon>
       <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
+    </NavIcon>
+  )
+}
+
+// Profil : une silhouette.
+export function ProfileIcon() {
+  return (
+    <NavIcon>
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
     </NavIcon>
   )
 }
