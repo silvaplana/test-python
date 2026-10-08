@@ -3781,13 +3781,25 @@ tr.member-row {
   overflow-wrap: anywhere;
 }
 
-/* Fond blanc : les mails HTML sont ecrits pour un fond clair. */
+/* Corps HTML d'un mail : fond sombre par defaut (couleurs inversees dans le
+   cadre, voir HtmlBody), fond clair d'origine a la demande. */
+.webmail-html-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.2rem;
+}
+
 .webmail-html {
   display: block;
   width: 100%;
-  height: 300px;
-  border: none;
+  height: 120px;
+  border: 1px solid var(--border);
   border-radius: 8px;
+  background: var(--bg);
+}
+
+.webmail-html-light {
   background: #fff;
 }
 

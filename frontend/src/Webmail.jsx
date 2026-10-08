@@ -658,36 +658,75 @@ function MessageView({ folder, uid, folders, ownAddress, onBack, onDraft, onRemo
 // liens ouverts dans un nouvel onglet. allow-same-origin sert seulement a
 // mesurer la hauteur du contenu depuis l'appli (sans scripts, le mail ne
 // peut rien en faire).
+//
+// Fond sombre, comme le reste de l'appli : les mails sont ecrits pour un fond
+// clair, donc leurs couleurs sont inversees (clair <-> sombre, teintes
+// gardees) et les images remises a l'endroit. "Fond clair" montre le mail tel
+// qu'il a ete ecrit, pour ceux que l'inversion rendrait mal ; le choix est
+// retenu sur l'appareil.
+const LIGHT_MAIL_KEY = 'webmail-light-mails'
+const BASE_STYLE =
+  'html,body{margin:0}body{padding:16px;font:14px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}'
+const LIGHT_STYLE = 'html,body{background:#fff;color:#202124}'
+// #e7e8f0 inverse puis tourne de 180 degres donne le fond de l'appli (#16171d).
+const DARK_STYLE =
+  'html{background:#16171d}body{background:#e7e8f0;color:#202124;filter:invert(1) hue-rotate(180deg)}img,video,picture,svg{filter:invert(1) hue-rotate(180deg)}picture img{filter:none}'
+
+function readLightMails() {
+  try {
+    return localStorage.getItem(LIGHT_MAIL_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
 function HtmlBody({ html }) {
   const frame = useRef(null)
+  const [light, setLight] = useState(readLightMails)
   const document_ = `<!doctype html><html><head><meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: https: http:; style-src 'unsafe-inline' https:; font-src https: data:">
 <base target="_blank">
-<style>html,body{margin:0;background:#fff;color:#202124}body{padding:16px;font:14px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}</style>
+<style>${BASE_STYLE}${light ? LIGHT_STYLE : DARK_STYLE}</style>
 </head><body>${html}</body></html>`
 
   function fit() {
     const el = frame.current
-    const doc = el?.contentDocument
-    if (!doc?.documentElement) return
-    el.style.height = `${doc.documentElement.scrollHeight + 4}px`
+    const body = el?.contentDocument?.body
+    if (!body) return
+    // Hauteur du contenu lui-meme (pas celle du cadre, qui ne retrecit jamais).
+    el.style.height = `${Math.max(body.offsetHeight, body.scrollHeight) + 4}px`
   }
 
   useEffect(() => {
     // Images chargees apres coup : la hauteur change.
     const timers = [400, 1500, 4000].map((delay) => setTimeout(fit, delay))
     return () => timers.forEach(clearTimeout)
-  }, [html])
+  }, [html, light])
+
+  function toggle() {
+    const next = !light
+    setLight(next)
+    try {
+      localStorage.setItem(LIGHT_MAIL_KEY, next ? '1' : '0')
+    } catch {
+      // Stockage indisponible : le choix vaut pour ce mail seulement.
+    }
+  }
 
   return (
-    <iframe
-      ref={frame}
-      className="webmail-html"
-      title="Contenu du mail"
-      sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      srcDoc={document_}
-      onLoad={fit}
-    />
+    <div className="webmail-html-wrap">
+      <button type="button" className="webmail-link webmail-html-toggle" onClick={toggle}>
+        {light ? 'Fond sombre' : 'Fond clair'}
+      </button>
+      <iframe
+        ref={frame}
+        className={`webmail-html${light ? ' webmail-html-light' : ''}`}
+        title="Contenu du mail"
+        sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        srcDoc={document_}
+        onLoad={fit}
+      />
+    </div>
   )
 }
 
