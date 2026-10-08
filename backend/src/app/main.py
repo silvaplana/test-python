@@ -32,6 +32,7 @@ from members_history import MembersHistory, MembersHistoryReceiver
 from notifications import NotificationsReceiver, PushNotifications
 from seasons import Seasons, SeasonsReceiver
 from trials import Trials, TrialsPublicReceiver, TrialsReceiver
+from webmail import Webmail, WebmailReceiver
 
 load_dotenv()  # charge backend/.env si present (variables HELLOASSO_*)
 
@@ -323,6 +324,21 @@ forecasts_client = Forecasts(
     today=lambda: datetime.now(ZoneInfo("Europe/Paris")).date(),
 )
 forecasts_receiver = ForecastsReceiver(client=forecasts_client, app=accounts_router)
+
+# Boite mail de l'association (/webmail/...), onglet Messagerie > Mail :
+# meme protection que les comptes. Lue sur Gmail en IMAP et envoyee en SMTP
+# avec un mot de passe d'application (WEBMAIL_APP_PASSWORD) ; adresse :
+# WEBMAIL_ADDRESS, a defaut CONTACT_ASSOCIATION. Rien n'est copie en base.
+webmail_client = Webmail(
+    address=os.environ.get("WEBMAIL_ADDRESS") or contact_association or "",
+    password=os.environ.get("WEBMAIL_APP_PASSWORD", ""),
+    sender_name=os.environ.get("MAIL_SENDER_NAME", "Alliance Sambo Combat La Ciotat"),
+    imap_host=os.environ.get("WEBMAIL_IMAP_HOST", "imap.gmail.com"),
+    imap_port=int(os.environ.get("WEBMAIL_IMAP_PORT", "993")),
+    smtp_host=os.environ.get("WEBMAIL_SMTP_HOST", "smtp.gmail.com"),
+    smtp_port=int(os.environ.get("WEBMAIL_SMTP_PORT", "587")),
+)
+webmail_receiver = WebmailReceiver(client=webmail_client, app=accounts_router)
 
 # Toutes les routes protegees ont ete enregistrees sur protected_router
 # ci-dessus (par les differents *_receiver) : les incorpore maintenant

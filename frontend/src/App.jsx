@@ -5,6 +5,7 @@ import { requestStatementImport } from './BankHistory.jsx'
 import { requestMemberChecks } from './MemberChecks.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
 import { MessagingChat, MessagingMail } from './Messaging.jsx'
+import { MailUnreadBadge } from './Webmail.jsx'
 import { ChatIcon, FinancesIcon, MailIcon, MessagingIcon, TrialIcon } from './NavIcons.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
@@ -133,9 +134,11 @@ function AppContent() {
                 key: 'messagerie',
                 label: 'Messagerie',
                 icon: <MessagingIcon />,
+                // Mails non lus de la boite de l'association (voir Webmail.jsx).
+                badge: <MailUnreadBadge />,
                 alwaysShowTabs: true,
                 tools: [
-                  { label: 'Mail', icon: <MailIcon />, content: () => <MessagingMail /> },
+                  { label: 'Mail', icon: <MailIcon />, badge: <MailUnreadBadge />, content: (active) => <MessagingMail active={active} /> },
                   { label: 'Tchat', icon: <ChatIcon />, content: () => <MessagingChat /> },
                 ],
               },

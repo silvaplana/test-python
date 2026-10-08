@@ -1,6 +1,8 @@
+import { Webmail } from './Webmail.jsx'
+
 // Onglet Messagerie (sous-onglets Mail et Tchat), reserve au mot de passe
-// "comptes" (voir App.jsx). Pour l'instant un ecran "En chantier..." par
-// sous-onglet.
+// "comptes" (voir App.jsx). Mail : boite Gmail de l'association (voir
+// Webmail.jsx) ; Tchat : "En chantier..." pour l'instant.
 function UnderConstruction({ title }) {
   return (
     <section>
@@ -14,8 +16,8 @@ function UnderConstruction({ title }) {
   )
 }
 
-export function MessagingMail() {
-  return <UnderConstruction title="Mail" />
+export function MessagingMail({ active }) {
+  return <Webmail active={active} />
 }
 
 export function MessagingChat() {
