@@ -290,8 +290,6 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
   // Menu ouvert d'un clic sur "Prompt donné à l'IA" ; ferme d'un clic ailleurs.
   const [promptMenuOpen, setPromptMenuOpen] = useState(false)
   const promptMenuRef = useRef(null)
-  // Prompt long deplie dans le menu ("Voir tout").
-  const [expandedPrompt, setExpandedPrompt] = useState(null)
   useEffect(() => {
     if (!promptMenuOpen) return
     function close(event) {
@@ -461,44 +459,20 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
                     Aucun prompt enregistré pour ce bilan. La disquette enregistre le prompt en cours.
                   </p>
                 )}
-                {savedPrompts.map((p) => {
-                  // Prompt long : cadre de 3 lignes a etirer, ou "Voir tout".
-                  const long = p.prompt.length > 160 || p.prompt.split('\n').length > 3
-                  const expanded = expandedPrompt === p.id
-                  return (
-                    <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
-                      <div className="reports-prompt-menu-text">
-                        {/* Prompt long : cadre a poignee (coin en bas a droite) pour
-                            l'etirer, avec defilement ; "Voir tout" l'ouvre en entier. */}
-                        <div className={long && !expanded ? 'reports-prompt-menu-resizable' : undefined}>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="reports-prompt-menu-choice"
-                            onClick={() => choosePrompt(p)}
-                            title="Utiliser ce prompt"
-                          >
-                            {p.prompt}
-                          </button>
-                        </div>
-                        {long && (
-                          <button type="button" className="reports-prompt-menu-more" aria-expanded={expanded} onClick={() => setExpandedPrompt(expanded ? null : p.id)}>
-                            {expanded ? '▴ Réduire' : `▾ Voir tout (${p.prompt.split('\n').length} lignes)`}
-                          </button>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        className="reports-prompt-button reports-prompt-delete"
-                        onClick={() => deletePrompt(p)}
-                        title="Retirer ce prompt des prompts enregistrés"
-                        aria-label="Retirer ce prompt des prompts enregistrés"
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  )
-                })}
+                {savedPrompts.map((p) => (
+                  <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
+                    <SavedPrompt prompt={p.prompt} onChoose={() => choosePrompt(p)} />
+                    <button
+                      type="button"
+                      className="reports-prompt-button reports-prompt-delete"
+                      onClick={() => deletePrompt(p)}
+                      title="Retirer ce prompt des prompts enregistrés"
+                      aria-label="Retirer ce prompt des prompts enregistrés"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ))}
               </div>
             )}
           </div>
@@ -732,6 +706,65 @@ function MonthTable({ result }) {
         </table>
       </div>
     </>
+  )
+}
+
+// Prompt enregistre dans le menu : cliquer dessus l'utilise. Trop long pour
+// tenir (plus de PROMPT_PREVIEW_PX de haut) : coupe, avec une poignee dans le
+// coin en bas a droite a tirer (souris ou doigt) pour en voir plus -- pas de
+// barre de defilement.
+const PROMPT_PREVIEW_PX = 84
+
+function SavedPrompt({ prompt, onChoose }) {
+  const box = useRef(null)
+  const drag = useRef(null)
+  const [full, setFull] = useState(null)
+  const [height, setHeight] = useState(PROMPT_PREVIEW_PX)
+
+  // Hauteur du texte entier, mesuree une fois affiche.
+  useEffect(() => {
+    setFull(box.current.scrollHeight)
+  }, [prompt])
+
+  const long = full != null && full > PROMPT_PREVIEW_PX + 4
+
+  function startDrag(event) {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    drag.current = { y: event.clientY, height: box.current.clientHeight }
+  }
+
+  function moveDrag(event) {
+    if (!drag.current) return
+    const next = drag.current.height + event.clientY - drag.current.y
+    setHeight(Math.min(full, Math.max(48, next)))
+  }
+
+  return (
+    <div className="reports-prompt-menu-text">
+      <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(height, full) } : undefined}>
+        <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={onChoose} title="Utiliser ce prompt">
+          {prompt}
+        </button>
+      </div>
+      {long && (
+        <span
+          className="reports-prompt-menu-handle"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Tirer pour voir plus ou moins du prompt"
+          title="Tirer pour voir plus ou moins du prompt"
+          onPointerDown={startDrag}
+          onPointerMove={moveDrag}
+          onPointerUp={() => (drag.current = null)}
+          onPointerCancel={() => (drag.current = null)}
+        >
+          <svg viewBox="0 0 12 12" aria-hidden="true">
+            <path d="M11 4 4 11M11 8l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+          </svg>
+        </span>
+      )}
+    </div>
   )
 }
 
