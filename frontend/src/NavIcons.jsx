@@ -19,14 +19,17 @@ function NavIcon({ children }) {
   )
 }
 
-// Essai : un gant de boxe.
+// Essai : un gant de boxe, incline comme pour un coup de poing (reduit
+// pour rester dans le cadre de 24 x 24).
 export function TrialIcon() {
   return (
     <NavIcon>
-      <path d="M8 15v-2.5c-2.2 0-3.8-1.4-3.8-3.2S5.8 6.2 8 6.2C8.4 3.6 10.6 2 13.4 2c3.4 0 6.1 2.6 6.1 6.2v3c0 2.1-1.7 3.8-3.8 3.8Z" />
-      <path d="M8 9.3c1.6 0 3 .6 3.6 1.7" />
-      <path d="M7.2 15h10.6v5.2a.8.8 0 0 1-.8.8H8a.8.8 0 0 1-.8-.8z" />
-      <path d="M7.2 18h10.6" />
+      <g transform="translate(12 12) rotate(35) scale(0.86) translate(-12 -11.5)">
+        <path d="M8 15v-2.5c-2.2 0-3.8-1.4-3.8-3.2S5.8 6.2 8 6.2C8.4 3.6 10.6 2 13.4 2c3.4 0 6.1 2.6 6.1 6.2v3c0 2.1-1.7 3.8-3.8 3.8Z" />
+        <path d="M8 9.3c1.6 0 3 .6 3.6 1.7" />
+        <path d="M7.2 15h10.6v5.2a.8.8 0 0 1-.8.8H8a.8.8 0 0 1-.8-.8z" />
+        <path d="M7.2 18h10.6" />
+      </g>
     </NavIcon>
   )
 }
