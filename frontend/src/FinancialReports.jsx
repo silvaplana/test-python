@@ -462,21 +462,25 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
                   </p>
                 )}
                 {savedPrompts.map((p) => {
-                  // Prompt long : 3 lignes, puis "Voir tout" pour le lire en entier.
+                  // Prompt long : cadre de 3 lignes a etirer, ou "Voir tout".
                   const long = p.prompt.length > 160 || p.prompt.split('\n').length > 3
                   const expanded = expandedPrompt === p.id
                   return (
                     <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
                       <div className="reports-prompt-menu-text">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={`reports-prompt-menu-choice${expanded ? ' reports-prompt-menu-expanded' : ''}`}
-                          onClick={() => choosePrompt(p)}
-                          title="Utiliser ce prompt"
-                        >
-                          {p.prompt}
-                        </button>
+                        {/* Prompt long : cadre a poignee (coin en bas a droite) pour
+                            l'etirer, avec defilement ; "Voir tout" l'ouvre en entier. */}
+                        <div className={long && !expanded ? 'reports-prompt-menu-resizable' : undefined}>
+                          <button
+                            type="button"
+                            role="menuitem"
+                            className="reports-prompt-menu-choice"
+                            onClick={() => choosePrompt(p)}
+                            title="Utiliser ce prompt"
+                          >
+                            {p.prompt}
+                          </button>
+                        </div>
                         {long && (
                           <button type="button" className="reports-prompt-menu-more" aria-expanded={expanded} onClick={() => setExpandedPrompt(expanded ? null : p.id)}>
                             {expanded ? '▴ Réduire' : `▾ Voir tout (${p.prompt.split('\n').length} lignes)`}
