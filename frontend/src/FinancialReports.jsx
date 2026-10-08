@@ -435,7 +435,6 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
               title="Prompts enregistrés de ce bilan"
             >
               Prompt donné à l'IA <span aria-hidden="true">▾</span>
-              {savedPrompts.length > 0 && <span className="reports-prompt-count">{savedPrompts.length}</span>}
             </button>
             <button
               type="button"
