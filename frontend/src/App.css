@@ -4244,3 +4244,8 @@ span.webmail-attachment {
   opacity: 1;
   color: var(--accent);
 }
+
+/* Espace entre la barre d'outils du mail et la liste (hors recherche). */
+.webmail-toolbar-gap {
+  height: 0.6rem;
+}

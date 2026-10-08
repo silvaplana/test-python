@@ -375,10 +375,14 @@ export function Webmail({ active }) {
           <RefreshIcon />
         </button>
       </div>
-      <p className="webmail-address">
-        {settings.address}
-        {query ? ` · recherche « ${query} » dans ${folderLabel}` : ''}
-      </p>
+      {/* Rappel de la recherche en cours (l'adresse de la boite n'est pas affichee). */}
+      {query ? (
+        <p className="webmail-address">
+          Recherche « {query} » dans {folderLabel}
+        </p>
+      ) : (
+        <div className="webmail-toolbar-gap" />
+      )}
 
       <div className="webmail-panes" ref={panes}>
         <div className="webmail-list">
