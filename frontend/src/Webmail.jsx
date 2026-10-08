@@ -670,8 +670,9 @@ function MessageView({ folder, uid, folders, ownAddress, onBack, onDraft, onRemo
 // retenu sur l'appareil.
 const LIGHT_MAIL_KEY = 'webmail-light-mails'
 const BASE_STYLE =
-  'html,body{margin:0}body{padding:16px;font:14px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}'
-const LIGHT_STYLE = 'html,body{background:#fff;color:#202124}'
+  'html,body{margin:0}body{font:14px/1.5 Arial,Helvetica,sans-serif;overflow-wrap:anywhere}img{max-width:100%;height:auto}table{max-width:100%}'
+// Fond clair : une marge, pour que le texte ne colle pas au bord du cadre blanc.
+const LIGHT_STYLE = 'html,body{background:#fff;color:#202124}body{padding:16px}'
 // #e7e8f0 inverse puis tourne de 180 degres donne le fond de l'appli (#16171d).
 const DARK_STYLE =
   'html{background:#16171d}body{background:#e7e8f0;color:#202124;filter:invert(1) hue-rotate(180deg)}img,video,picture,svg{filter:invert(1) hue-rotate(180deg)}picture img{filter:none}'
