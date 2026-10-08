@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from auth import require_accounts_auth
 from mailer import MailError
 
-from .mails import normalize_phone
+from .mails import TemplateError, normalize_phone
 
 from .helloasso import HelloAsso, HelloAssoAuthError
 from .summary import FAILED_PAYMENT_STATES, cancellation_preview, members_summary
@@ -31,6 +31,15 @@ class MemberMailRequest(BaseModel):
 
     subject: str
     message: str
+
+
+class TemplateRequest(BaseModel):
+    """Corps de POST /helloasso/templates : message a preenregistrer. kind :
+    "mail" (objet + corps) ou "sms" (corps seul)."""
+
+    kind: str
+    subject: str = ""
+    body: str
 
 
 class MemberSmsRequest(BaseModel):
@@ -157,7 +166,9 @@ class HelloAssoReceiver:
             raise HTTPException(status_code=502, detail=f"HelloAsso injoignable : {exc}") from exc
         return cancellation_preview(self._order(order_id))
 
-    def enable_member_mail(self, mailer, contact: str | None, sender: str | None, journal=None, sms_journal=None) -> None:
+    def enable_member_mail(
+        self, mailer, contact: str | None, sender: str | None, journal=None, sms_journal=None, templates=None
+    ) -> None:
         """Active l'envoi d'un mail a un adherent (POST
         /helloasso/members/{id}/mail). mailer : voir mailer/mailer.py ;
         contact : adresse de l'association, mise en copie et en adresse de
@@ -176,11 +187,39 @@ class HelloAssoReceiver:
             self.app.get("/helloasso/members/{item_id}/sms")(self.getMemberSms)
         self.contact = contact or None
         self.mail_sender = sender or None
+        # Messages preenregistres (helloasso.mails.MessageTemplates), proposes
+        # dans les fenetres de mail et de SMS.
+        self.templates = templates
+        if templates is not None:
+            self.app.get("/helloasso/templates")(self.getTemplates)
+            self.app.post("/helloasso/templates")(self.saveTemplate)
+            self.app.delete("/helloasso/templates/{template_id}")(self.deleteTemplate)
         self.app.get("/helloasso/mail-settings")(self.getMailSettings)
         self.app.post("/helloasso/members/{item_id}/mail")(self.sendMemberMail)
         self.app.get("/helloasso/mails")(self.getMails)
         self.app.get("/helloasso/mail-counts")(self.getMailCounts)
         self.app.get("/helloasso/members/{item_id}/mails")(self.getMemberMails)
+
+    def _templates(self, action, *args) -> dict:
+        try:
+            return {"templates": action(*args)}
+        except TemplateError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    def getTemplates(self, kind: str) -> dict:
+        """Endpoint REST GET /helloasso/templates?kind=mail|sms : messages
+        preenregistres de ce genre, le plus recent en premier."""
+        return self._templates(self.templates.list, kind)
+
+    def saveTemplate(self, request: TemplateRequest) -> dict:
+        """Endpoint REST POST /helloasso/templates : preenregistre un message
+        (disquette de la fenetre de mail ou de SMS)."""
+        return self._templates(self.templates.save, request.kind, request.subject, request.body)
+
+    def deleteTemplate(self, template_id: int, kind: str) -> dict:
+        """Endpoint REST DELETE /helloasso/templates/{id}?kind= : retire un
+        message preenregistre."""
+        return self._templates(self.templates.delete, kind, template_id)
 
     def getMailSettings(self) -> dict:
         """Endpoint REST GET /helloasso/mail-settings : ce que l'ecran affiche

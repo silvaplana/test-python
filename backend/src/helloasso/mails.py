@@ -162,3 +162,60 @@ class MemberSms:
             "body": row["body"],
             "sentAt": row["sent_at"],
         }
+
+
+class TemplateError(ValueError):
+    """Message preenregistre refuse (vide, genre inconnu)."""
+
+
+class MessageTemplates:
+    """Messages preenregistres pour ecrire aux adherents (table
+    member_message_templates) : la disquette de la fenetre de mail ou de SMS
+    garde l'objet et le corps en cours, le menu de la fenetre les repropose.
+    Communs a tous les adherents ; {prénom} et {nom} dans le texte sont
+    remplaces par l'ecran au moment de choisir le message."""
+
+    KINDS = ("mail", "sms")
+
+    def __init__(self, db: Database) -> None:
+        self.db = db
+
+    def list(self, kind: str) -> list[dict]:
+        """Messages de ce genre, du plus recent au plus ancien."""
+        self._check_kind(kind)
+        with self.db.connect() as connection:
+            rows = connection.execute(
+                "SELECT id, subject, body FROM member_message_templates WHERE kind = ? ORDER BY id DESC", (kind,)
+            ).fetchall()
+        return [{"id": row["id"], "subject": row["subject"], "body": row["body"]} for row in rows]
+
+    def save(self, kind: str, subject: str, body: str) -> list[dict]:
+        """Ajoute le message (sans doublon). Mail : objet sur une ligne."""
+        self._check_kind(kind)
+        subject = " ".join((subject or "").split()) if kind == "mail" else ""
+        body = (body or "").strip()
+        if not body:
+            raise TemplateError("Le message est vide")
+        if kind == "mail" and not subject:
+            raise TemplateError("L'objet est vide")
+        with self.db.connect() as connection:
+            exists = connection.execute(
+                "SELECT 1 FROM member_message_templates WHERE kind = ? AND subject = ? AND body = ?",
+                (kind, subject, body),
+            ).fetchone()
+            if not exists:
+                connection.execute(
+                    "INSERT INTO member_message_templates (kind, subject, body, created_at) VALUES (?, ?, ?, ?)",
+                    (kind, subject, body, datetime.now(timezone.utc).isoformat(timespec="seconds")),
+                )
+        return self.list(kind)
+
+    def delete(self, kind: str, template_id: int) -> list[dict]:
+        self._check_kind(kind)
+        with self.db.connect() as connection:
+            connection.execute("DELETE FROM member_message_templates WHERE id = ? AND kind = ?", (template_id, kind))
+        return self.list(kind)
+
+    def _check_kind(self, kind: str) -> None:
+        if kind not in self.KINDS:
+            raise TemplateError("Genre de message inconnu")

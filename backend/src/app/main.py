@@ -25,7 +25,7 @@ from financialreports import FinancialReports, FinancialReportsReceiver
 from forecasts import Forecasts, ForecastsReceiver
 from generalassemblies import GeneralAssemblies, GeneralAssembliesReceiver
 from helloasso import HelloAsso, HelloAssoReceiver
-from helloasso.mails import MemberMails, MemberSms
+from helloasso.mails import MemberMails, MemberSms, MessageTemplates
 from helloasso.verification import MemberChecks
 from mailer import Mailer
 from members_history import MembersHistory, MembersHistoryReceiver
@@ -146,6 +146,8 @@ helloasso_receiver.enable_member_mail(
     # Trace de chaque mail en base (table member_mails).
     journal=MemberMails(database),
     sms_journal=MemberSms(database),
+    # Messages preenregistres des fenetres de mail et de SMS.
+    templates=MessageTemplates(database),
 )
 
 # Verification par IA du dossier des adherents (voir

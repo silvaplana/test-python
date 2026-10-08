@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { PromptInput, SavedPrompt, useDropdown } from './PromptField.jsx'
 import { showToast } from './Toast.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -36,6 +37,101 @@ function ContactDialog({ title, onClose, busy = false, children }) {
   )
 }
 
+// Messages preenregistres (GET/POST/DELETE /helloasso/templates), communs a
+// tous les adherents : kind "mail" (objet + corps) ou "sms" (corps seul).
+// {prénom} et {nom} dans un message sont remplaces par ceux de l'adherent au
+// moment de le choisir ; a l'enregistrement, le "Bonjour <prénom>" du debut
+// redevient "Bonjour {prénom}", pour que le message serve a tout le monde.
+function useTemplates(kind, member) {
+  const [templates, setTemplates] = useState([])
+  const firstName = member.payerFirstName || member.firstName || ''
+
+  useEffect(() => {
+    callApi(`/helloasso/templates?kind=${kind}`)
+      .then((body) => setTemplates(body.templates))
+      .catch(() => setTemplates([]))
+  }, [kind])
+
+  const fill = (text) => text.replaceAll('{prénom}', firstName).replaceAll('{nom}', member.lastName || '')
+  const generic = (text) => {
+    const greeting = `Bonjour ${firstName}`
+    return firstName && text.startsWith(greeting) ? `Bonjour {prénom}${text.slice(greeting.length)}` : text
+  }
+
+  // Message preenregistre qui correspond a ce qui est ecrit, s'il y en a un.
+  const match = (subject, body) =>
+    templates.find((t) => fill(t.body).trim() === body.trim() && (kind !== 'mail' || fill(t.subject).trim() === subject.trim()))
+
+  async function save(subject, body) {
+    try {
+      const saved = await callApi('/helloasso/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind, subject: generic(subject), body: generic(body) }),
+      })
+      setTemplates(saved.templates)
+      showToast('Message préenregistré')
+    } catch (err) {
+      showToast(`Message non préenregistré : ${err.message}`, 'warning')
+    }
+  }
+
+  async function remove(template) {
+    if (!window.confirm('Retirer ce message des messages préenregistrés ?')) return
+    try {
+      const saved = await callApi(`/helloasso/templates/${template.id}?kind=${kind}`, { method: 'DELETE' })
+      setTemplates(saved.templates)
+    } catch (err) {
+      showToast(`Message non retiré : ${err.message}`, 'warning')
+    }
+  }
+
+  return { templates, fill, match, save, remove }
+}
+
+// Titre d'un champ ("Objet", "Message") qui ouvre le menu des messages
+// preenregistres : cliquer sur un message le reprend, sa corbeille le retire.
+// Meme presentation que les prompts de Finances (voir PromptField.jsx).
+function TemplateMenu({ label, store, current, onChoose }) {
+  const menu = useDropdown()
+  return (
+    <div className="reports-prompt-title" ref={menu.ref}>
+      <button
+        type="button"
+        className="reports-prompt-menu-button"
+        aria-haspopup="menu"
+        aria-expanded={menu.open}
+        onClick={() => menu.setOpen((open) => !open)}
+        title="Messages préenregistrés"
+      >
+        {label} <span aria-hidden="true">▾</span>
+      </button>
+      {menu.open && (
+        <div className="reports-prompt-menu" role="menu">
+          {store.templates.length === 0 && (
+            <p className="reports-prompt-menu-empty">Aucun message préenregistré. La disquette enregistre celui en cours.</p>
+          )}
+          {store.templates.map((template) => (
+            <SavedPrompt
+              key={template.id}
+              title={template.subject}
+              prompt={template.body}
+              current={template.id === current?.id}
+              chooseLabel="Utiliser ce message"
+              deleteLabel="Retirer ce message des messages préenregistrés"
+              onChoose={() => {
+                onChoose(template)
+                menu.setOpen(false)
+              }}
+              onDelete={() => store.remove(template)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Mail a un adherent (onglet HelloAsso > Adherents) : objet et message
 // libres, envoyes par le backend (POST /helloasso/members/{id}/mail) a son
 // adresse HelloAsso, l'association en copie et en adresse de reponse.
@@ -46,6 +142,19 @@ export function MemberMailDialog({ member, onClose, onSent }) {
   const [message, setMessage] = useState(`Bonjour ${member.payerFirstName || member.firstName},\n\n`)
   const [pending, setPending] = useState(false)
   const [error, setError] = useState(null)
+  // Messages preenregistres : celui qui correspond a ce qui est ecrit.
+  const templates = useTemplates('mail', member)
+  const currentTemplate = templates.match(subject, message)
+  const startMessage = `Bonjour ${member.payerFirstName || member.firstName},\n\n`
+
+  function applyTemplate(template) {
+    // Rien d'ecrit (ou un autre message preenregistre) : on remplace sans demander.
+    const untouched = (!subject.trim() && message.trim() === startMessage.trim()) || !message.trim() || currentTemplate
+    if (!untouched && !window.confirm('Remplacer l’objet et le message en cours par ce message préenregistré ?')) return
+    setSubject(templates.fill(template.subject))
+    setMessage(templates.fill(template.body))
+  }
+
   // Mails deja envoyes a cet adherent, rappeles sous le formulaire.
   const [history, setHistory] = useState(null)
 
@@ -102,14 +211,32 @@ export function MemberMailDialog({ member, onClose, onSent }) {
         </dl>
         {settings && !settings.enabled && <p className="warning">L'envoi de mails n'est pas configuré sur le serveur.</p>}
         <div className="trial-form-grid">
-          <label className="trial-form-wide">
-            Objet
-            <input value={subject} onChange={(e) => setSubject(e.target.value)} required autoComplete="off" />
-          </label>
-          <label className="trial-form-wide">
-            Message
-            <textarea rows={9} value={message} onChange={(e) => setMessage(e.target.value)} required />
-          </label>
+          {/* "Objet ▾" : menu des messages preenregistres (objet + message). */}
+          <div className="trial-form-wide reports-prompt-field">
+            <TemplateMenu label="Objet" store={templates} current={currentTemplate} onChoose={applyTemplate} />
+            <input value={subject} onChange={(e) => setSubject(e.target.value)} required autoComplete="off" aria-label="Objet" />
+          </div>
+          <div className="trial-form-wide reports-prompt-field">
+            <span>Message</span>
+            <PromptInput
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              onSave={() => templates.save(subject, message)}
+              saveDisabled={!subject.trim() || !message.trim() || Boolean(currentTemplate)}
+              saveTitle={
+                currentTemplate
+                  ? 'Ce message est déjà préenregistré'
+                  : !subject.trim() || !message.trim()
+                    ? 'Écris un objet et un message pour les préenregistrer'
+                    : 'Préenregistrer cet objet et ce message'
+              }
+              saveLabel="Préenregistrer cet objet et ce message"
+              required
+            />
+            <span className="reports-hint">
+              Dans un message préenregistré, {'{prénom}'} et {'{nom}'} sont remplacés par ceux de l'adhérent.
+            </span>
+          </div>
         </div>
 
         {error && <p className="error">{error}</p>}
@@ -155,6 +282,16 @@ export function MemberSmsDialog({ member, onClose, onPrepared }) {
   const phone = smsNumber(rawPhone)
   const [message, setMessage] = useState(`Bonjour ${member.payerFirstName || member.firstName}, `)
   const [history, setHistory] = useState(null)
+  const templates = useTemplates('sms', member)
+  const currentTemplate = templates.match('', message)
+  const startMessage = `Bonjour ${member.payerFirstName || member.firstName},`
+
+  function applyTemplate(template) {
+    const untouched = !message.trim() || message.trim() === startMessage || currentTemplate
+    if (!untouched && !window.confirm('Remplacer le message en cours par ce message préenregistré ?')) return
+    setMessage(templates.fill(template.body))
+  }
+
 
   useEffect(() => {
     callApi(`/helloasso/members/${member.id}/sms`)
@@ -190,14 +327,23 @@ export function MemberSmsDialog({ member, onClose, onPrepared }) {
         </div>
       </dl>
       <div className="trial-form-grid">
-        <label className="trial-form-wide">
-          Message
-          <textarea rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />
+        {/* "Message ▾" : menu des SMS preenregistres. */}
+        <div className="trial-form-wide reports-prompt-field">
+          <TemplateMenu label="Message" store={templates} current={currentTemplate} onChoose={applyTemplate} />
+          <PromptInput
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onSave={() => templates.save('', message)}
+            saveDisabled={!message.trim() || Boolean(currentTemplate)}
+            saveTitle={currentTemplate ? 'Ce message est déjà préenregistré' : 'Préenregistrer ce message'}
+            saveLabel="Préenregistrer ce message"
+          />
           <span className="reports-hint">
             {message.length} caractère{message.length > 1 ? 's' : ''}. Le SMS part de l'appli SMS de ton téléphone, donc de ton
-            numéro : à utiliser depuis un téléphone.
+            numéro : à utiliser depuis un téléphone. Dans un message préenregistré, {'{prénom}'} et {'{nom}'} sont remplacés par
+            ceux de l'adhérent.
           </span>
-        </label>
+        </div>
       </div>
       <div className="trial-dialog-actions">
         {/* ?&body= : forme comprise par Android comme par iPhone. */}

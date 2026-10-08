@@ -360,6 +360,20 @@ MIGRATIONS: list[str] = [
     );
     CREATE INDEX forecast_prompts_forecast ON forecast_prompts (forecast_id);
     """,
+    # 19 : messages preenregistres pour ecrire aux adherents (voir
+    # helloasso/mails.py, MessageTemplates) : kind "mail" (objet + corps) ou
+    # "sms" (corps seul). Communs a tous les adherents ; le corps peut contenir
+    # {prénom} et {nom}, remplaces par ceux de l'adherent a qui l'on ecrit.
+    """
+    CREATE TABLE member_message_templates (
+        id INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL,
+        subject TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    CREATE INDEX member_message_templates_kind ON member_message_templates (kind);
+    """,
 ]
 
 

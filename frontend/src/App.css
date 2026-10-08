@@ -4343,3 +4343,16 @@ span.webmail-attachment {
 .webmail-row-checked {
   background: var(--accent-bg);
 }
+
+/* Objet d'un mail preenregistre, au-dessus de son texte dans le menu. */
+.reports-prompt-menu-heading {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--accent);
+}
+
+/* Fenetres de mail et de SMS aux adherents : le menu des messages
+   preenregistres passe au-dessus de la suite du formulaire. */
+.trial-dialog .reports-prompt-menu {
+  max-height: min(55vh, 24rem);
+}

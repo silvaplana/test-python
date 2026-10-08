@@ -23,24 +23,32 @@ async function callApi(path, options) {
   return body
 }
 
-export function PromptField({ value, onChange, basePath, savedPrompts, onSavedPrompts, owner, placeholder, children }) {
-  // Menu ouvert d'un clic sur le titre ; ferme d'un clic ailleurs ou par Echap.
-  const [menuOpen, setMenuOpen] = useState(false)
-  const menuRef = useRef(null)
+// Menu deroulant ouvert d'un clic sur un titre ; ferme d'un clic ailleurs ou
+// par Echap. ref : a poser sur l'element qui contient le titre et le menu.
+export function useDropdown() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
   useEffect(() => {
-    if (!menuOpen) return
+    if (!open) return
     function close(event) {
-      if (event.type === 'keydown' ? event.key === 'Escape' : !menuRef.current?.contains(event.target)) {
-        setMenuOpen(false)
+      if (event.type === 'keydown' ? event.key === 'Escape' : !ref.current?.contains(event.target)) {
+        // Echap ne doit pas fermer aussi la fenetre (dialog) qui contient le menu.
+        if (event.type === 'keydown') event.preventDefault()
+        setOpen(false)
       }
     }
     document.addEventListener('mousedown', close)
-    document.addEventListener('keydown', close)
+    document.addEventListener('keydown', close, true)
     return () => {
       document.removeEventListener('mousedown', close)
-      document.removeEventListener('keydown', close)
+      document.removeEventListener('keydown', close, true)
     }
-  }, [menuOpen])
+  }, [open])
+  return { open, setOpen, ref }
+}
+
+export function PromptField({ value, onChange, basePath, savedPrompts, onSavedPrompts, owner, placeholder, children }) {
+  const { open: menuOpen, setOpen: setMenuOpen, ref: menuRef } = useDropdown()
 
   const saved = savedPrompts ?? []
   // Prompt enregistre qui correspond au texte en cours, s'il y en a un.
@@ -194,7 +202,7 @@ function RailControls({ rail, label }) {
 // calcul), l'ascenseur et la poignee.
 const PROMPT_INPUT_PX = 132
 
-function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle, placeholder }) {
+export function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle, placeholder, saveLabel = 'Enregistrer ce prompt', required = false }) {
   const box = useRef(null)
   const rail = useRail(box, { initial: PROMPT_INPUT_PX, min: PROMPT_INPUT_PX, max: () => Math.round(window.innerHeight * 0.7) })
   const { measure } = rail
@@ -211,6 +219,7 @@ function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle, placeho
         onChange={onChange}
         onScroll={measure}
         placeholder={placeholder}
+        required={required}
       />
       <div className="reports-prompt-menu-rail">
         <button
@@ -219,7 +228,7 @@ function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle, placeho
           onClick={onSave}
           disabled={saveDisabled}
           title={saveTitle}
-          aria-label="Enregistrer ce prompt"
+          aria-label={saveLabel}
         >
           <SaveIcon />
         </button>
@@ -234,7 +243,7 @@ function PromptInput({ value, onChange, onSave, saveDisabled, saveTitle, placeho
 // haut, l'ascenseur et la poignee.
 const PROMPT_PREVIEW_PX = 96
 
-function SavedPrompt({ prompt, current, onChoose, onDelete }) {
+export function SavedPrompt({ prompt, title, current, onChoose, onDelete, chooseLabel = 'Utiliser ce prompt', deleteLabel = 'Retirer ce prompt des prompts enregistrés' }) {
   const box = useRef(null)
   const [full, setFull] = useState(null)
   const rail = useRail(box, { initial: PROMPT_PREVIEW_PX, min: PROMPT_PREVIEW_PX, max: () => full })
@@ -252,7 +261,9 @@ function SavedPrompt({ prompt, current, onChoose, onDelete }) {
   return (
     <div className={`reports-prompt-menu-item${current ? ' reports-prompt-menu-current' : ''}`}>
       <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(rail.height, full) } : undefined} onScroll={measure}>
-        <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={onChoose} title="Utiliser ce prompt">
+        <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={onChoose} title={chooseLabel}>
+          {/* Titre facultatif (objet d'un mail preenregistre). */}
+          {title && <strong className="reports-prompt-menu-heading">{title}</strong>}
           {prompt}
         </button>
       </div>
@@ -261,8 +272,8 @@ function SavedPrompt({ prompt, current, onChoose, onDelete }) {
           type="button"
           className="reports-prompt-button reports-prompt-delete"
           onClick={onDelete}
-          title="Retirer ce prompt des prompts enregistrés"
-          aria-label="Retirer ce prompt des prompts enregistrés"
+          title={deleteLabel}
+          aria-label={deleteLabel}
         >
           <TrashIcon />
         </button>
