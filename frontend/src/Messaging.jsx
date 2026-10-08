@@ -1,23 +1,23 @@
 // Onglet Messagerie (sous-onglets Mail et Tchat), reserve au mot de passe
-// "comptes" (voir App.jsx). Pour l'instant un ecran d'attente par sous-onglet.
-function InDevelopment({ title, children }) {
+// "comptes" (voir App.jsx). Pour l'instant un ecran "En chantier..." par
+// sous-onglet.
+function UnderConstruction({ title }) {
   return (
     <section>
       <div className="section-header">
         <h2>{title}</h2>
       </div>
       <div className="in-development">
-        <p className="in-development-badge">🚧 En cours de dev</p>
-        <p>{children}</p>
+        <p className="in-development-badge">🚧 En chantier...</p>
       </div>
     </section>
   )
 }
 
 export function MessagingMail() {
-  return <InDevelopment title="Mail">La messagerie mail du club.</InDevelopment>
+  return <UnderConstruction title="Mail" />
 }
 
 export function MessagingChat() {
-  return <InDevelopment title="Tchat">Le tchat du club.</InDevelopment>
+  return <UnderConstruction title="Tchat" />
 }
