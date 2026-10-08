@@ -444,18 +444,13 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
                   </p>
                 )}
                 {savedPrompts.map((p) => (
-                  <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
-                    <SavedPrompt prompt={p.prompt} onChoose={() => choosePrompt(p)} />
-                    <button
-                      type="button"
-                      className="reports-prompt-button reports-prompt-delete"
-                      onClick={() => deletePrompt(p)}
-                      title="Retirer ce prompt des prompts enregistrés"
-                      aria-label="Retirer ce prompt des prompts enregistrés"
-                    >
-                      <TrashIcon />
-                    </button>
-                  </div>
+                  <SavedPrompt
+                    key={p.id}
+                    prompt={p.prompt}
+                    current={p.id === selectedPrompt?.id}
+                    onChoose={() => choosePrompt(p)}
+                    onDelete={() => deletePrompt(p)}
+                  />
                 ))}
               </div>
             )}
@@ -712,61 +707,109 @@ function MonthTable({ result }) {
   )
 }
 
-// Prompt enregistre dans le menu : cliquer dessus l'utilise. Trop long pour
-// tenir (plus de PROMPT_PREVIEW_PX de haut) : coupe, avec une poignee dans le
-// coin en bas a droite a tirer (souris ou doigt) pour en voir plus -- pas de
-// barre de defilement.
-const PROMPT_PREVIEW_PX = 84
+// Prompt enregistre dans le menu : cliquer sur le texte l'utilise. A droite,
+// sur une meme colonne : la corbeille, puis, si le prompt ne tient pas dans
+// PROMPT_PREVIEW_PX de haut, un ascenseur (fait maison, pour s'aligner avec
+// le reste) et une poignee a tirer (souris ou doigt) pour agrandir le cadre.
+const PROMPT_PREVIEW_PX = 96
 
-function SavedPrompt({ prompt, onChoose }) {
+function SavedPrompt({ prompt, current, onChoose, onDelete }) {
   const box = useRef(null)
+  const track = useRef(null)
   const drag = useRef(null)
   const [full, setFull] = useState(null)
   const [height, setHeight] = useState(PROMPT_PREVIEW_PX)
+  // Curseur de l'ascenseur : position et taille, en fraction de la piste.
+  const [thumb, setThumb] = useState({ top: 0, size: 1 })
+
+  const long = full != null && full > PROMPT_PREVIEW_PX + 4
+
+  function measure() {
+    const el = box.current
+    if (!el) return
+    setThumb({ top: el.scrollTop / el.scrollHeight, size: Math.min(1, el.clientHeight / el.scrollHeight) })
+  }
 
   // Hauteur du texte entier, mesuree une fois affiche.
   useEffect(() => {
     setFull(box.current.scrollHeight)
   }, [prompt])
 
-  const long = full != null && full > PROMPT_PREVIEW_PX + 4
+  useEffect(measure, [full, height])
 
-  function startDrag(event) {
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    drag.current = { y: event.clientY, height: box.current.clientHeight }
+  function start(kind) {
+    return (event) => {
+      event.preventDefault()
+      event.currentTarget.setPointerCapture(event.pointerId)
+      drag.current = { kind, y: event.clientY, height: box.current.clientHeight, scroll: box.current.scrollTop }
+    }
   }
 
-  function moveDrag(event) {
-    if (!drag.current) return
-    const next = drag.current.height + event.clientY - drag.current.y
-    setHeight(Math.min(full, Math.max(48, next)))
+  function move(event) {
+    const from = drag.current
+    if (!from) return
+    const delta = event.clientY - from.y
+    if (from.kind === 'resize') {
+      setHeight(Math.min(full, Math.max(PROMPT_PREVIEW_PX, from.height + delta)))
+    } else {
+      // Curseur : un pixel de piste vaut scrollHeight / hauteur de piste.
+      box.current.scrollTop = from.scroll + (delta * box.current.scrollHeight) / track.current.clientHeight
+    }
+  }
+
+  function stop() {
+    drag.current = null
   }
 
   return (
-    <div className="reports-prompt-menu-text">
-      <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(height, full) } : undefined}>
+    <div className={`reports-prompt-menu-item${current ? ' reports-prompt-menu-current' : ''}`}>
+      <div ref={box} className="reports-prompt-menu-clip" style={long ? { height: Math.min(height, full) } : undefined} onScroll={measure}>
         <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={onChoose} title="Utiliser ce prompt">
           {prompt}
         </button>
       </div>
-      {long && (
-        <span
-          className="reports-prompt-menu-handle"
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Tirer pour voir plus ou moins du prompt"
-          title="Tirer pour voir plus ou moins du prompt"
-          onPointerDown={startDrag}
-          onPointerMove={moveDrag}
-          onPointerUp={() => (drag.current = null)}
-          onPointerCancel={() => (drag.current = null)}
+      <div className="reports-prompt-menu-rail">
+        <button
+          type="button"
+          className="reports-prompt-button reports-prompt-delete"
+          onClick={onDelete}
+          title="Retirer ce prompt des prompts enregistrés"
+          aria-label="Retirer ce prompt des prompts enregistrés"
         >
-          <svg viewBox="0 0 12 12" aria-hidden="true">
-            <path d="M11 4 4 11M11 8l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
-          </svg>
-        </span>
-      )}
+          <TrashIcon />
+        </button>
+        {long && (
+          <>
+            <div ref={track} className="reports-prompt-menu-track" aria-hidden="true">
+              {thumb.size < 1 && (
+                <span
+                  className="reports-prompt-menu-thumb"
+                  style={{ top: `${thumb.top * 100}%`, height: `${thumb.size * 100}%` }}
+                  onPointerDown={start('scroll')}
+                  onPointerMove={move}
+                  onPointerUp={stop}
+                  onPointerCancel={stop}
+                />
+              )}
+            </div>
+            <span
+              className="reports-prompt-menu-handle"
+              role="separator"
+              aria-orientation="horizontal"
+              aria-label="Tirer pour agrandir ou réduire le prompt"
+              title="Tirer pour agrandir ou réduire le prompt"
+              onPointerDown={start('resize')}
+              onPointerMove={move}
+              onPointerUp={stop}
+              onPointerCancel={stop}
+            >
+              <svg viewBox="0 0 12 12" aria-hidden="true">
+                <path d="M11 4 4 11M11 8l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+              </svg>
+            </span>
+          </>
+        )}
+      </div>
     </div>
   )
 }

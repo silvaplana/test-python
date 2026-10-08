@@ -4027,11 +4027,11 @@ span.webmail-attachment {
   font-size: 0.85rem;
 }
 
-/* Un cadre par prompt, bien separe du suivant. */
+/* Un cadre par prompt, bien separe du suivant : le texte a gauche, et a
+   droite une colonne (corbeille, ascenseur, poignee) alignee a la verticale. */
 .reports-prompt-menu-item {
   display: flex;
-  align-items: flex-start;
-  gap: 0.3rem;
+  align-items: stretch;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
@@ -4045,9 +4045,17 @@ span.webmail-attachment {
   border-color: var(--accent-border);
 }
 
-.reports-prompt-menu-item:hover,
-.reports-prompt-menu-current {
-  background: var(--accent-bg);
+/* Texte : defile sous le doigt ou la molette ; sa barre native est masquee,
+   remplacee par l'ascenseur de la colonne (voir SavedPrompt). */
+.reports-prompt-menu-clip {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.reports-prompt-menu-clip::-webkit-scrollbar {
+  display: none;
 }
 
 .reports-prompt-menu-choice {
@@ -4066,30 +4074,54 @@ span.webmail-attachment {
   cursor: pointer;
 }
 
-/* Prompt long : coupe (sans barre de defilement) ; la poignee du coin en bas
-   a droite se tire a la souris ou au doigt (voir SavedPrompt). */
-.reports-prompt-menu-text {
-  position: relative;
-  flex: 1;
-  min-width: 0;
+.reports-prompt-menu-choice:hover {
+  background: var(--accent-bg);
 }
 
-.reports-prompt-menu-clip {
-  overflow: hidden;
+.reports-prompt-menu-rail {
+  flex: 0 0 2.2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0;
+  border-left: 1px solid var(--border);
+}
+
+.reports-prompt-menu-rail .reports-prompt-button {
+  border: none;
+}
+
+.reports-prompt-menu-track {
+  position: relative;
+  flex: 1;
+  width: 0.5rem;
+  min-height: 1.25rem;
+  border-radius: 999px;
+  background: var(--code-bg);
+}
+
+.reports-prompt-menu-thumb {
+  position: absolute;
+  left: 0;
+  right: 0;
+  min-height: 0.6rem;
+  border-radius: 999px;
+  background: var(--text);
+  cursor: grab;
+  touch-action: none;
+}
+
+.reports-prompt-menu-thumb:hover {
+  background: var(--text-h);
 }
 
 .reports-prompt-menu-handle {
-  position: absolute;
-  right: 0;
-  bottom: 0;
   display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  /* Zone large pour le doigt, dessin dans le coin. */
-  width: 2rem;
-  height: 2rem;
-  padding: 0.2rem;
-  box-sizing: border-box;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 1.4rem;
   color: var(--accent);
   cursor: ns-resize;
   touch-action: none;
@@ -4101,7 +4133,7 @@ span.webmail-attachment {
   height: 0.85rem;
 }
 
-.reports-prompt-menu-item .reports-prompt-button {
+.reports-prompt-button {
   margin: 0.25rem;
   border: none;
 }
