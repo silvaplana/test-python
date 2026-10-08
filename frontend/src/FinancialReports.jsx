@@ -299,6 +299,23 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
 
   // Prompts enregistres de ce bilan (disquette) ; celui qui correspond au
   // texte en cours, s'il y en a un.
+  // Menu ouvert d'un clic sur "Prompt donné à l'IA" ; ferme d'un clic ailleurs.
+  const [promptMenuOpen, setPromptMenuOpen] = useState(false)
+  const promptMenuRef = useRef(null)
+  useEffect(() => {
+    if (!promptMenuOpen) return
+    function close(event) {
+      if (event.type === 'keydown' ? event.key === 'Escape' : !promptMenuRef.current?.contains(event.target)) {
+        setPromptMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [promptMenuOpen])
   const savedPrompts = report?.savedPrompts ?? []
   const selectedPrompt = savedPrompts.find((p) => p.prompt === form.prompt.trim())
 
@@ -312,10 +329,17 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
     }
   }
 
-  async function deleteSelectedPrompt() {
-    if (!window.confirm('Retirer ce prompt des prompts enregistrés de ce bilan ?\n\nLe texte reste dans le champ du prompt.')) return
+  function choosePrompt(saved) {
+    const known = !form.prompt.trim() || savedPrompts.some((p) => p.prompt === form.prompt.trim())
+    if (!known && !window.confirm('Remplacer le prompt actuel par ce prompt enregistré ?')) return
+    setForm((current) => ({ ...current, prompt: saved.prompt }))
+    setPromptMenuOpen(false)
+  }
+
+  async function deletePrompt(saved) {
+    if (!window.confirm('Retirer ce prompt des prompts enregistrés de ce bilan ?')) return
     try {
-      const body = await callApi(`/financial-reports/${reportId}/prompts/${selectedPrompt.id}`, { method: 'DELETE' })
+      const body = await callApi(`/financial-reports/${reportId}/prompts/${saved.id}`, { method: 'DELETE' })
       setReport((current) => ({ ...current, savedPrompts: body.savedPrompts }))
     } catch (err) {
       setError(err.message)
@@ -411,45 +435,20 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
           onToggle={toggleSettings}
           summary={`${options.models.find((m) => m.id === form.model)?.label ?? form.model} · ${aiCost(report?.aiCost ?? 0)}`}
         >
-        {savedPrompts.length > 0 && (
-          <div className="trial-form-wide reports-saved-prompts">
-            <label>
-              Prompts enregistrés de ce bilan
-              <select
-                value={selectedPrompt?.id ?? ''}
-                onChange={(e) => {
-                  const saved = savedPrompts.find((p) => String(p.id) === e.target.value)
-                  if (!saved) return
-                  const known = !form.prompt.trim() || savedPrompts.some((p) => p.prompt === form.prompt.trim())
-                  if (!known && !window.confirm('Remplacer le prompt actuel par ce prompt enregistré ?')) return
-                  setForm((current) => ({ ...current, prompt: saved.prompt }))
-                }}
-              >
-                <option value="">— Choisir un prompt enregistré —</option>
-                {savedPrompts.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.prompt.split('\n')[0].slice(0, 60)}
-                    {p.prompt.length > 60 || p.prompt.includes('\n') ? '…' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {selectedPrompt && (
-              <button
-                type="button"
-                className="reports-prompt-button reports-prompt-delete"
-                onClick={deleteSelectedPrompt}
-                title="Retirer ce prompt des prompts enregistrés"
-                aria-label="Retirer ce prompt des prompts enregistrés"
-              >
-                <TrashIcon />
-              </button>
-            )}
-          </div>
-        )}
-        <label className="trial-form-wide">
-          <span className="reports-prompt-title">
-            Prompt donné à l'IA
+        <div className="trial-form-wide reports-prompt-field">
+          <div className="reports-prompt-title" ref={promptMenuRef}>
+            {/* Clic sur le titre : menu des prompts enregistres de ce bilan. */}
+            <button
+              type="button"
+              className="reports-prompt-menu-button"
+              aria-haspopup="menu"
+              aria-expanded={promptMenuOpen}
+              onClick={() => setPromptMenuOpen((open) => !open)}
+              title="Prompts enregistrés de ce bilan"
+            >
+              Prompt donné à l'IA <span aria-hidden="true">▾</span>
+              {savedPrompts.length > 0 && <span className="reports-prompt-count">{savedPrompts.length}</span>}
+            </button>
             <button
               type="button"
               className="reports-prompt-button"
@@ -466,7 +465,32 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
             >
               <SaveIcon />
             </button>
-          </span>
+            {promptMenuOpen && (
+              <div className="reports-prompt-menu" role="menu">
+                {savedPrompts.length === 0 && (
+                  <p className="reports-prompt-menu-empty">
+                    Aucun prompt enregistré pour ce bilan. La disquette enregistre le prompt en cours.
+                  </p>
+                )}
+                {savedPrompts.map((p) => (
+                  <div key={p.id} className={`reports-prompt-menu-item${p.id === selectedPrompt?.id ? ' reports-prompt-menu-current' : ''}`}>
+                    <button type="button" role="menuitem" className="reports-prompt-menu-choice" onClick={() => choosePrompt(p)}>
+                      {p.prompt}
+                    </button>
+                    <button
+                      type="button"
+                      className="reports-prompt-button reports-prompt-delete"
+                      onClick={() => deletePrompt(p)}
+                      title="Retirer ce prompt des prompts enregistrés"
+                      aria-label="Retirer ce prompt des prompts enregistrés"
+                    >
+                      <TrashIcon />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <textarea
             rows={4}
             value={form.prompt}
@@ -477,7 +501,7 @@ function ReportPanel({ reportId, season, options, onClose, onCreated }) {
             S'ajoute aux consignes fixes : l'appli calcule le tableau au centime, l'IA classe les opérations « Autres » et écrit
             l'analyse en 5 lignes (faits marquants, comparaison avec les saisons précédentes).
           </span>
-        </label>
+        </div>
         <label>
           Modèle
           <select value={form.model} onChange={update('model')}>
