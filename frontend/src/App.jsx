@@ -34,7 +34,7 @@ function AppContent() {
       sections={[
         {
           key: 'helloasso',
-          label: 'HelloAsso',
+          label: 'Adhérents',
           // Badge "nouveaux adherents non consultes" (voir HelloAsso.jsx) :
           // sur la section (sidebar/bottom-nav, visible sans avoir a ouvrir
           // la section) ET sur l'outil "Adherents" precis (sous-onglet, une
@@ -63,7 +63,7 @@ function AppContent() {
         },
         {
           key: 'ffst',
-          label: 'FFST',
+          label: 'Licences',
           tools: [
             { label: 'Demandes brouillon', shortLabel: 'Brouillon', content: () => <DraftTable /> },
             { label: 'Demandes validées', shortLabel: 'Validées', content: () => <DemandesTable /> },
