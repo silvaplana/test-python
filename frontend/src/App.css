@@ -3753,8 +3753,9 @@ tr.member-row {
   flex: 1;
 }
 
-/* "Retour" : seulement sur telephone (liste et message l'un apres l'autre). */
-.webmail-message-actions .webmail-back {
+/* "Retour" : seulement sur telephone (liste et message l'un apres l'autre),
+   colle en haut du mail pendant le defilement. */
+.webmail-back-bar {
   display: none;
 }
 
@@ -3961,8 +3962,26 @@ span.webmail-attachment {
     display: none;
   }
 
-  .webmail-message-actions .webmail-back {
-    display: inline-block;
+  .webmail-back-bar {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    margin: -0.75rem -1rem 0.6rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg);
+  }
+
+  .webmail-back {
+    padding: 0.4rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: none;
+    color: var(--text-h);
+    font: inherit;
+    font-size: 0.88rem;
+    cursor: pointer;
   }
 
   .webmail-actions-gap {

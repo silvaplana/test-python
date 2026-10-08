@@ -564,10 +564,13 @@ function MessageView({ folder, uid, folders, ownAddress, onBack, onDraft, onRemo
 
   return (
     <article className="webmail-message">
-      <div className="webmail-message-actions">
+      {/* Telephone : "Retour" reste en haut du mail pendant qu'on le fait defiler. */}
+      <div className="webmail-back-bar">
         <button type="button" className="webmail-back" onClick={onBack}>
           ← Retour
         </button>
+      </div>
+      <div className="webmail-message-actions">
         {message && (
           <>
             <button type="button" onClick={() => onDraft(draftFrom('reply', message, ownAddress))} disabled={busy}>
