@@ -14,6 +14,10 @@ Messages reperes par (dossier, UID IMAP). Les pieces jointes sont numerotees
 dans l'ordre des feuilles du message (voir _leaves).
 """
 
+# Annotations lues tardivement : la methode Webmail.list masquerait sinon le
+# type list (list[str]...) dans le corps de la classe sous Python 3.12.
+from __future__ import annotations
+
 import base64
 import html
 import imaplib
