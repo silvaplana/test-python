@@ -4,6 +4,7 @@ import { BankAccounts, hasBankCallback } from './BankAccounts.jsx'
 import { requestStatementImport } from './BankHistory.jsx'
 import { requestMemberChecks } from './MemberChecks.jsx'
 import { MembersSummary, requestMembersSummary } from './MembersSummary.jsx'
+import { MessagingChat, MessagingMail } from './Messaging.jsx'
 import { CampaignTitle, MembersHistoryTable, MembersTable, NewMembersBadge, UnpaidTable } from './HelloAsso.jsx'
 import { LicencesTable, DemandesTable, DraftTable } from './Ffst.jsx'
 import { FinancialReports } from './FinancialReports.jsx'
@@ -122,6 +123,20 @@ function AppContent() {
                 ]),
           ],
         },
+        // Messagerie : seulement avec le mot de passe "comptes" (absente sinon).
+        ...(canViewAccounts
+          ? [
+              {
+                key: 'messagerie',
+                label: 'Messagerie',
+                alwaysShowTabs: true,
+                tools: [
+                  { label: 'Mail', content: () => <MessagingMail /> },
+                  { label: 'Tchat', content: () => <MessagingChat /> },
+                ],
+              },
+            ]
+          : []),
         {
           key: 'profil',
           label: 'Profil',

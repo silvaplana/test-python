@@ -3436,3 +3436,22 @@ tr.member-row {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Ecran d'attente d'un sous-onglet pas encore developpe (voir Messaging.jsx). */
+.in-development {
+  padding: 2rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.in-development p {
+  margin: 0;
+}
+
+.in-development .in-development-badge {
+  margin-bottom: 0.6rem;
+  color: var(--text-h);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
