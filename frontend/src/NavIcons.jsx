@@ -31,12 +31,14 @@ export function TrialIcon() {
   )
 }
 
-// Finances : un portefeuille.
+// Finances : une piece marquee du symbole euro.
 export function FinancesIcon() {
   return (
     <NavIcon>
-      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
-      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
+      <circle cx="12" cy="12" r="10" />
+      <path d="M15.6 8.4a5 5 0 1 0 0 7.2" />
+      <path d="M6.8 10.8h6" />
+      <path d="M6.8 13.2h5" />
     </NavIcon>
   )
 }
