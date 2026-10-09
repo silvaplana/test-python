@@ -4359,22 +4359,63 @@ span.webmail-attachment {
 
 /* Statistiques des adherents : detail des encaissements (compte courant,
    transit, HelloAsso, echeances a venir), voir CashSummary. */
-.members-summary-receive {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0.4rem 0 0.9rem;
-  padding: 0.7rem 0.9rem;
-  border: 1px solid var(--accent-border);
+.members-summary-box {
+  margin-bottom: 0.7rem;
+  border: 1px solid var(--border);
   border-radius: 10px;
-  background: var(--accent-bg);
-  color: var(--text-h);
+  background: var(--code-bg);
 }
 
-.members-summary-receive b {
-  font-size: 1.25rem;
+.members-summary-box-accent {
+  border-color: var(--accent-border);
+  background: var(--accent-bg);
+}
+
+.members-summary-box summary {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  color: var(--text-h);
+  cursor: pointer;
+  list-style: none;
+}
+
+.members-summary-box summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Fleche : vers la droite replie, vers le bas deplie. */
+.members-summary-box summary::before {
+  content: '▸';
+  flex-shrink: 0;
+}
+
+.members-summary-box[open] summary::before {
+  content: '▾';
+}
+
+.members-summary-box-title {
+  flex: 1;
+}
+
+.members-summary-box summary b {
+  font-size: 1.2rem;
   white-space: nowrap;
+}
+
+.members-summary-box-detail {
+  padding: 0 0.9rem 0.3rem;
+  border-top: 1px solid var(--border);
+}
+
+.members-summary-box-detail .members-summary-cash:last-child {
+  margin-bottom: 0.4rem;
+}
+
+.members-summary-box-detail .members-summary-cash thead th {
+  padding-top: 0.7rem;
+  background: none;
 }
 
 .members-summary-cash {

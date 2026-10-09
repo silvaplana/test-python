@@ -28,59 +28,57 @@ function shortDay(day) {
 }
 
 // Ou en est l'argent des adhesions (summary.cash, voir cash_summary du
-// backend), dans l'ordre de son trajet : echeances a venir (jour par jour),
-// encaisse par HelloAsso sans versement lance, en transit (versement lance,
-// pas encore vu a la banque), puis arrive sur le compte courant. C'est le
-// releve des comptes qui dit si un versement est arrive (HelloAsso reste "en
-// attente de confirmation" bien apres). En tete, le total qui doit encore
-// arriver sur le compte.
+// backend), en deux encadres dont le detail se deplie : deja encaisse sur le
+// compte courant, et reste a encaisser (versement en cours, encaisse sur
+// HelloAsso en attente du versement automatique, encaissements futurs jour
+// par jour). C'est le releve des comptes qui dit si un versement est arrive
+// (HelloAsso reste "en attente de confirmation" bien apres).
 function CashSummary({ cash }) {
   return (
     <>
       <h4 className="members-summary-title">Encaissements</h4>
-      <div className="members-summary-receive">
-        <span>Encore à encaisser sur le compte courant</span>
-        <b>{euros(cash.toReceive)}</b>
-      </div>
 
-      <CashBlock title="Déjà arrivé sur le compte courant" total={cash.onAccount.total} empty="Aucun versement pour l'instant.">
-        {cash.onAccount.rows.map((row) => (
-          <CashRow
-            key={row.date + (row.requested ?? '')}
-            // Avec les comptes : jour d'arrivee a la banque, et date du versement chez HelloAsso.
-            label={row.requested ? `Reçu le ${dayLabel(row.date)} (versement HelloAsso du ${shortDay(row.requested)})` : `Versé le ${dayLabel(row.date)}`}
-            count={plural(row.payments, 'paiement')}
-            amount={row.amount}
-          />
-        ))}
-      </CashBlock>
+      <CashBox title="Déjà encaissé sur le compte courant" total={cash.onAccount.total}>
+        <CashPart empty="Aucun versement pour l'instant.">
+          {cash.onAccount.rows.map((row) => (
+            <CashRow
+              key={row.date + (row.requested ?? '')}
+              // Avec les comptes : jour d'arrivee a la banque, et date du versement chez HelloAsso.
+              label={row.requested ? `Reçu le ${dayLabel(row.date)} (versement HelloAsso du ${shortDay(row.requested)})` : `Versé le ${dayLabel(row.date)}`}
+              count={plural(row.payments, 'paiement')}
+              amount={row.amount}
+            />
+          ))}
+        </CashPart>
+      </CashBox>
 
-      <CashBlock
-        title="En transit vers le compte courant"
-        total={cash.inTransit.total}
-        empty="Aucun versement en transit."
-        hint={
-          cash.bankAsOf
-            ? `Versement lancé par HelloAsso, pas encore vu sur le compte courant (opérations connues jusqu'au ${shortDay(cash.bankAsOf)}).`
-            : "Versement demandé à HelloAsso, pas encore confirmé (comptes non consultés : l'argent est peut-être déjà arrivé)."
-        }
-      >
-        {cash.inTransit.rows.map((row) => (
-          <CashRow key={row.date} label={`Versement HelloAsso du ${dayLabel(row.date)}`} count={plural(row.payments, 'paiement')} amount={row.amount} />
-        ))}
-      </CashBlock>
-
-      <CashBlock title="Chez HelloAsso, versement pas encore lancé" total={cash.held.total} empty="Rien en attente chez HelloAsso.">
-        {cash.held.payments > 0 && (
-          <CashRow label="Date de versement inconnue" count={plural(cash.held.payments, 'paiement')} amount={cash.held.total} />
-        )}
-      </CashBlock>
-
-      <CashBlock title="Échéances à venir" total={cash.upcoming.total} empty="Aucune échéance à venir.">
-        {cash.upcoming.rows.map((row) => (
-          <CashRow key={row.date} label={dayLabel(row.date)} count={plural(row.payments, 'échéance')} amount={row.amount} />
-        ))}
-      </CashBlock>
+      <CashBox title="Reste à encaisser sur le compte courant" total={cash.toReceive} accent>
+        <CashPart
+          title="Versement en cours HelloAsso → compte courant"
+          total={cash.inTransit.total}
+          empty={
+            cash.bankAsOf
+              ? `Aucun (opérations du compte connues jusqu'au ${shortDay(cash.bankAsOf)}).`
+              : 'Aucun.'
+          }
+        >
+          {cash.inTransit.rows.map((row) => (
+            <CashRow key={row.date} label={`Versement du ${dayLabel(row.date)}`} count={plural(row.payments, 'paiement')} amount={row.amount} />
+          ))}
+        </CashPart>
+        <CashPart
+          title="Encaissé sur HelloAsso, viré prochainement sur le compte courant (versement automatique vers le 10 du mois)"
+          total={cash.held.total}
+          empty="Rien en attente chez HelloAsso."
+        >
+          {cash.held.payments > 0 && <CashRow label="En attente du prochain versement" count={plural(cash.held.payments, 'paiement')} amount={cash.held.total} />}
+        </CashPart>
+        <CashPart title="Encaissements futurs sur HelloAsso" total={cash.upcoming.total} empty="Aucune échéance à venir.">
+          {cash.upcoming.rows.map((row) => (
+            <CashRow key={row.date} label={dayLabel(row.date)} count={plural(row.payments, 'échéance')} amount={row.amount} />
+          ))}
+        </CashPart>
+      </CashBox>
 
       {cash.offline.payments > 0 && (
         <p className="members-summary-note">
@@ -91,28 +89,35 @@ function CashSummary({ cash }) {
   )
 }
 
-function CashBlock({ title, total, empty, hint, children }) {
+// Encadre "titre : total", dont le detail se deplie d'un clic.
+function CashBox({ title, total, accent = false, children }) {
+  return (
+    <details className={`members-summary-box${accent ? ' members-summary-box-accent' : ''}`}>
+      <summary>
+        <span className="members-summary-box-title">{title}</span>
+        <b>{euros(total)}</b>
+      </summary>
+      <div className="members-summary-box-detail">{children}</div>
+    </details>
+  )
+}
+
+// Partie du detail d'un encadre : titre et sous-total facultatifs, puis ses lignes.
+function CashPart({ title, total, empty, children }) {
   const rows = (Array.isArray(children) ? children.flat() : [children]).filter(Boolean)
   return (
     <table className="members-summary-table members-summary-cash">
-      <thead>
-        <tr>
-          <th colSpan="2">{title}</th>
-          <th className="members-summary-amount">{euros(total)}</th>
-        </tr>
-      </thead>
+      {title && (
+        <thead>
+          <tr>
+            <th colSpan="2">{title}</th>
+            <th className="members-summary-amount">{euros(total)}</th>
+          </tr>
+        </thead>
+      )}
       <tbody>
         {rows.length > 0 ? (
-          <>
-            {hint && (
-              <tr>
-                <td colSpan="3" className="members-summary-empty">
-                  {hint}
-                </td>
-              </tr>
-            )}
-            {rows}
-          </>
+          rows
         ) : (
           <tr>
             <td colSpan="3" className="members-summary-empty">
