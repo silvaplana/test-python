@@ -93,7 +93,6 @@ function CashSummary({ cash }) {
 // Solde actuel des comptes (compte courant + Livret Bleu), au-dessus des
 // encaissements : ce que le club a aujourd'hui, avant ce qui doit arriver.
 function Balances({ accounts }) {
-  const dates = accounts.list.map((account) => account.asOf).filter(Boolean).sort()
   return (
     <>
       <h4 className="members-summary-title">Solde actuel</h4>
@@ -101,7 +100,6 @@ function Balances({ accounts }) {
         <div className="members-summary-balance-total">
           <span className="members-summary-box-title">
             {accounts.list.map((account) => account.name).join(' + ')}
-            {dates.length > 0 && ` au ${shortDay(dates[0])}`}
           </span>
           <b>{euros(accounts.total)}</b>
         </div>
@@ -109,7 +107,11 @@ function Balances({ accounts }) {
           <tbody>
             {accounts.list.map((account) => (
               <tr key={account.id}>
-                <td colSpan="2">{account.name}</td>
+                {/* Chaque compte a sa propre date de dernier solde connu. */}
+                <td colSpan="2">
+                  {account.name}
+                  {account.asOf && <span className="members-summary-count"> au {shortDay(account.asOf)}</span>}
+                </td>
                 <td className="members-summary-amount">{account.balance != null ? euros(account.balance) : '—'}</td>
               </tr>
             ))}
