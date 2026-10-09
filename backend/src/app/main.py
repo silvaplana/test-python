@@ -280,6 +280,10 @@ bank_statements_receiver = BankStatementsReceiver(
 # protection que les comptes (elles affichent les soldes). Licencies de la
 # saison en cours repris de FFST.
 seasons_client = Seasons(db=database, ledger=bank_statements_client.get_ledger)
+# Statistiques des adherents : nom de la saison en cours, pour le titre.
+helloasso_receiver.current_season = lambda: next(
+    (season["name"] for season in seasons_client.get_seasons()["seasons"] if season["current"]), None
+)
 seasons_receiver = SeasonsReceiver(
     client=seasons_client,
     app=accounts_router,

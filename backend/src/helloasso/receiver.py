@@ -75,6 +75,8 @@ class HelloAssoReceiver:
         # Operations des comptes (BankStatements.get_ledger), branchees par
         # app/main.py : servent a voir les virements HelloAsso arrives a la banque.
         self.bank_ledger = None
+        # Nom de la saison en cours (Seasons), branche par app/main.py.
+        self.current_season = None
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -139,12 +141,20 @@ class HelloAssoReceiver:
                 bank = bank_cash_outs(self.bank_ledger())
             except Exception as exc:  # les statistiques ne doivent pas en dependre
                 print(f"HelloAssoReceiver.getSummary: comptes illisibles ({exc})")
-        return members_summary(
+        season = None
+        if self.current_season is not None:
+            try:
+                season = self.current_season()
+            except Exception as exc:  # simple rappel dans le titre du panneau
+                print(f"HelloAssoReceiver.getSummary: saison en cours illisible ({exc})")
+        summary = members_summary(
             self.client.get_members(self.form_slug, self.form_type),
             self.client.get_member_payments(self.form_slug, self.form_type),
             datetime.now(ZoneInfo("Europe/Paris")).date(),
             bank,
         )
+        # Nom de la saison en cours ("2026-2027"), None si aucune.
+        return {**summary, "season": season}
 
     def _order(self, order_id: int) -> dict:
         """Commande du formulaire d'adhesion du club (404 sinon : on ne

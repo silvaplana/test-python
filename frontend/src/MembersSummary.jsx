@@ -181,7 +181,10 @@ export function MembersSummary() {
   return (
     <dialog ref={dialogRef} className="trial-dialog" onClose={() => setOpen(false)}>
       <div className="trial-scan-header">
-        <h3>Statistiques des adhérents de la saison{summary ? ` (${summary.members})` : ''}</h3>
+        <h3>
+          Statistiques des adhérents de la saison{summary?.season ? ` ${summary.season}` : ''}
+          {summary ? ` (${summary.members})` : ''}
+        </h3>
         <button
           type="button"
           className="trial-scan-close"
