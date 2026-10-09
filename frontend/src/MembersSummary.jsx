@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAuth } from './Auth.jsx'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 // Demande d'ouverture venue du menu ⋮ (voir requestMembersSummary).
@@ -89,6 +90,36 @@ function CashSummary({ cash }) {
   )
 }
 
+// Solde actuel des comptes (compte courant + Livret Bleu), au-dessus des
+// encaissements : ce que le club a aujourd'hui, avant ce qui doit arriver.
+function Balances({ accounts }) {
+  const dates = accounts.list.map((account) => account.asOf).filter(Boolean).sort()
+  return (
+    <>
+      <h4 className="members-summary-title">Solde actuel</h4>
+      <div className="members-summary-box members-summary-balance">
+        <div className="members-summary-balance-total">
+          <span className="members-summary-box-title">
+            {accounts.list.map((account) => account.name).join(' + ')}
+            {dates.length > 0 && ` au ${shortDay(dates[0])}`}
+          </span>
+          <b>{euros(accounts.total)}</b>
+        </div>
+        <table className="members-summary-table members-summary-cash">
+          <tbody>
+            {accounts.list.map((account) => (
+              <tr key={account.id}>
+                <td colSpan="2">{account.name}</td>
+                <td className="members-summary-amount">{account.balance != null ? euros(account.balance) : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
+
 // Encadre "titre : total", dont le detail se deplie d'un clic.
 function CashBox({ title, total, accent = false, children }) {
   return (
@@ -149,6 +180,10 @@ export function MembersSummary() {
   const [open, setOpen] = useState(false)
   const [summary, setSummary] = useState(null)
   const [error, setError] = useState(null)
+  // Soldes des comptes (compte courant, Livret Bleu) : donnee des comptes,
+  // lue et affichee seulement avec le mot de passe "comptes".
+  const { canViewAccounts } = useAuth()
+  const [accounts, setAccounts] = useState(null)
 
   useEffect(() => {
     const show = () => setOpen(true)
@@ -162,6 +197,15 @@ export function MembersSummary() {
     let cancelled = false
     setSummary(null)
     setError(null)
+    setAccounts(null)
+    if (canViewAccounts) {
+      fetch(`${API_URL}/bankstatements/ledger`, { credentials: 'include' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((ledger) => {
+          if (!cancelled && ledger) setAccounts({ list: ledger.accounts, total: ledger.total })
+        })
+        .catch(() => {})
+    }
     fetch(`${API_URL}/helloasso/summary`, { credentials: 'include' })
       .then(async (response) => {
         const body = await response.json().catch(() => null)
@@ -174,7 +218,7 @@ export function MembersSummary() {
     return () => {
       cancelled = true
     }
-  }, [open])
+  }, [open, canViewAccounts])
 
   if (!open) return null
 
@@ -223,6 +267,7 @@ export function MembersSummary() {
             {summary.unknownAge > 0 && `. Âge inconnu pour ${plural(summary.unknownAge, 'adhérent')}`}.
           </p>
 
+          {accounts?.list.length > 0 && <Balances accounts={accounts} />}
           <CashSummary cash={summary.cash} />
           {summary.unpaidTotal > 0 && (
             <p className="members-summary-note">

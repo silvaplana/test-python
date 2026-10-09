@@ -4462,3 +4462,25 @@ span.webmail-attachment {
 .members-summary-cash .members-summary-amount {
   padding-left: 0.6rem;
 }
+
+/* Statistiques des adherents : solde actuel des comptes (mot de passe
+   "comptes" seulement). */
+.members-summary-balance {
+  padding: 0.75rem 0.9rem 0.2rem;
+}
+
+.members-summary-balance-total {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  color: var(--text-h);
+}
+
+.members-summary-balance-total b {
+  font-size: 1.2rem;
+  white-space: nowrap;
+}
+
+.members-summary-balance .members-summary-cash {
+  margin: 0.4rem 0 0.3rem;
+}
