@@ -161,7 +161,10 @@ function InfoBox({ title, total, accent = false, children }) {
 // seasons/projection.py). Le "i" explique chaque ligne.
 function Payroll({ payroll }) {
   return (
-    <InfoBox title={`Salaires et cotisations jusqu'au ${shortDay(payroll.seasonEnd)} (projection)`} total={`− ${euros(payroll.total)}`}>
+    <InfoBox
+      title={`Salaires et cotisations encore à payer jusqu'au ${shortDay(payroll.seasonEnd)} (projection)`}
+      total={`− ${euros(payroll.total)}`}
+    >
       <table className="members-summary-table members-summary-cash">
         <tbody>
           {payroll.lines.map((line) => (
@@ -194,9 +197,12 @@ function Payroll({ payroll }) {
 // Licences FFST que le club devra encore payer cette saison (summary.licences,
 // voir licences_to_pay du backend) : une par adherent, plus celle du coach,
 // moins celles deja payees (Licences > Licencies).
-function Licences({ licences }) {
+function Licences({ licences, seasonEnd }) {
   return (
-    <InfoBox title="Licences FFST restant à payer (projection)" total={`− ${euros(licences.amount)}`}>
+    <InfoBox
+      title={`Licences encore à payer${seasonEnd ? ` jusqu'au ${shortDay(seasonEnd)}` : ''} (projection)`}
+      total={`− ${euros(licences.amount)}`}
+    >
       <table className="members-summary-table members-summary-cash">
         <tbody>
           <tr>
@@ -250,12 +256,12 @@ function ProjectedBalance({ accounts, cash, payroll, licences }) {
               <td className="members-summary-amount">{euros(cash.toReceive)}</td>
             </tr>
             <tr>
-              <td colSpan="2">− Salaires et cotisations (projection)</td>
+              <td colSpan="2">− Salaires et cotisations encore à payer (projection)</td>
               <td className="members-summary-amount">{euros(payroll.total)}</td>
             </tr>
             {licences && (
               <tr>
-                <td colSpan="2">− Licences FFST restant à payer (projection)</td>
+                <td colSpan="2">− Licences encore à payer (projection)</td>
                 <td className="members-summary-amount">{euros(licences.amount)}</td>
               </tr>
             )}
@@ -429,7 +435,7 @@ export function MembersSummary() {
 
           {accounts?.list.length > 0 && <Balances accounts={accounts} />}
           {payroll && <Payroll payroll={payroll} />}
-          {summary.licences && <Licences licences={summary.licences} />}
+          {summary.licences && <Licences licences={summary.licences} seasonEnd={summary.seasonEnd} />}
           <CashSummary cash={summary.cash} />
           {accounts?.list.length > 0 && payroll && (
             <ProjectedBalance accounts={accounts} cash={summary.cash} payroll={payroll} licences={summary.licences} />

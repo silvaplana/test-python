@@ -75,7 +75,7 @@ class HelloAssoReceiver:
         # Operations des comptes (BankStatements.get_ledger), branchees par
         # app/main.py : servent a voir les virements HelloAsso arrives a la banque.
         self.bank_ledger = None
-        # Nom de la saison en cours (Seasons), branche par app/main.py.
+        # Saison en cours ({"name", "endDate"}, voir Seasons), branchee par app/main.py.
         self.current_season = None
         # Nombre de licences FFST deja payees (Licences > Licencies), branche
         # par app/main.py.
@@ -163,8 +163,14 @@ class HelloAssoReceiver:
                 licences = licences_to_pay(summary["members"], self.paid_licences())
             except Exception as exc:  # FFST injoignable : le reste du panneau s'affiche
                 print(f"HelloAssoReceiver.getSummary: licences FFST illisibles ({exc})")
-        # season : nom de la saison en cours ("2026-2027"), None si aucune.
-        return {**summary, "season": season, "licences": licences}
+        # season : nom de la saison en cours ("2026-2027") et seasonEnd : sa
+        # date de fin ("2027-06-30") ; None s'il n'y en a pas.
+        return {
+            **summary,
+            "season": season["name"] if season else None,
+            "seasonEnd": season["endDate"] if season else None,
+            "licences": licences,
+        }
 
     def _order(self, order_id: int) -> dict:
         """Commande du formulaire d'adhesion du club (404 sinon : on ne
