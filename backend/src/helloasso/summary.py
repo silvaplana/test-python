@@ -108,6 +108,31 @@ def members_summary(members: list[dict], member_payments: list[dict], today: dat
     }
 
 
+# Licences FFST restant a payer : une par adherent, plus celle du coach, au
+# prix unitaire de la licence.
+FFST_LICENCE_PRICE = 24
+COACH_LICENCES = 1
+
+
+def licences_to_pay(members: int, paid: int) -> dict:
+    """Licences FFST que le club devra encore payer cette saison : (adherents
+    + coach - licences deja payees) x prix d'une licence (paid : nombre de
+    licencies de Licences > Licencies).
+
+    Retour : {"members", "coach", "paid", "remaining", "price", "amount"}
+    (remaining jamais negatif ; montant en euros).
+    """
+    remaining = max(0, members + COACH_LICENCES - paid)
+    return {
+        "members": members,
+        "coach": COACH_LICENCES,
+        "paid": paid,
+        "remaining": remaining,
+        "price": FFST_LICENCE_PRICE,
+        "amount": remaining * FFST_LICENCE_PRICE,
+    }
+
+
 def _by_date(rows: dict[str, list[int]]) -> list[dict]:
     """{"AAAA-MM-JJ": [centimes]} -> lignes triees par date."""
     return [

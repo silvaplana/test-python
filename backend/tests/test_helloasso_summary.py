@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from helloasso.summary import bank_cash_outs, members_summary
+from helloasso.summary import bank_cash_outs, licences_to_pay, members_summary
 
 TODAY = date(2026, 10, 6)
 
@@ -137,6 +137,13 @@ def test_bank_decides_what_has_arrived():
     # Sans les comptes : on se fie a HelloAsso.
     alone = members_summary([], payments, TODAY)["cash"]
     assert (alone["onAccount"]["total"], alone["inTransit"]["total"], alone["bankAsOf"]) == (350.0, 6746.2, None)
+
+
+def test_licences_still_to_pay():
+    # 53 adherents + le coach - 37 licences payees = 17 licences a 24 €.
+    assert licences_to_pay(53, 37) == {"members": 53, "coach": 1, "paid": 37, "remaining": 17, "price": 24, "amount": 408}
+    # Plus de licences payees que d'adherents (ex : adherents resilies) : rien a payer, jamais negatif.
+    assert licences_to_pay(10, 15)["remaining"] == 0 and licences_to_pay(10, 15)["amount"] == 0
 
 
 def test_no_members():

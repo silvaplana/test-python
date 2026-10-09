@@ -15,7 +15,7 @@ from mailer import MailError
 from .mails import TemplateError, normalize_phone
 
 from .helloasso import HelloAsso, HelloAssoAuthError
-from .summary import FAILED_PAYMENT_STATES, bank_cash_outs, cancellation_preview, members_summary
+from .summary import FAILED_PAYMENT_STATES, bank_cash_outs, cancellation_preview, licences_to_pay, members_summary
 
 # Restreint /helloasso/photo aux URL HelloAsso reelles (voir getPhoto) :
 # sans ca, ce endpoint deviendrait un proxy HTTP generique authentifie
@@ -77,6 +77,9 @@ class HelloAssoReceiver:
         self.bank_ledger = None
         # Nom de la saison en cours (Seasons), branche par app/main.py.
         self.current_season = None
+        # Nombre de licences FFST deja payees (Licences > Licencies), branche
+        # par app/main.py.
+        self.paid_licences = None
         self._register_routes()
 
     def _register_routes(self) -> None:
@@ -153,8 +156,15 @@ class HelloAssoReceiver:
             datetime.now(ZoneInfo("Europe/Paris")).date(),
             bank,
         )
-        # Nom de la saison en cours ("2026-2027"), None si aucune.
-        return {**summary, "season": season}
+        # Licences FFST restant a payer (None si FFST est injoignable).
+        licences = None
+        if self.paid_licences is not None:
+            try:
+                licences = licences_to_pay(summary["members"], self.paid_licences())
+            except Exception as exc:  # FFST injoignable : le reste du panneau s'affiche
+                print(f"HelloAssoReceiver.getSummary: licences FFST illisibles ({exc})")
+        # season : nom de la saison en cours ("2026-2027"), None si aucune.
+        return {**summary, "season": season, "licences": licences}
 
     def _order(self, order_id: int) -> dict:
         """Commande du formulaire d'adhesion du club (404 sinon : on ne

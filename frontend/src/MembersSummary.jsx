@@ -191,9 +191,50 @@ function Payroll({ payroll }) {
   )
 }
 
-// Synthese : solde actuel + reste a encaisser - salaires et cotisations.
-function ProjectedBalance({ accounts, cash, payroll }) {
-  const projected = accounts.total + cash.toReceive - payroll.total
+// Licences FFST que le club devra encore payer cette saison (summary.licences,
+// voir licences_to_pay du backend) : une par adherent, plus celle du coach,
+// moins celles deja payees (Licences > Licencies).
+function Licences({ licences }) {
+  return (
+    <InfoBox title="Licences FFST restant à payer (projection)" total={`− ${euros(licences.amount)}`}>
+      <table className="members-summary-table members-summary-cash">
+        <tbody>
+          <tr>
+            <td colSpan="2">Adhérents de la saison</td>
+            <td className="members-summary-amount">{licences.members}</td>
+          </tr>
+          <tr>
+            <td colSpan="2">+ Coach</td>
+            <td className="members-summary-amount">{licences.coach}</td>
+          </tr>
+          <tr>
+            <td colSpan="2">− Licences déjà payées (Licences &gt; Licenciés)</td>
+            <td className="members-summary-amount">{licences.paid}</td>
+          </tr>
+          <tr>
+            <td colSpan="2">
+              <strong>
+                = {plural(licences.remaining, 'licence')} à payer × {euros(licences.price)}
+              </strong>
+            </td>
+            <td className="members-summary-amount">
+              <strong>{euros(licences.amount)}</strong>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <p className="members-summary-explain">
+        Estimation : elle suppose une licence par adhérent, au tarif de {euros(licences.price)}, et aucun nouvel adhérent d'ici
+        la fin de la saison.
+      </p>
+    </InfoBox>
+  )
+}
+
+// Synthese : solde actuel + reste a encaisser - salaires et cotisations
+// - licences FFST restant a payer.
+function ProjectedBalance({ accounts, cash, payroll, licences }) {
+  const projected = accounts.total + cash.toReceive - payroll.total - (licences?.amount ?? 0)
   return (
     <>
       <h4 className="members-summary-title">Projection de fin de saison</h4>
@@ -212,11 +253,18 @@ function ProjectedBalance({ accounts, cash, payroll }) {
               <td colSpan="2">− Salaires et cotisations (projection)</td>
               <td className="members-summary-amount">{euros(payroll.total)}</td>
             </tr>
+            {licences && (
+              <tr>
+                <td colSpan="2">− Licences FFST restant à payer (projection)</td>
+                <td className="members-summary-amount">{euros(licences.amount)}</td>
+              </tr>
+            )}
           </tbody>
         </table>
         <p className="members-summary-explain">
-          Chiffre optimiste : il ne compte pas les autres dépenses (licences FFST, matériel, frais bancaires…), ni les
+          Chiffre optimiste : il ne compte pas les autres dépenses (matériel, frais bancaires, médecine du travail…), ni les
           adhésions qui pourraient encore arriver.
+          {!licences && ' Les licences FFST ne sont pas comptées : FFST est injoignable pour l’instant.'}
         </p>
       </InfoBox>
     </>
@@ -381,8 +429,11 @@ export function MembersSummary() {
 
           {accounts?.list.length > 0 && <Balances accounts={accounts} />}
           {payroll && <Payroll payroll={payroll} />}
+          {summary.licences && <Licences licences={summary.licences} />}
           <CashSummary cash={summary.cash} />
-          {accounts?.list.length > 0 && payroll && <ProjectedBalance accounts={accounts} cash={summary.cash} payroll={payroll} />}
+          {accounts?.list.length > 0 && payroll && (
+            <ProjectedBalance accounts={accounts} cash={summary.cash} payroll={payroll} licences={summary.licences} />
+          )}
           {summary.unpaidTotal > 0 && (
             <p className="members-summary-note">
               En plus : <span className="unpaid-amount">{euros(summary.unpaidTotal)}</span> d'échéances refusées (voir

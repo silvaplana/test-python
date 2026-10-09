@@ -268,6 +268,8 @@ bank_statements_client = BankStatements(db=database)
 # Statistiques des adherents : un versement HelloAsso n'est compte "sur le
 # compte courant" que si son virement est vu dans les operations des comptes.
 helloasso_receiver.bank_ledger = bank_statements_client.get_ledger
+# Licences FFST deja payees (Licences > Licencies), pour celles restant a payer.
+helloasso_receiver.paid_licences = lambda: len(ffst_client.get_licences())
 bank_statements_receiver = BankStatementsReceiver(
     client=bank_statements_client,
     app=accounts_router,
