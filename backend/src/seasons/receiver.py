@@ -44,6 +44,7 @@ class SeasonsReceiver:
         self.app.post("/seasons")(self.createSeason)
         # Avant /seasons/{season_id} : sinon "sync-licences" serait pris pour un id.
         self.app.post("/seasons/sync-licences")(self.syncLicences)
+        self.app.get("/seasons/payroll-projection")(self.getPayrollProjection)
         self.app.put("/seasons/{season_id}")(self.updateSeason)
         self.app.delete("/seasons/{season_id}")(self.deleteSeason)
 
@@ -72,6 +73,13 @@ class SeasonsReceiver:
         except SeasonNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Saison inconnue") from exc
         return {"deleted": season_id}
+
+    def getPayrollProjection(self) -> dict:
+        """Endpoint REST GET /seasons/payroll-projection : salaires et
+        cotisations a payer jusqu'a la fin de la saison en cours, calcules
+        depuis les operations des comptes ({"projection": null} sans saison
+        en cours)."""
+        return {"projection": self.client.payroll_projection()}
 
     def syncLicences(self) -> dict:
         """Endpoint REST POST /seasons/sync-licences : met a jour le nombre de

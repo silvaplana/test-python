@@ -23,6 +23,8 @@ from zoneinfo import ZoneInfo
 
 from database import Database
 
+from .projection import payroll_projection
+
 PARIS = ZoneInfo("Europe/Paris")
 
 
@@ -177,6 +179,20 @@ class Seasons:
             connection.execute(
                 "UPDATE seasons SET ai_cost = COALESCE(ai_cost, 0) + ? WHERE id = ?", (euros * 100, season_id)
             )
+
+    def payroll_projection(self) -> dict | None:
+        """Salaires et cotisations a payer jusqu'a la fin de la saison en
+        cours (voir projection.py) ; None s'il n'y a pas de saison en cours."""
+        today = self.today()
+        with self.db.connect() as connection:
+            row = connection.execute(
+                "SELECT name, end_date FROM seasons WHERE start_date <= ? AND end_date >= ?",
+                (today.isoformat(), today.isoformat()),
+            ).fetchone()
+        if row is None:
+            return None
+        projection = payroll_projection(self.ledger()["rows"], date.fromisoformat(row["end_date"]), today)
+        return {**projection, "season": row["name"]}
 
     def add_current_ai_cost(self, euros: float) -> bool:
         """Ajoute un cout d'IA a la saison en cours (celle qui contient la

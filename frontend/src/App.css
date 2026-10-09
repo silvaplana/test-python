@@ -4484,3 +4484,49 @@ span.webmail-attachment {
 .members-summary-balance .members-summary-cash {
   margin: 0.4rem 0 0.3rem;
 }
+
+/* Statistiques des adherents : encadre a "i" (detail du calcul a la demande). */
+.members-summary-info-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.75rem 0.9rem;
+  color: var(--text-h);
+}
+
+.members-summary-info-head b {
+  font-size: 1.2rem;
+  white-space: nowrap;
+}
+
+.members-summary-info-button {
+  flex-shrink: 0;
+  align-self: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--accent-border);
+  border-radius: 50%;
+  background: none;
+  color: var(--accent);
+  font: italic 700 0.85rem Georgia, serif;
+  cursor: pointer;
+}
+
+.members-summary-info-button:hover,
+.members-summary-info-button[aria-expanded='true'] {
+  background: var(--accent);
+  color: #1b1030;
+}
+
+.members-summary-explain {
+  display: block;
+  margin: 0.25rem 0 0;
+  color: var(--text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+p.members-summary-explain {
+  margin: 0.5rem 0 0.6rem;
+}

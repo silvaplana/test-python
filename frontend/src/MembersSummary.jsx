@@ -122,6 +122,107 @@ function Balances({ accounts }) {
   )
 }
 
+const monthFormat = new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric', timeZone: 'UTC' })
+const shortMonthFormat = new Intl.DateTimeFormat('fr-FR', { month: 'short', timeZone: 'UTC' })
+
+// "2026-11" -> "novembre 2026" ; court : "nov."
+function monthName(month, short = false) {
+  const t = Date.parse(`${month}-01T00:00:00Z`)
+  if (Number.isNaN(t)) return month
+  return (short ? shortMonthFormat : monthFormat).format(t)
+}
+
+// Encadre a total, avec un "i" qui deplie l'explication du calcul.
+function InfoBox({ title, total, accent = false, children }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className={`members-summary-box members-summary-info${accent ? ' members-summary-box-accent' : ''}`}>
+      <div className="members-summary-info-head">
+        <span className="members-summary-box-title">{title}</span>
+        <button
+          type="button"
+          className="members-summary-info-button"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+          title={open ? 'Masquer le détail du calcul' : 'Voir le détail du calcul'}
+          aria-label={open ? 'Masquer le détail du calcul' : 'Voir le détail du calcul'}
+        >
+          i
+        </button>
+        <b>{total}</b>
+      </div>
+      {open && <div className="members-summary-box-detail">{children}</div>}
+    </div>
+  )
+}
+
+// Salaires et cotisations a payer jusqu'a la fin de la saison : projection
+// calculee par le backend depuis les operations des comptes (voir
+// seasons/projection.py). Le "i" explique chaque ligne.
+function Payroll({ payroll }) {
+  return (
+    <InfoBox title={`Salaires et cotisations jusqu'au ${shortDay(payroll.seasonEnd)} (projection)`} total={`− ${euros(payroll.total)}`}>
+      <table className="members-summary-table members-summary-cash">
+        <tbody>
+          {payroll.lines.map((line) => (
+            <tr key={line.category}>
+              <td colSpan="2">
+                <strong>{line.category}</strong> : {euros(line.monthly)} × {line.months} mois
+                {line.months > 0 && ` (${monthName(line.firstMonth)} à ${monthName(line.lastMonth)})`}
+                <span className="members-summary-explain">
+                  {line.basis === 'regular'
+                    ? `Montant des ${line.basisMonths.length} derniers versements, identiques (${line.basisMonths.map((m) => monthName(m.month, true)).join(', ')}).`
+                    : `Versements irréguliers : moyenne des ${line.basisMonths.length} derniers mois complets (${line.basisMonths
+                        .map((m) => `${monthName(m.month, true)} ${euros(m.amount)}`)
+                        .join(', ')}).`}{' '}
+                  {line.paidThisMonth ? 'Le mois en cours est déjà payé.' : 'Le mois en cours n’est pas encore payé : il est compté.'}
+                </span>
+              </td>
+              <td className="members-summary-amount">{euros(line.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p className="members-summary-explain">
+        Calculé depuis les opérations du compte, sans IA. C'est une estimation : elle suppose que ces montants ne changent pas
+        d'ici la fin de la saison.
+      </p>
+    </InfoBox>
+  )
+}
+
+// Synthese : solde actuel + reste a encaisser - salaires et cotisations.
+function ProjectedBalance({ accounts, cash, payroll }) {
+  const projected = accounts.total + cash.toReceive - payroll.total
+  return (
+    <>
+      <h4 className="members-summary-title">Projection de fin de saison</h4>
+      <InfoBox title={`Solde projeté au ${shortDay(payroll.seasonEnd)}`} total={euros(projected)} accent>
+        <table className="members-summary-table members-summary-cash">
+          <tbody>
+            <tr>
+              <td colSpan="2">Solde actuel</td>
+              <td className="members-summary-amount">{euros(accounts.total)}</td>
+            </tr>
+            <tr>
+              <td colSpan="2">+ Reste à encaisser sur le compte courant</td>
+              <td className="members-summary-amount">{euros(cash.toReceive)}</td>
+            </tr>
+            <tr>
+              <td colSpan="2">− Salaires et cotisations (projection)</td>
+              <td className="members-summary-amount">{euros(payroll.total)}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p className="members-summary-explain">
+          Chiffre optimiste : il ne compte pas les autres dépenses (licences FFST, matériel, frais bancaires…), ni les
+          adhésions qui pourraient encore arriver.
+        </p>
+      </InfoBox>
+    </>
+  )
+}
+
 // Encadre "titre : total", dont le detail se deplie d'un clic.
 function CashBox({ title, total, accent = false, children }) {
   return (
@@ -186,6 +287,8 @@ export function MembersSummary() {
   // lue et affichee seulement avec le mot de passe "comptes".
   const { canViewAccounts } = useAuth()
   const [accounts, setAccounts] = useState(null)
+  // Salaires et cotisations a payer jusqu'a la fin de la saison (meme niveau d'acces).
+  const [payroll, setPayroll] = useState(null)
 
   useEffect(() => {
     const show = () => setOpen(true)
@@ -200,7 +303,14 @@ export function MembersSummary() {
     setSummary(null)
     setError(null)
     setAccounts(null)
+    setPayroll(null)
     if (canViewAccounts) {
+      fetch(`${API_URL}/seasons/payroll-projection`, { credentials: 'include' })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((body) => {
+          if (!cancelled && body?.projection) setPayroll(body.projection)
+        })
+        .catch(() => {})
       fetch(`${API_URL}/bankstatements/ledger`, { credentials: 'include' })
         .then((response) => (response.ok ? response.json() : null))
         .then((ledger) => {
@@ -270,7 +380,9 @@ export function MembersSummary() {
           </p>
 
           {accounts?.list.length > 0 && <Balances accounts={accounts} />}
+          {payroll && <Payroll payroll={payroll} />}
           <CashSummary cash={summary.cash} />
+          {accounts?.list.length > 0 && payroll && <ProjectedBalance accounts={accounts} cash={summary.cash} payroll={payroll} />}
           {summary.unpaidTotal > 0 && (
             <p className="members-summary-note">
               En plus : <span className="unpaid-amount">{euros(summary.unpaidTotal)}</span> d'échéances refusées (voir
