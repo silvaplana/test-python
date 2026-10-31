@@ -157,8 +157,11 @@ function useHelloAssoFetch(path) {
 // matchait jamais (juste .toUpperCase() avant, qui ne retire pas les
 // accents), Statut FFST affiche "Inconnu" a tort malgre une licence
 // bien creee. Reutilise par l'onglet Essai (filtre "Masquer les adherents").
+// Apostrophes remplacees par un espace, comme le backend le fait avant
+// d'envoyer le nom au portail FFST (qui plante sur une apostrophe, voir
+// normaliser_nom dans ffst.py) : "M'Hadjou" HelloAsso == "M HADJOU" FFST.
 export function memberIdentifier(lastName, firstName) {
-  return normaliserTexte(`${lastName} ${firstName}`.replace(/\s+/g, ' ').trim())
+  return normaliserTexte(`${lastName} ${firstName}`.replace(/['\u2019\u2018\u02bc`\u00b4]/g, ' ').replace(/\s+/g, ' ').trim())
 }
 
 // Ensemble des identifiants (voir memberIdentifier) presents dans une liste
