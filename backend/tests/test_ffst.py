@@ -3,7 +3,7 @@ Lancer depuis backend/ : PYTHONPATH=src venv/bin/python -m pytest tests"""
 
 import pytest
 
-from ffst.ffst import normaliser_ville
+from ffst.ffst import normaliser_nom, normaliser_ville
 
 
 @pytest.mark.parametrize(
@@ -20,3 +20,18 @@ from ffst.ffst import normaliser_ville
 )
 def test_normaliser_ville(ville, attendu):
     assert normaliser_ville(ville) == attendu
+
+
+@pytest.mark.parametrize(
+    "nom, attendu",
+    [
+        ("M'Hadjou", "M Hadjou"),
+        ("M\u2019Hadjou", "M Hadjou"),
+        ("N' Diaye ", "N Diaye"),
+        ("Barrachina ", "Barrachina"),
+        ("Jean-Pierre", "Jean-Pierre"),
+        ("", ""),
+    ],
+)
+def test_normaliser_nom(nom, attendu):
+    assert normaliser_nom(nom) == attendu

@@ -122,6 +122,25 @@ def normaliser_ville(ville: str) -> str:
     return premiere + ville[1:]
 
 
+# Apostrophes droites, typographiques et assimilees (HelloAsso laisse
+# l'adherent saisir ce qu'il veut).
+_APOSTROPHES = "'\u2019\u2018\u02bc`\u00b4"
+
+
+def normaliser_nom(nom: str) -> str:
+    """Nom/prenom HelloAsso -> nom/prenom accepte par le portail FFST.
+
+    Une apostrophe dans le nom fait planter le portail FFST cote serveur
+    (requete SQL WEBDEV construite par concatenation) : popup "Initialisation
+    de la requete impossible" et demande non enregistree (vecu le 2026-10-31
+    avec "M'Hadjou"). Chaque apostrophe est donc remplacee par un espace
+    ("M'Hadjou" -> "M Hadjou") ; les espaces superflus sont normalises."""
+    nom = nom or ""
+    for apostrophe in _APOSTROPHES:
+        nom = nom.replace(apostrophe, " ")
+    return " ".join(nom.split())
+
+
 class Ffst:
     """Client pour le portail de gestion des licences FFST.
 
@@ -317,6 +336,7 @@ class Ffst:
         et la suppression elle-meme passe par une modale de confirmation
         (lien "Oui", pas une boite de dialogue JS) rendue dans la page.
         """
+        last_name, first_name = normaliser_nom(last_name), normaliser_nom(first_name)
         with self._lock, sync_playwright() as playwright:
             browser = playwright.chromium.launch()
             try:
@@ -496,6 +516,9 @@ class Ffst:
         if fonction not in FFST_FONCTIONS:
             raise RuntimeError(f"Fonction FFST inconnue : {fonction!r} (voir FFST_FONCTIONS)")
         city = normaliser_ville(city)
+        # Apostrophes retirees du nom (voir normaliser_nom) : sans ca le portail
+        # FFST rejette la demande ("Initialisation de la requete impossible").
+        last_name, first_name = normaliser_nom(last_name), normaliser_nom(first_name)
 
         with self._lock, sync_playwright() as playwright:
             browser = playwright.chromium.launch()
