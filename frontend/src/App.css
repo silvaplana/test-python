@@ -449,6 +449,20 @@ td button + .ffst-role-picker,
   margin-right: 0.5rem;
 }
 
+/* Messages sous les boutons d'action FFST (erreur, avertissement, attente) :
+   les td sont en nowrap par defaut, ce qui mettait ces phrases longues sur
+   une seule ligne -- sur smartphone, seul le debut ("Informations
+   manquantes p...") etait visible sans faire defiler le tableau. On les
+   laisse passer a la ligne, dans une largeur bornee. */
+td .error,
+td .warning,
+td .pending-hint {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 11rem;
+  max-width: 14rem;
+}
+
 /* Historique des adherents : une "puce" par saison plutot qu'une liste
    texte brute separee par des virgules, pour rester lisible meme avec 5
    saisons dans la meme cellule. white-space:normal (contrairement au
