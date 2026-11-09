@@ -467,11 +467,15 @@ class Ffst:
         Chemin 2 (nouvelle demande), utilise seulement si le chemin 1 ne
         trouve personne : formulaire vierge, memes informations.
 
-        Dans les deux cas, gender ("Homme"/"Femme"/"H"/"F", peu importe la
-        casse ou la forme), birth_date (JJ/MM/AAAA), address_line1,
-        postal_code et city sont desormais obligatoires (RuntimeError
-        listant ce qui manque sinon) ; phone et email restent optionnels
-        (le formulaire FFST ne les exige pas). fonction doit etre l'une des
+        gender ("Homme"/"Femme"/"H"/"F", peu importe la casse ou la
+        forme), birth_date (JJ/MM/AAAA), address_line1, postal_code et city
+        sont obligatoires pour une nouvelle demande (RuntimeError listant
+        ce qui manque sinon). Pour un renouvellement, un champ HelloAsso
+        vide n'est plus bloquant : la valeur pre-remplie de l'ancienne
+        licence est alors conservee (adresse/code postal/ville gardes
+        ensemble si l'un des trois manque, pour ne pas melanger deux
+        adresses). phone et email restent optionnels (le formulaire FFST
+        ne les exige pas). fonction doit etre l'une des
         valeurs de FFST_FONCTIONS (RuntimeError sinon), par defaut
         "005-PRATIQUANT" (le cas le plus courant : la plupart des
         adherents d'un club ne sont que pratiquants). "Droit a l'image"
@@ -508,11 +512,6 @@ class Ffst:
             }.items()
             if not valeur
         ]
-        if manquants:
-            raise RuntimeError(
-                f"Informations manquantes pour soumettre une demande pour {last_name} {first_name} : "
-                f"{', '.join(manquants)}"
-            )
         if fonction not in FFST_FONCTIONS:
             raise RuntimeError(f"Fonction FFST inconnue : {fonction!r} (voir FFST_FONCTIONS)")
         city = normaliser_ville(city)
@@ -555,6 +554,14 @@ class Ffst:
                 try:
                     self._renouveler_via_navigateur(page, last_name, first_name, **infos)
                 except FfstLicencieIntrouvableError:
+                    # Nouvelle demande : formulaire vierge, rien a conserver
+                    # -- toutes les informations HelloAsso sont exigees.
+                    if manquants:
+                        raise RuntimeError(
+                            f"Informations manquantes pour soumettre une demande pour {last_name} {first_name} "
+                            f"(jamais licencie au club, donc rien a reprendre d'une ancienne licence) : "
+                            f"{', '.join(manquants)}. A completer dans sa fiche HelloAsso."
+                        ) from None
                     self._saisir_nouvelle_demande_via_navigateur(page, last_name, first_name, **infos)
                 warnings = list(page.ffst_warnings)
             finally:
@@ -582,11 +589,11 @@ class Ffst:
         first_name: str,
         *,
         fonction: str,
-        gender: str,
-        birth_date: str,
-        address_line1: str,
-        postal_code: str,
-        city: str,
+        gender: str | None,
+        birth_date: str | None,
+        address_line1: str | None,
+        postal_code: str | None,
+        city: str | None,
         phone: str | None,
         email: str | None,
     ) -> None:
@@ -661,11 +668,11 @@ class Ffst:
         first_name: str,
         *,
         fonction: str,
-        gender: str,
-        birth_date: str,
-        address_line1: str,
-        postal_code: str,
-        city: str,
+        gender: str | None,
+        birth_date: str | None,
+        address_line1: str | None,
+        postal_code: str | None,
+        city: str | None,
         phone: str | None,
         email: str | None,
     ) -> None:
@@ -740,11 +747,11 @@ class Ffst:
         first_name: str,
         *,
         fonction: str,
-        gender: str,
-        birth_date: str,
-        address_line1: str,
-        postal_code: str,
-        city: str,
+        gender: str | None,
+        birth_date: str | None,
+        address_line1: str | None,
+        postal_code: str | None,
+        city: str | None,
         phone: str | None,
         email: str | None,
     ) -> None:
@@ -773,7 +780,7 @@ class Ffst:
         RuntimeError.
         """
         gender_normalized = (gender or "").strip()[:1].upper()
-        if gender_normalized not in ("H", "F"):
+        if gender and gender_normalized not in ("H", "F"):
             raise RuntimeError(
                 f"Sexe HelloAsso non reconnu pour {last_name} {first_name} : {gender!r} "
                 "(attendu 'Homme'/'H' ou 'Femme'/'F')"
@@ -804,9 +811,14 @@ class Ffst:
         # mobile, A31 email.
         remplir('[name="A10"]', last_name)
         remplir('[name="A12"]', first_name)
-        page.check(f'[name="A15"][value="{"1" if gender_normalized == "H" else "2"}"]')
-        stabiliser()
-        remplir('[name="A18"]', birth_date)
+        # Champs vides (renouvellement seulement, voir
+        # create_demande_renouvellement) : valeur pre-remplie de l'ancienne
+        # licence conservee.
+        if gender_normalized:
+            page.check(f'[name="A15"][value="{"1" if gender_normalized == "H" else "2"}"]')
+            stabiliser()
+        if birth_date:
+            remplir('[name="A18"]', birth_date)
         page.select_option('[name="A39"]', label=fonction)
         stabiliser()
 
@@ -831,7 +843,7 @@ class Ffst:
                 )
                 return [o for o in options if o["text"] != "Sélectionnez"]
 
-            candidats = rechercher_commune(city)
+            candidats = rechercher_commune(city) if city else []
             if len(candidats) != 1:
                 candidats_repli = rechercher_commune(COMMUNE_NAISSANCE_PAR_DEFAUT)
                 if len(candidats_repli) != 1:
@@ -851,9 +863,12 @@ class Ffst:
             page.select_option('[name="A54"]', value=candidats[0]["value"])
             stabiliser()
 
-        remplir('[name="A27"]', postal_code)  # avant l'adresse : declenche une suggestion de ville
-        remplir('[name="A24"]', address_line1)
-        remplir('[name="A28"]', city)
+        # Adresse remplacee seulement si complete : sinon l'ancienne
+        # (renouvellement) est gardee telle quelle plutot que melangee.
+        if address_line1 and postal_code and city:
+            remplir('[name="A27"]', postal_code)  # avant l'adresse : declenche une suggestion de ville
+            remplir('[name="A24"]', address_line1)
+            remplir('[name="A28"]', city)
         if phone:
             # HelloAsso ne fournit qu'un seul numero, sans distinguer
             # fixe/mobile : rempli dans les deux champs (decision produit)

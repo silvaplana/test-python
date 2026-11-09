@@ -480,6 +480,11 @@ export function MembersTable({ active }) {
   // valides seulement au clic sur "Valider" (jamais soumis directement).
   const [roleFormIdentifier, setRoleFormIdentifier] = useState(null)
   const [selectedFonction, setSelectedFonction] = useState('')
+  // Genre choisi dans l'appli quand la question HelloAsso « Genre(H/F) »
+  // est restee vide (oubli de l'adherent, vecu) : evite de devoir
+  // corriger la fiche HelloAsso avant de pouvoir faire la demande FFST.
+  // Par identifiant d'adherent, 'H' ou 'F'.
+  const [genderOverrides, setGenderOverrides] = useState({})
 
   // Rafraichit les 4 sources (adherents + les 3 listes FFST utilisees pour
   // la colonne Statut FFST) : sinon un changement fait a la main sur le
@@ -531,7 +536,7 @@ export function MembersTable({ active }) {
       lastName: member.lastName,
       firstName: member.firstName,
       fonction,
-      gender: fields['Genre(H/F)'],
+      gender: genreHelloAsso(fields) || genderOverrides[identifier],
       birthDate: fields['date de naissance'],
       addressLine1: fields['Adresse'],
       postalCode: fields['code postal'],
@@ -559,6 +564,11 @@ export function MembersTable({ active }) {
   function annulerChoixRole() {
     setRoleFormIdentifier(null)
     setSelectedFonction('')
+  }
+
+  function genreHelloAsso(fields) {
+    const genre = (fields['Genre(H/F)'] || '').trim()
+    return /^[HF]/i.test(genre) ? genre : null
   }
 
   function validerChoixRole(member, identifier) {
@@ -740,6 +750,22 @@ export function MembersTable({ active }) {
                             <>
                               {ffstStatus === 'Inconnu' && (
                                 <>
+                                  {!genreHelloAsso(m.customFields || {}) && (
+                                    <label className="ffst-gender-picker">
+                                      Genre absent de HelloAsso :{' '}
+                                      <select
+                                        value={genderOverrides[identifier] || ''}
+                                        onChange={(e) =>
+                                          setGenderOverrides((prev) => ({ ...prev, [identifier]: e.target.value }))
+                                        }
+                                        disabled={pending}
+                                      >
+                                        <option value="">Choisir</option>
+                                        <option value="H">Homme</option>
+                                        <option value="F">Femme</option>
+                                      </select>
+                                    </label>
+                                  )}
                                   <button
                                     onClick={() => creerDemande(m, identifier, '005-PRATIQUANT')}
                                     disabled={pending}
