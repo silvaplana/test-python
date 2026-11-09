@@ -239,11 +239,14 @@ sudo ufw enable
 
 ### f) Mettre à jour après un nouveau push GitHub
 
+Automatique une fois la section 6 en place. À la main :
+
 ```bash
-cd test-python
-git pull
-docker compose up -d --build
+cd ~/test-python && ./deploy.sh
 ```
+
+(`deploy.sh` fait `git pull` puis `docker compose up -d --build`, attend
+que le backend réponde et fait le ménage des anciennes images.)
 
 ## 5. Le gateway et HTTPS (déjà en place)
 
@@ -261,3 +264,85 @@ Pour ajouter une nouvelle appli sur le même domaine : lui donner un
 `container_name` fixe, la rattacher au réseau `web`, aucun port publié,
 puis ajouter un bloc `handle_path` dans `~/gateway/Caddyfile` sur le VPS
 et relancer `docker compose up -d` dans `~/gateway`.
+
+
+## 6. Mise en ligne automatique (GitHub Actions)
+
+Même mécanisme que pour AppBase (dépôt `contretemps`). À chaque fusion dans
+`master` (et à la demande, onglet **Actions** du dépôt > « Déployer sur le
+VPS » > **Run workflow**), GitHub se connecte au VPS en SSH, lance
+`deploy.sh`, puis vérifie que `/sambo-admin/` et `/sambo-admin/api/auth/status`
+répondent. Un déploiement raté apparaît en rouge dans l'onglet Actions, avec
+le journal complet, et GitHub envoie un mail.
+
+- Fichiers : `.github/workflows/deploy.yml` (côté GitHub) et `deploy.sh`
+  (côté VPS).
+- La clé de déploiement est rangée dans les secrets du dépôt, jamais dans le
+  dépôt. Sur le VPS, `authorized_keys` la limite à lancer `deploy.sh` : elle
+  ne donne pas de terminal et ne peut lancer aucune autre commande. C'est
+  une clé distincte de celle d'AppBase (chaque clé ne lance que le
+  `deploy.sh` de son projet).
+- `backend/.env` et `backend/secrets/` restent sur le VPS, `git pull` n'y
+  touche pas.
+- Tant que les secrets ne sont pas en place, le workflow ne fait rien (simple
+  avertissement, pas d'erreur).
+
+### Mise en place (une seule fois)
+
+Sur le VPS (`ssh vps`) :
+
+1. Récupérer `deploy.sh` et vérifier qu'il marche à la main :
+
+   ```bash
+   cd ~/test-python && git pull && ./deploy.sh
+   ```
+
+2. Créer la clé de déploiement (sans mot de passe, GitHub ne pourrait pas
+   le taper) :
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "github-actions-sambo-admin" -f ~/deploy_sambo_admin
+   ```
+
+3. L'autoriser, limitée à `deploy.sh` :
+
+   ```bash
+   echo "command=\"$HOME/test-python/deploy.sh\",restrict $(cat ~/deploy_sambo_admin.pub)" >> ~/.ssh/authorized_keys
+   ```
+
+4. Afficher les valeurs à coller dans GitHub (étape 5) :
+
+   ```bash
+   whoami                                                              # -> VPS_USER
+   cat ~/deploy_sambo_admin                                            # -> VPS_SSH_KEY (tout, lignes BEGIN et END comprises)
+   echo "187.124.17.136 $(cut -d' ' -f1,2 /etc/ssh/ssh_host_ed25519_key.pub)"   # -> VPS_KNOWN_HOSTS
+   ```
+
+   `VPS_HOST` vaut `187.124.17.136` (mêmes valeurs que pour AppBase, sauf
+   la clé). Si SSH n'écoute pas sur le port 22, ajouter aussi un secret
+   `VPS_PORT` et écrire `[187.124.17.136]:PORT` au début de
+   `VPS_KNOWN_HOSTS` au lieu de l'adresse seule.
+
+Dans GitHub, page
+<https://github.com/silvaplana/test-python/settings/secrets/actions>
+(Settings > Secrets and variables > Actions) :
+
+5. Pour chacune des quatre valeurs, **New repository secret**, nom
+   `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY` ou `VPS_KNOWN_HOSTS`, coller la
+   valeur, **Add secret**.
+
+De retour sur le VPS :
+
+6. Effacer la clé privée, qui n'a plus besoin d'être sur le serveur :
+
+   ```bash
+   rm ~/deploy_sambo_admin ~/deploy_sambo_admin.pub
+   ```
+
+Puis dans GitHub :
+
+7. Onglet **Actions** > « Déployer sur le VPS » > **Run workflow** > **Run
+   workflow**. Le déploiement doit passer au vert.
+
+Pour couper l'accès : supprimer la ligne `github-actions-sambo-admin` de
+`~/.ssh/authorized_keys` sur le VPS.
