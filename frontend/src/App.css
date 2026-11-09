@@ -449,6 +449,18 @@ td button + .ffst-role-picker,
   margin-right: 0.5rem;
 }
 
+/* Choix du genre quand HelloAsso ne le donne pas (voir genderOverrides
+   dans HelloAsso.jsx) : sur sa propre ligne, au-dessus des boutons. */
+.ffst-gender-picker {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: #facc15;
+}
+
+.ffst-gender-picker select {
+  margin-left: 0.25rem;
+}
+
 /* Messages sous les boutons d'action FFST (erreur, avertissement, attente) :
    les td sont en nowrap par defaut, ce qui mettait ces phrases longues sur
    une seule ligne -- sur smartphone, seul le debut ("Informations
